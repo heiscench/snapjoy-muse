@@ -5,6 +5,8 @@ export const input = {
   mouseDY: 0,
   jump: false,
   run: false,
+  aim: false,
+  fire: false,
   keys: new Set<string>(),
 };
 
@@ -24,6 +26,15 @@ if (typeof window !== "undefined") {
       input.mouseDY += e.movementY;
     }
   });
+  window.addEventListener("mousedown", (e) => {
+    if (e.button === 2) input.aim = true;
+    if (e.button === 0 && document.pointerLockElement) input.fire = true;
+  });
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 2) input.aim = false;
+    if (e.button === 0) input.fire = false;
+  });
+  window.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
 export function readKeyboardMove() {

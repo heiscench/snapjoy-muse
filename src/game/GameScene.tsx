@@ -4,10 +4,13 @@ import { useCallback, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { Joystick } from "./Joystick";
+import { NPCs } from "./NPCs";
+import { Vehicles } from "./Vehicles";
 import { input } from "./input";
 
 export function GameScene() {
   const [running, setRunning] = useState(false);
+  const [aiming, setAiming] = useState(false);
 
   const onMove = useCallback((v: { x: number; y: number }) => {
     input.move.x = v.x;
@@ -27,15 +30,17 @@ export function GameScene() {
     <div className="fixed inset-0 bg-black" onClick={requestLock}>
       <Canvas
         dpr={[1, 1.25]}
-        camera={{ fov: 68, position: [0, 5, 10], near: 0.1, far: 300 }}
+        camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 300 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <color attach="background" args={["#05060a"]} />
         <fog attach="fog" args={["#05060a", 40, 180]} />
         <hemisphereLight args={["#5a6a95", "#08080f", 0.6]} />
         <directionalLight position={[40, 70, 20]} intensity={0.5} color="#a9b8ff" />
-        <Stars radius={200} depth={30} count={300} factor={3} fade speed={0.2} />
+        <Stars radius={200} depth={30} count={250} factor={3} fade speed={0.2} />
         <City />
+        <Vehicles />
+        <NPCs />
         <Player />
       </Canvas>
 
@@ -48,6 +53,13 @@ export function GameScene() {
           District: Downtown
         </div>
       </div>
+
+      {/* Crosshair when aiming */}
+      {aiming && (
+        <div className="pointer-events-none fixed left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
+          <div className="h-3 w-3 rounded-full border-2 border-white/80" />
+        </div>
+      )}
 
       {/* Controls */}
       <Joystick side="left" onChange={onMove} label="Move" />
@@ -74,9 +86,40 @@ export function GameScene() {
         </button>
       </div>
 
+      {/* Aim + Fire */}
+      <div className="fixed bottom-40 left-8 z-20 flex flex-col gap-3">
+        <button
+          onPointerDown={() => {
+            input.aim = true;
+            setAiming(true);
+          }}
+          onPointerUp={() => {
+            input.aim = false;
+            setAiming(false);
+          }}
+          onPointerCancel={() => {
+            input.aim = false;
+            setAiming(false);
+          }}
+          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
+            aiming ? "border-cyan-300 bg-cyan-500/40" : "border-white/20 bg-black/40"
+          }`}
+        >
+          Aim
+        </button>
+        <button
+          onPointerDown={() => (input.fire = true)}
+          onPointerUp={() => (input.fire = false)}
+          onPointerCancel={() => (input.fire = false)}
+          className="h-14 w-14 rounded-full border border-red-400/60 bg-red-600/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-red-500/60"
+        >
+          Fire
+        </button>
+      </div>
+
       {/* Orientation hint */}
       <div className="pointer-events-none fixed right-4 top-4 z-20 rounded bg-black/50 px-3 py-1 text-[10px] text-white/60 backdrop-blur">
-        Rotate to landscape
+        Right-click to aim · Left-click to fire
       </div>
     </div>
   );
