@@ -1,6 +1,8 @@
 export const input = {
   move: { x: 0, y: 0 },
   look: { x: 0, y: 0 },
+  mouseDX: 0,
+  mouseDY: 0,
   jump: false,
   run: false,
   keys: new Set<string>(),
@@ -15,6 +17,12 @@ if (typeof window !== "undefined") {
   window.addEventListener("keyup", (e) => {
     input.keys.delete(e.code);
     if (e.code === "ShiftLeft") input.run = false;
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (document.pointerLockElement) {
+      input.mouseDX += e.movementX;
+      input.mouseDY += e.movementY;
+    }
   });
 }
 
