@@ -26,27 +26,15 @@ export function GameScene() {
   return (
     <div className="fixed inset-0 bg-black" onClick={requestLock}>
       <Canvas
-        shadows="basic"
-        dpr={[1, 1.5]}
-        camera={{ fov: 65, position: [0, 5, 10], near: 0.1, far: 400 }}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        dpr={[1, 1.25]}
+        camera={{ fov: 68, position: [0, 5, 10], near: 0.1, far: 300 }}
+        gl={{ antialias: false, powerPreference: "high-performance" }}
       >
-        <color attach="background" args={["#06070b"]} />
-        <fog attach="fog" args={["#06070b", 50, 220]} />
-        <hemisphereLight args={["#4a5a80", "#08080f", 0.35]} />
-        <directionalLight
-          position={[40, 70, 20]}
-          intensity={0.55}
-          color="#a9b8ff"
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-left={-40}
-          shadow-camera-right={40}
-          shadow-camera-top={40}
-          shadow-camera-bottom={-40}
-        />
-        <Stars radius={220} depth={40} count={800} factor={4} fade speed={0.3} />
+        <color attach="background" args={["#05060a"]} />
+        <fog attach="fog" args={["#05060a", 40, 180]} />
+        <hemisphereLight args={["#5a6a95", "#08080f", 0.6]} />
+        <directionalLight position={[40, 70, 20]} intensity={0.5} color="#a9b8ff" />
+        <Stars radius={200} depth={30} count={300} factor={3} fade speed={0.2} />
         <City />
         <Player />
       </Canvas>

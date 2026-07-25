@@ -7,7 +7,7 @@ type Building = {
   w: number;
   d: number;
   h: number;
-  warm: boolean;
+  bucket: 0 | 1 | 2; // 0 warm, 1 cool, 2 neon-pink
 };
 
 function rng(seed: number) {
@@ -22,9 +22,9 @@ export function City() {
   const buildings = useMemo<Building[]>(() => {
     const r = rng(1337);
     const list: Building[] = [];
-    const blockSize = 36;
-    const roadWidth = 10;
-    const grid = 6;
+    const blockSize = 40;
+    const roadWidth = 12;
+    const grid = 4; // 9x9 blocks = 81 blocks * 4 = 324 buildings
     for (let gx = -grid; gx <= grid; gx++) {
       for (let gz = -grid; gz <= grid; gz++) {
         const bx = gx * blockSize;
@@ -32,14 +32,16 @@ export function City() {
         const per = 2;
         for (let i = 0; i < per; i++) {
           for (let j = 0; j < per; j++) {
-            const w = 9 + r() * 5;
-            const d = 9 + r() * 5;
-            const h = 8 + r() * 34;
+            const w = 10 + r() * 6;
+            const d = 10 + r() * 6;
+            const h = 10 + r() * 40;
             const cellW = (blockSize - roadWidth) / per;
             const cellD = (blockSize - roadWidth) / per;
             const x = bx - (blockSize - roadWidth) / 2 + cellW * (i + 0.5);
             const z = bz - (blockSize - roadWidth) / 2 + cellD * (j + 0.5);
-            list.push({ x, z, w, d, h, warm: r() > 0.5 });
+            const roll = r();
+            const bucket: 0 | 1 | 2 = roll < 0.45 ? 0 : roll < 0.85 ? 1 : 2;
+            list.push({ x, z, w, d, h, bucket });
           }
         }
       }
@@ -47,108 +49,93 @@ export function City() {
     return list;
   }, []);
 
-  const warmRef = useRef<THREE.InstancedMesh>(null!);
-  const coolRef = useRef<THREE.InstancedMesh>(null!);
-  const warmCount = buildings.filter((b) => b.warm).length;
-  const coolCount = buildings.length - warmCount;
+  const refs = [
+    useRef<THREE.InstancedMesh>(null!),
+    useRef<THREE.InstancedMesh>(null!),
+    useRef<THREE.InstancedMesh>(null!),
+  ];
+  const counts = [0, 1, 2].map((b) => buildings.filter((x) => x.bucket === b).length);
 
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
-    let wi = 0;
-    let ci = 0;
+    const idx = [0, 0, 0];
     for (const b of buildings) {
       m.compose(
         new THREE.Vector3(b.x, b.h / 2, b.z),
         new THREE.Quaternion(),
         new THREE.Vector3(b.w, b.h, b.d),
       );
-      if (b.warm) {
-        warmRef.current.setMatrixAt(wi++, m);
-      } else {
-        coolRef.current.setMatrixAt(ci++, m);
-      }
+      refs[b.bucket].current.setMatrixAt(idx[b.bucket]++, m);
     }
-    warmRef.current.instanceMatrix.needsUpdate = true;
-    coolRef.current.instanceMatrix.needsUpdate = true;
+    refs.forEach((r) => (r.current.instanceMatrix.needsUpdate = true));
   }, [buildings]);
 
   const boxGeom = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const roadCount = 9;
 
   return (
     <group>
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[800, 800]} />
-        <meshStandardMaterial color="#12141a" roughness={1} />
+        <planeGeometry args={[900, 900]} />
+        <meshStandardMaterial color="#0a0b10" roughness={1} />
       </mesh>
 
-      {/* Roads */}
-      {Array.from({ length: 13 }).map((_, i) => {
-        const p = (i - 6) * 36;
+      {/* Roads — two big cross planes textured by tiled quads */}
+      {Array.from({ length: roadCount }).map((_, i) => {
+        const p = (i - (roadCount - 1) / 2) * 40;
         return (
           <group key={i}>
-            <mesh position={[p, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-              <planeGeometry args={[6, 468]} />
-              <meshStandardMaterial color="#080a0f" />
+            <mesh position={[p, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+              <planeGeometry args={[8, 360]} />
+              <meshStandardMaterial color="#04050a" roughness={0.7} />
             </mesh>
-            <mesh position={[0, 0.01, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} receiveShadow>
-              <planeGeometry args={[6, 468]} />
-              <meshStandardMaterial color="#080a0f" />
+            <mesh position={[0, 0.02, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} receiveShadow>
+              <planeGeometry args={[8, 360]} />
+              <meshStandardMaterial color="#04050a" roughness={0.7} />
             </mesh>
-          </group>
-        );
-      })}
-
-      {/* Instanced buildings — warm windows */}
-      <instancedMesh
-        ref={warmRef}
-        args={[boxGeom, undefined, warmCount]}
-        castShadow
-        receiveShadow
-      >
-        <meshStandardMaterial
-          color="#2a2d36"
-          emissive="#ffb066"
-          emissiveIntensity={0.55}
-          roughness={0.85}
-        />
-      </instancedMesh>
-
-      {/* Instanced buildings — cool windows */}
-      <instancedMesh
-        ref={coolRef}
-        args={[boxGeom, undefined, coolCount]}
-        castShadow
-        receiveShadow
-      >
-        <meshStandardMaterial
-          color="#1f2530"
-          emissive="#78b6ff"
-          emissiveIntensity={0.5}
-          roughness={0.85}
-        />
-      </instancedMesh>
-
-      {/* A handful of street lamps near origin only (perf) */}
-      {Array.from({ length: 12 }).map((_, i) => {
-        const gx = (i % 4) - 1.5;
-        const gz = Math.floor(i / 4) - 1;
-        const x = gx * 36 + 18;
-        const z = gz * 36 + 18;
-        return (
-          <group key={`l${i}`} position={[x, 0, z]}>
-            <mesh position={[0, 3, 0]}>
-              <cylinderGeometry args={[0.08, 0.08, 6]} />
-              <meshStandardMaterial color="#111" />
+            {/* Center lane markings */}
+            <mesh position={[p, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[0.2, 360]} />
+              <meshBasicMaterial color="#e8c96a" />
             </mesh>
-            <pointLight position={[0, 6, 0]} intensity={6} distance={16} color="#ffcf88" />
-            <mesh position={[0, 6, 0]}>
-              <sphereGeometry args={[0.3, 10, 10]} />
-              <meshBasicMaterial color="#ffcf88" />
+            <mesh position={[0, 0.03, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
+              <planeGeometry args={[0.2, 360]} />
+              <meshBasicMaterial color="#e8c96a" />
             </mesh>
           </group>
         );
       })}
+
+      {/* Warm-window buildings */}
+      <instancedMesh ref={refs[0]} args={[boxGeom, undefined, counts[0]]}>
+        <meshStandardMaterial
+          color="#22252d"
+          emissive="#ffa658"
+          emissiveIntensity={0.7}
+          roughness={0.9}
+        />
+      </instancedMesh>
+
+      {/* Cool-window buildings */}
+      <instancedMesh ref={refs[1]} args={[boxGeom, undefined, counts[1]]}>
+        <meshStandardMaterial
+          color="#1a1f2b"
+          emissive="#6ab0ff"
+          emissiveIntensity={0.6}
+          roughness={0.9}
+        />
+      </instancedMesh>
+
+      {/* Neon-pink accent buildings */}
+      <instancedMesh ref={refs[2]} args={[boxGeom, undefined, counts[2]]}>
+        <meshStandardMaterial
+          color="#1c1420"
+          emissive="#ff3aa8"
+          emissiveIntensity={0.9}
+          roughness={0.8}
+        />
+      </instancedMesh>
     </group>
   );
 }
