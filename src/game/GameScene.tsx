@@ -18,29 +18,35 @@ export function GameScene() {
     input.look.y = v.y;
   }, []);
 
+  const requestLock = () => {
+    const el = document.querySelector("canvas");
+    if (el && !document.pointerLockElement) (el as HTMLCanvasElement).requestPointerLock?.();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black">
+    <div className="fixed inset-0 bg-black" onClick={requestLock}>
       <Canvas
-        shadows
-        camera={{ fov: 65, position: [0, 5, 10] }}
+        shadows="basic"
+        dpr={[1, 1.5]}
+        camera={{ fov: 65, position: [0, 5, 10], near: 0.1, far: 400 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
       >
-        <color attach="background" args={["#08090d"]} />
-        <fog attach="fog" args={["#08090d", 40, 180]} />
-        <hemisphereLight args={["#5a6a90", "#0a0a12", 0.4]} />
+        <color attach="background" args={["#06070b"]} />
+        <fog attach="fog" args={["#06070b", 50, 220]} />
+        <hemisphereLight args={["#4a5a80", "#08080f", 0.35]} />
         <directionalLight
-          position={[30, 60, 20]}
-          intensity={0.6}
+          position={[40, 70, 20]}
+          intensity={0.55}
           color="#a9b8ff"
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
-          shadow-camera-left={-60}
-          shadow-camera-right={60}
-          shadow-camera-top={60}
-          shadow-camera-bottom={-60}
+          shadow-camera-left={-40}
+          shadow-camera-right={40}
+          shadow-camera-top={40}
+          shadow-camera-bottom={-40}
         />
-        <Stars radius={200} depth={40} count={1200} factor={4} fade speed={0.4} />
+        <Stars radius={220} depth={40} count={800} factor={4} fade speed={0.3} />
         <City />
         <Player />
       </Canvas>
