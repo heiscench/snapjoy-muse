@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GameScene } from "@/game/GameScene";
+import { ClientOnly } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
+
+const GameScene = lazy(() =>
+  import("@/game/GameScene").then((m) => ({ default: m.GameScene })),
+);
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,5 +28,11 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  return <GameScene />;
+  return (
+    <ClientOnly fallback={<div className="fixed inset-0 bg-black" />}>
+      <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+        <GameScene />
+      </Suspense>
+    </ClientOnly>
+  );
 }
