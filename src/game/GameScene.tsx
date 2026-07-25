@@ -1,5 +1,5 @@
 import { Canvas } from "@react-three/fiber";
-import { Sky, Stars } from "@react-three/drei";
+import { Stars } from "@react-three/drei";
 import { useCallback, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
