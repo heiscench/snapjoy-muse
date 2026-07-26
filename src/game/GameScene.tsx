@@ -1,71 +1,146 @@
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
-import { Joystick } from "./Joystick";
 import { NPCs } from "./NPCs";
 import { Vehicles } from "./Vehicles";
+import { Helicopters } from "./Helicopter";
+import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
+import { playerState } from "./playerState";
+import { Minimap } from "./Minimap";
 
-// Full-screen drag layer for free camera look. Sits under the joystick/buttons
-// (which have a higher z-index and their own pointer handlers), so it only
-// receives touches on empty screen space. preventDefault on every handler
-// stops the browser's own multi-touch gesture recognizer from interfering
-// with (and cancelling) the other active touch on the move joystick.
-const TOUCH_LOOK_SENSITIVITY = 0.12; // tune to taste — lower = slower look
-const MAX_DRAG_STEP = 40; // px per event, clamps stray huge deltas (lag spikes etc.)
+const TOUCH_LOOK_SENSITIVITY = 0.12;
+const MAX_DRAG_STEP = 40;
+const JOYSTICK_RADIUS = 55;
 
-function LookPad() {
-  const active = useRef<number | null>(null);
-  const last = useRef<{ x: number; y: number } | null>(null);
+type Zone = "move" | "look" | "aim" | "jump" | "run" | "fire" | null;
 
-  const onDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    active.current = e.pointerId;
-    last.current = { x: e.clientX, y: e.clientY };
-    (e.target as Element).setPointerCapture(e.pointerId);
-  };
-  const onMove = (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (active.current !== e.pointerId || !last.current) return;
-    let dx = e.clientX - last.current.x;
-    let dy = e.clientY - last.current.y;
-    last.current = { x: e.clientX, y: e.clientY };
-    dx = Math.max(-MAX_DRAG_STEP, Math.min(MAX_DRAG_STEP, dx));
-    dy = Math.max(-MAX_DRAG_STEP, Math.min(MAX_DRAG_STEP, dy));
-    input.mouseDX += dx * TOUCH_LOOK_SENSITIVITY;
-    input.mouseDY += dy * TOUCH_LOOK_SENSITIVITY;
-  };
-  const onUp = (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (active.current !== e.pointerId) return;
-    active.current = null;
-    last.current = null;
-  };
+function hitTest(el: HTMLElement | null, x: number, y: number) {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
 
+function HealthBar() {
+  const [health, setHealth] = useState(playerState.health);
+  useEffect(() => {
+    let raf: number;
+    const tick = () => {
+      setHealth(playerState.health);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const pct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
+  const color = pct > 50 ? "#5cff8a" : pct > 20 ? "#ffd66a" : "#ff5a5a";
   return (
-    <div
-      className="fixed inset-0 z-10 touch-none"
-      style={{ touchAction: "none" }}
-      onPointerDown={onDown}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-      onPointerCancel={onUp}
-    />
+    <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+    </div>
   );
 }
 
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [aiming, setAiming] = useState(false);
+  const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
 
-  const onMove = useCallback((v: { x: number; y: number }) => {
-    input.move.x = v.x;
-    input.move.y = v.y;
+  const moveRef = useRef<HTMLDivElement>(null);
+  const aimRef = useRef<HTMLButtonElement>(null);
+  const jumpRef = useRef<HTMLButtonElement>(null);
+  const runRef = useRef<HTMLButtonElement>(null);
+  const fireRef = useRef<HTMLButtonElement>(null);
+
+  const touches = useRef(
+    new Map<number, { zone: Zone; startX: number; startY: number; lastX: number; lastY: number }>(),
+  );
+
+  const zoneOf = useCallback((x: number, y: number): Zone => {
+    if (hitTest(moveRef.current, x, y)) return "move";
+    if (hitTest(aimRef.current, x, y)) return "aim";
+    if (hitTest(jumpRef.current, x, y)) return "jump";
+    if (hitTest(runRef.current, x, y)) return "run";
+    if (hitTest(fireRef.current, x, y)) return "fire";
+    return "look";
+  }, []);
+
+  const onDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const zone = zoneOf(e.clientX, e.clientY);
+      touches.current.set(e.pointerId, {
+        zone,
+        startX: e.clientX,
+        startY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
+      });
+      if (zone === "aim") {
+        input.aim = true;
+        setAiming(true);
+      } else if (zone === "jump") {
+        input.jump = true;
+      } else if (zone === "run") {
+        input.run = !input.run;
+        setRunning(input.run);
+      } else if (zone === "fire") {
+        input.fire = true;
+      } else if (zone === "move") {
+        setMoveKnob({ x: 0, y: 0 });
+      }
+    },
+    [zoneOf],
+  );
+
+  const onMove = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const t = touches.current.get(e.pointerId);
+    if (!t) return;
+    if (t.zone === "look") {
+      let dx = e.clientX - t.lastX;
+      let dy = e.clientY - t.lastY;
+      t.lastX = e.clientX;
+      t.lastY = e.clientY;
+      dx = Math.max(-MAX_DRAG_STEP, Math.min(MAX_DRAG_STEP, dx));
+      dy = Math.max(-MAX_DRAG_STEP, Math.min(MAX_DRAG_STEP, dy));
+      input.mouseDX += dx * TOUCH_LOOK_SENSITIVITY;
+      input.mouseDY += dy * TOUCH_LOOK_SENSITIVITY;
+    } else if (t.zone === "move") {
+      const dx = e.clientX - t.startX;
+      const dy = e.clientY - t.startY;
+      const mag = Math.min(1, Math.hypot(dx, dy) / JOYSTICK_RADIUS);
+      const ang = Math.atan2(dy, dx);
+      const kx = Math.cos(ang) * mag;
+      const ky = Math.sin(ang) * mag;
+      setMoveKnob({ x: kx * JOYSTICK_RADIUS, y: ky * JOYSTICK_RADIUS });
+      input.move.x = kx;
+      input.move.y = ky;
+    }
+  }, []);
+
+  const onUp = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const t = touches.current.get(e.pointerId);
+    if (!t) return;
+    touches.current.delete(e.pointerId);
+    if (t.zone === "aim") {
+      input.aim = false;
+      setAiming(false);
+    } else if (t.zone === "fire") {
+      input.fire = false;
+    } else if (t.zone === "move") {
+      input.move.x = 0;
+      input.move.y = 0;
+      setMoveKnob({ x: 0, y: 0 });
+    }
   }, []);
 
   const requestLock = () => {
@@ -74,7 +149,15 @@ export function GameScene() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black" onClick={requestLock}>
+    <div
+      className="fixed inset-0 bg-black"
+      style={{ touchAction: "none" }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      onClick={requestLock}
+    >
       <Canvas
         dpr={[1, 1.25]}
         camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 400 }}
@@ -85,24 +168,29 @@ export function GameScene() {
         <Stars radius={220} depth={30} count={220} factor={3} fade speed={0.2} />
         <City />
         <Vehicles />
+        <Helicopters />
         <NPCs />
         <Player />
+        <Tracers />
       </Canvas>
 
-      <LookPad />
-
       {/* Top HUD */}
-      <div className="pointer-events-none fixed left-4 top-4 z-20 flex gap-2">
-        <div
-          className="rounded px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur border"
-          style={{ backgroundColor: `${gang.color}cc`, borderColor: gang.accent }}
-        >
-          {gang.name}
+      <div className="pointer-events-none fixed left-4 top-4 z-20 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <div
+            className="rounded border px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur"
+            style={{ backgroundColor: `${gang.color}cc`, borderColor: gang.accent }}
+          >
+            {gang.name}
+          </div>
+          <div className="rounded bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur">
+            District: Downtown
+          </div>
         </div>
-        <div className="rounded bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur">
-          District: Downtown
-        </div>
+        <HealthBar />
       </div>
+
+      <Minimap />
 
       {aiming && (
         <div className="pointer-events-none fixed left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
@@ -110,13 +198,21 @@ export function GameScene() {
         </div>
       )}
 
-      <Joystick side="left" onChange={onMove} label="Move" />
+      {/* Move joystick (visual only — touch routing handled by the single dispatcher above) */}
+      <div ref={moveRef} className="fixed bottom-6 left-6 z-20 h-32 w-32 select-none">
+        <div className="absolute inset-0 rounded-full border border-white/25 bg-white/5" />
+        <div
+          className="absolute h-14 w-14 rounded-full bg-white/70"
+          style={{ left: `calc(50% + ${moveKnob.x}px - 28px)`, top: `calc(50% + ${moveKnob.y}px - 28px)` }}
+        />
+        <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-widest text-white/50">
+          Move
+        </span>
+      </div>
 
       <div className="fixed bottom-40 left-8 z-20 flex flex-col gap-3">
         <button
-          onPointerDown={() => { input.aim = true; setAiming(true); }}
-          onPointerUp={() => { input.aim = false; setAiming(false); }}
-          onPointerCancel={() => { input.aim = false; setAiming(false); }}
+          ref={aimRef}
           className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
             aiming ? "border-cyan-300 bg-cyan-500/40" : "border-white/20 bg-black/40"
           }`}
@@ -127,16 +223,13 @@ export function GameScene() {
 
       <div className="fixed bottom-40 right-8 z-20 flex flex-col gap-3">
         <button
-          onPointerDown={() => (input.jump = true)}
+          ref={jumpRef}
           className="h-14 w-14 rounded-full border border-white/20 bg-black/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-white/20"
         >
           Jump
         </button>
         <button
-          onPointerDown={() => {
-            input.run = !input.run;
-            setRunning(input.run);
-          }}
+          ref={runRef}
           className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
             running ? "border-yellow-300 bg-yellow-500/40" : "border-white/20 bg-black/40"
           }`}
@@ -144,9 +237,7 @@ export function GameScene() {
           Run
         </button>
         <button
-          onPointerDown={() => (input.fire = true)}
-          onPointerUp={() => (input.fire = false)}
-          onPointerCancel={() => (input.fire = false)}
+          ref={fireRef}
           className="h-14 w-14 rounded-full border border-red-400/60 bg-red-600/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-red-500/60"
         >
           Fire
@@ -154,7 +245,7 @@ export function GameScene() {
       </div>
 
       <div className="pointer-events-none fixed right-4 top-4 z-20 rounded bg-black/50 px-3 py-1 text-[10px] text-white/60 backdrop-blur">
-        Drag anywhere to look · Right-click to aim (desktop)
+        Drag anywhere to look
       </div>
     </div>
   );
