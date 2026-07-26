@@ -1,6 +1,7 @@
+
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { Joystick } from "./Joystick";
@@ -10,6 +11,43 @@ import { DayNight } from "./DayNight";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 
+// Full-screen drag layer for free camera look. Sits under the joystick/buttons
+// (which have a higher z-index and their own pointer handlers), so it only
+// receives touches on empty screen space.
+function LookPad() {
+  const active = useRef<number | null>(null);
+  const last = useRef<{ x: number; y: number } | null>(null);
+
+  const onDown = (e: React.PointerEvent) => {
+    active.current = e.pointerId;
+    last.current = { x: e.clientX, y: e.clientY };
+    (e.target as Element).setPointerCapture(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (active.current !== e.pointerId || !last.current) return;
+    const dx = e.clientX - last.current.x;
+    const dy = e.clientY - last.current.y;
+    last.current = { x: e.clientX, y: e.clientY };
+    input.mouseDX += dx;
+    input.mouseDY += dy;
+  };
+  const onUp = (e: React.PointerEvent) => {
+    if (active.current !== e.pointerId) return;
+    active.current = null;
+    last.current = null;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-10 touch-none"
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    />
+  );
+}
+
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [aiming, setAiming] = useState(false);
@@ -18,10 +56,6 @@ export function GameScene() {
   const onMove = useCallback((v: { x: number; y: number }) => {
     input.move.x = v.x;
     input.move.y = v.y;
-  }, []);
-  const onLook = useCallback((v: { x: number; y: number }) => {
-    input.look.x = v.x;
-    input.look.y = v.y;
   }, []);
 
   const requestLock = () => {
@@ -45,6 +79,8 @@ export function GameScene() {
         <Player />
       </Canvas>
 
+      <LookPad />
+
       {/* Top HUD */}
       <div className="pointer-events-none fixed left-4 top-4 z-20 flex gap-2">
         <div
@@ -65,7 +101,19 @@ export function GameScene() {
       )}
 
       <Joystick side="left" onChange={onMove} label="Move" />
-      <Joystick side="right" onChange={onLook} label="Look" />
+
+      <div className="fixed bottom-40 left-8 z-20 flex flex-col gap-3">
+        <button
+          onPointerDown={() => { input.aim = true; setAiming(true); }}
+          onPointerUp={() => { input.aim = false; setAiming(false); }}
+          onPointerCancel={() => { input.aim = false; setAiming(false); }}
+          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
+            aiming ? "border-cyan-300 bg-cyan-500/40" : "border-white/20 bg-black/40"
+          }`}
+        >
+          Aim
+        </button>
+      </div>
 
       <div className="fixed bottom-40 right-8 z-20 flex flex-col gap-3">
         <button
@@ -85,19 +133,6 @@ export function GameScene() {
         >
           Run
         </button>
-      </div>
-
-      <div className="fixed bottom-40 left-8 z-20 flex flex-col gap-3">
-        <button
-          onPointerDown={() => { input.aim = true; setAiming(true); }}
-          onPointerUp={() => { input.aim = false; setAiming(false); }}
-          onPointerCancel={() => { input.aim = false; setAiming(false); }}
-          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
-            aiming ? "border-cyan-300 bg-cyan-500/40" : "border-white/20 bg-black/40"
-          }`}
-        >
-          Aim
-        </button>
         <button
           onPointerDown={() => (input.fire = true)}
           onPointerUp={() => (input.fire = false)}
@@ -109,7 +144,7 @@ export function GameScene() {
       </div>
 
       <div className="pointer-events-none fixed right-4 top-4 z-20 rounded bg-black/50 px-3 py-1 text-[10px] text-white/60 backdrop-blur">
-        Right-click to aim · Left-click to fire
+        Drag anywhere to look · Right-click to aim (desktop)
       </div>
     </div>
   );
