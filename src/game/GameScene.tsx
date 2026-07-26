@@ -166,6 +166,10 @@ export function GameScene() {
   }, []);
 
   const requestLock = () => {
+    // Pointer Lock is a desktop-mouse concept; on touch devices it does
+    // nothing useful and just triggers Chrome's "how to get your cursor
+    // back" banner every tap. Skip it entirely on touch devices.
+    if ("ontouchstart" in window) return;
     const el = document.querySelector("canvas");
     if (el && !document.pointerLockElement) (el as HTMLCanvasElement).requestPointerLock?.();
   };
