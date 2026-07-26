@@ -17,6 +17,7 @@ export function Player() {
   const walkPhase = useRef(0);
   const camOffset = useRef(new THREE.Vector3());
   const fireCd = useRef(0);
+  const hasSpawned = useRef(false);
   const { camera } = useThree();
   const gang = GANGS[PLAYER_GANG];
 
@@ -26,6 +27,12 @@ export function Player() {
     const dtc = Math.min(dt, 0.05);
     const r = refs.current;
     if (!r || !r.root) return;
+
+    // Spawn in a clear street gap, not inside the downtown tower at (0,0).
+    if (!hasSpawned.current) {
+      r.root.position.set(24, 0, 24);
+      hasSpawned.current = true;
+    }
 
     // Look
     const lookX =
@@ -125,11 +132,9 @@ export function Player() {
     fireCd.current = Math.max(0, fireCd.current - dtc);
     if (input.fire && input.aim && fireCd.current === 0) {
       fireCd.current = 0.12;
-      // Ray from camera forward
       const origin = camera.position.clone();
       const forwardV = new THREE.Vector3();
       camera.getWorldDirection(forwardV);
-      // Find closest NPC hit within cone/radius
       let best: { d: number; npc: (typeof NPCS)[number] } | null = null;
       for (const n of NPCS) {
         if (n.dead) continue;
@@ -138,7 +143,7 @@ export function Player() {
         if (dist > 80) continue;
         toN.normalize();
         const dot = toN.dot(forwardV);
-        if (dot < 0.985) continue; // tight cone
+        if (dot < 0.985) continue;
         if (!best || dist < best.d) best = { d: dist, npc: n };
       }
       if (best) damageNPC(best.npc, 34);
