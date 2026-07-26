@@ -18,6 +18,15 @@ const ENEMY_HIT_CHANCE_PER_SEC = 0.35;
 const ENEMY_HIT_DAMAGE = 6;
 const HELI_ENTER_RADIUS = 6;
 const HELI_BODY_RADIUS = 4.5;
+const HELI_EXIT_OFFSET = HELI_BODY_RADIUS + 4; // clearly outside HELI_ENTER_RADIUS
+
+function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
+  pilotState.piloting = false;
+  const heli = HELICOPTERS[PLAYER_GANG];
+  r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, 0, heli.pos.z);
+  r.root!.visible = true;
+  vel.set(0, 0, 0);
+}
 
 export function Player() {
   const refs = useRef<CharacterRefs>(null!);
@@ -30,6 +39,7 @@ export function Player() {
   const camOffset = useRef(new THREE.Vector3());
   const fireCd = useRef(0);
   const hasSpawned = useRef(false);
+  const pilotCooldown = useRef(0);
   const { camera } = useThree();
   const gang = GANGS[PLAYER_GANG];
 
@@ -45,7 +55,6 @@ export function Player() {
       hasSpawned.current = true;
     }
 
-    // Shared look input (used by both walking and piloting)
     const lookX =
       input.look.x +
       ((input.keys.has("ArrowRight") ? 1 : 0) - (input.keys.has("ArrowLeft") ? 1 : 0)) +
@@ -62,70 +71,75 @@ export function Player() {
     const my = input.move.y + kb.y;
     const mag = Math.min(1, Math.hypot(mx, my));
 
-    // Consume the one-shot Enter/Exit tap
-    if (pilotState.interactPressed) {
+    pilotCooldown.current = Math.max(0, pilotCooldown.current - dtc);
+    if (pilotState.interactPressed && pilotCooldown.current === 0) {
       pilotState.interactPressed = false;
+      pilotCooldown.current = 0.5;
       if (pilotState.piloting) {
-        // Exit — place the character beside the helicopter, on the ground
-        pilotState.piloting = false;
-        const heli = HELICOPTERS[PLAYER_GANG];
-        r.root.position.set(heli.pos.x + HELI_BODY_RADIUS + 1.5, 0, heli.pos.z);
-        r.root.visible = true;
-        vel.current.set(0, 0, 0);
+        ejectToOnFoot(r, vel.current);
       } else if (pilotState.nearOwnHeli) {
         pilotState.piloting = true;
         r.root.visible = false;
       }
+    } else {
+      pilotState.interactPressed = false;
     }
 
     if (pilotState.piloting) {
-      const heli = HELICOPTERS[PLAYER_GANG];
-      heli.yaw -= lookX * 1.8 * dtc;
-      pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
+      try {
+        const heli = HELICOPTERS[PLAYER_GANG];
+        heli.yaw -= lookX * 1.8 * dtc;
+        pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
 
-      const ascend = input.jump;
-      const descend = input.run;
-      const vTarget = ascend && !descend ? 9 : descend && !ascend ? -7 : -1.0;
-      heli.vy = THREE.MathUtils.lerp(heli.vy, vTarget, Math.min(1, dtc * 3));
+        const ascend = input.jump;
+        const descend = input.run;
+        const vTarget = ascend && !descend ? 9 : descend && !ascend ? -7 : -1.0;
+        heli.vy = THREE.MathUtils.lerp(heli.vy, vTarget, Math.min(1, dtc * 3));
 
-      const fwd = new THREE.Vector3(-Math.sin(heli.yaw), 0, -Math.cos(heli.yaw));
-      const rightV = new THREE.Vector3(-fwd.z, 0, fwd.x);
-      const thrust = 16;
-      const desired = new THREE.Vector3();
-      if (mag > 0.01) {
-        desired.addScaledVector(fwd, -my / mag).addScaledVector(rightV, mx / mag).multiplyScalar(thrust * mag);
+        const fwd = new THREE.Vector3(-Math.sin(heli.yaw), 0, -Math.cos(heli.yaw));
+        const rightV = new THREE.Vector3(-fwd.z, 0, fwd.x);
+        const thrust = 16;
+        const desired = new THREE.Vector3();
+        if (mag > 0.01) {
+          desired.addScaledVector(fwd, -my / mag).addScaledVector(rightV, mx / mag).multiplyScalar(thrust * mag);
+        }
+        heliVel.current.x = THREE.MathUtils.lerp(heliVel.current.x, desired.x, Math.min(1, dtc * 2.2));
+        heliVel.current.z = THREE.MathUtils.lerp(heliVel.current.z, desired.z, Math.min(1, dtc * 2.2));
+
+        const prevX = heli.pos.x, prevZ = heli.pos.z;
+        const nx = prevX + heliVel.current.x * dtc;
+        const nz = prevZ + heliVel.current.z * dtc;
+        const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, heli.pos.y, 4.5);
+        heli.pos.x = resolved.x;
+        heli.pos.z = resolved.z;
+        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, 0, 70);
+        if (heli.pos.y <= 0) {
+          heli.pos.y = 0;
+          heli.vy = Math.max(0, heli.vy);
+        }
+
+        playerState.pos.x = heli.pos.x;
+        playerState.pos.z = heli.pos.z;
+        playerState.yaw = heli.yaw;
+
+        const camBack = new THREE.Vector3(Math.sin(heli.yaw), 0, Math.cos(heli.yaw));
+        const camTarget = new THREE.Vector3(
+          heli.pos.x + camBack.x * 14,
+          heli.pos.y + 6 + Math.sin(pitch.current) * 3,
+          heli.pos.z + camBack.z * 14,
+        );
+        camera.position.lerp(camTarget, Math.min(1, dtc * 6));
+        camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
+        return;
+      } catch (err) {
+        // Never let a flight-logic bug freeze the game — eject and surface the error.
+        pilotState.lastError = err instanceof Error ? err.message : String(err);
+        ejectToOnFoot(r, vel.current);
+        // fall through to on-foot logic below for this frame
       }
-      heliVel.current.x = THREE.MathUtils.lerp(heliVel.current.x, desired.x, Math.min(1, dtc * 2.2));
-      heliVel.current.z = THREE.MathUtils.lerp(heliVel.current.z, desired.z, Math.min(1, dtc * 2.2));
-
-      const prevX = heli.pos.x, prevZ = heli.pos.z;
-      const nx = prevX + heliVel.current.x * dtc;
-      const nz = prevZ + heliVel.current.z * dtc;
-      const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, heli.pos.y, 4.5);
-      heli.pos.x = resolved.x;
-      heli.pos.z = resolved.z;
-      heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, 0, 70);
-      if (heli.pos.y <= 0) {
-        heli.pos.y = 0;
-        heli.vy = Math.max(0, heli.vy);
-      }
-
-      playerState.pos.x = heli.pos.x;
-      playerState.pos.z = heli.pos.z;
-      playerState.yaw = heli.yaw;
-
-      const camBack = new THREE.Vector3(Math.sin(heli.yaw), 0, Math.cos(heli.yaw));
-      const camTarget = new THREE.Vector3(
-        heli.pos.x + camBack.x * 14,
-        heli.pos.y + 6 + Math.sin(pitch.current) * 3,
-        heli.pos.z + camBack.z * 14,
-      );
-      camera.position.lerp(camTarget, Math.min(1, dtc * 6));
-      camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
-      return; // skip all normal on-foot logic while flying
     }
 
-    // ---- Normal on-foot movement (unchanged from before) ----
+    // ---- Normal on-foot movement ----
     yaw.current -= lookX * 2.6 * dtc;
     pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
 
@@ -160,10 +174,9 @@ export function Player() {
     p.x = resolved.x;
     p.z = resolved.z;
 
-    // Block walking through any gang's parked helicopter
     for (const gid of [0, 1, 2, 3] as const) {
       const h = HELICOPTERS[gid];
-      if (h.pos.y > 1.5) continue; // airborne, no ground collision needed
+      if (h.pos.y > 1.5) continue;
       const dx = p.x - h.pos.x, dz = p.z - h.pos.z;
       const d = Math.hypot(dx, dz);
       if (d < HELI_BODY_RADIUS && d > 0.0001) {
@@ -183,7 +196,8 @@ export function Player() {
     playerState.pos.z = p.z;
     playerState.yaw = yaw.current;
 
-    pilotState.nearOwnHeli = Math.hypot(p.x - HELICOPTERS[PLAYER_GANG].pos.x, p.z - HELICOPTERS[PLAYER_GANG].pos.z) < HELI_ENTER_RADIUS;
+    pilotState.nearOwnHeli =
+      Math.hypot(p.x - HELICOPTERS[PLAYER_GANG].pos.x, p.z - HELICOPTERS[PLAYER_GANG].pos.z) < HELI_ENTER_RADIUS;
 
     if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
       healPlayer(HEAL_RATE * dtc);
