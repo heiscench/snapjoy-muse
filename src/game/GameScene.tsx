@@ -1,4 +1,3 @@
-
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
 import { useCallback, useRef, useState } from "react";
@@ -13,25 +12,35 @@ import { input } from "./input";
 
 // Full-screen drag layer for free camera look. Sits under the joystick/buttons
 // (which have a higher z-index and their own pointer handlers), so it only
-// receives touches on empty screen space.
+// receives touches on empty screen space. preventDefault on every handler
+// stops the browser's own multi-touch gesture recognizer from interfering
+// with (and cancelling) the other active touch on the move joystick.
+const TOUCH_LOOK_SENSITIVITY = 0.12; // tune to taste — lower = slower look
+const MAX_DRAG_STEP = 40; // px per event, clamps stray huge deltas (lag spikes etc.)
+
 function LookPad() {
   const active = useRef<number | null>(null);
   const last = useRef<{ x: number; y: number } | null>(null);
 
   const onDown = (e: React.PointerEvent) => {
+    e.preventDefault();
     active.current = e.pointerId;
     last.current = { x: e.clientX, y: e.clientY };
     (e.target as Element).setPointerCapture(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
+    e.preventDefault();
     if (active.current !== e.pointerId || !last.current) return;
-    const dx = e.clientX - last.current.x;
-    const dy = e.clientY - last.current.y;
+    let dx = e.clientX - last.current.x;
+    let dy = e.clientY - last.current.y;
     last.current = { x: e.clientX, y: e.clientY };
-    input.mouseDX += dx;
-    input.mouseDY += dy;
+    dx = Math.max(-MAX_DRAG_STEP, Math.min(MAX_DRAG_STEP, dx));
+    dy = Math.max(-MAX_DRAG_STEP, Math.min(MAX_DRAG_STEP, dy));
+    input.mouseDX += dx * TOUCH_LOOK_SENSITIVITY;
+    input.mouseDY += dy * TOUCH_LOOK_SENSITIVITY;
   };
   const onUp = (e: React.PointerEvent) => {
+    e.preventDefault();
     if (active.current !== e.pointerId) return;
     active.current = null;
     last.current = null;
@@ -40,6 +49,7 @@ function LookPad() {
   return (
     <div
       className="fixed inset-0 z-10 touch-none"
+      style={{ touchAction: "none" }}
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
