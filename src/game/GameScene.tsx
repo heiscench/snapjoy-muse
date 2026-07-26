@@ -48,6 +48,28 @@ function HealthBar() {
   );
 }
 
+function PilotErrorBanner() {
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let raf: number;
+    const tick = () => {
+      setErr(pilotState.lastError);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  if (!err) return null;
+  return (
+    <button
+      onClick={() => { pilotState.lastError = null; }}
+      className="fixed left-1/2 top-24 z-30 -translate-x-1/2 rounded bg-red-900/90 px-3 py-2 text-xs text-white shadow-lg"
+    >
+      Flight error (tap to dismiss): {err}
+    </button>
+  );
+}
+
 function useVehicleUi() {
   const [piloting, setPiloting] = useState(false);
   const [nearHeli, setNearHeli] = useState(false);
