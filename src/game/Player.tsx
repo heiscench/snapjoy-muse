@@ -1,4 +1,3 @@
-
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -7,19 +6,23 @@ import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
 import { Weapon } from "./Weapon";
-import { resolveCollision, nearestHospitalDistance, GANG_HQ } from "./worldData";
+import { resolveCollision, resolveHeliCollision, nearestHospitalDistance, GANG_HQ } from "./worldData";
 import { playerState, damagePlayer, healPlayer, revivePlayer } from "./playerState";
 import { spawnTracer } from "./tracerState";
+import { HELICOPTERS, pilotState } from "./vehicleState";
 
 const HEAL_RADIUS = 8;
-const HEAL_RATE = 22; // hp/sec near a hospital
+const HEAL_RATE = 22;
 const ENEMY_CONTACT_RANGE = 9;
 const ENEMY_HIT_CHANCE_PER_SEC = 0.35;
 const ENEMY_HIT_DAMAGE = 6;
+const HELI_ENTER_RADIUS = 6;
+const HELI_BODY_RADIUS = 4.5;
 
 export function Player() {
   const refs = useRef<CharacterRefs>(null!);
   const vel = useRef(new THREE.Vector3());
+  const heliVel = useRef(new THREE.Vector3());
   const yaw = useRef(0);
   const pitch = useRef(0.25);
   const grounded = useRef(true);
@@ -37,13 +40,12 @@ export function Player() {
     const r = refs.current;
     if (!r || !r.root) return;
 
-    // Spawn in a clear street gap, not inside the downtown building at (0,0).
     if (!hasSpawned.current) {
       r.root.position.set(24, 0, 24);
       hasSpawned.current = true;
     }
 
-    // Look
+    // Shared look input (used by both walking and piloting)
     const lookX =
       input.look.x +
       ((input.keys.has("ArrowRight") ? 1 : 0) - (input.keys.has("ArrowLeft") ? 1 : 0)) +
@@ -54,14 +56,79 @@ export function Player() {
       input.mouseDY * 0.12;
     input.mouseDX = 0;
     input.mouseDY = 0;
-    yaw.current -= lookX * 2.6 * dtc;
-    pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
 
-    // Move
     const kb = readKeyboardMove();
     const mx = input.move.x + kb.x;
     const my = input.move.y + kb.y;
     const mag = Math.min(1, Math.hypot(mx, my));
+
+    // Consume the one-shot Enter/Exit tap
+    if (pilotState.interactPressed) {
+      pilotState.interactPressed = false;
+      if (pilotState.piloting) {
+        // Exit — place the character beside the helicopter, on the ground
+        pilotState.piloting = false;
+        const heli = HELICOPTERS[PLAYER_GANG];
+        r.root.position.set(heli.pos.x + HELI_BODY_RADIUS + 1.5, 0, heli.pos.z);
+        r.root.visible = true;
+        vel.current.set(0, 0, 0);
+      } else if (pilotState.nearOwnHeli) {
+        pilotState.piloting = true;
+        r.root.visible = false;
+      }
+    }
+
+    if (pilotState.piloting) {
+      const heli = HELICOPTERS[PLAYER_GANG];
+      heli.yaw -= lookX * 1.8 * dtc;
+      pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
+
+      const ascend = input.jump;
+      const descend = input.run;
+      const vTarget = ascend && !descend ? 9 : descend && !ascend ? -7 : -1.0;
+      heli.vy = THREE.MathUtils.lerp(heli.vy, vTarget, Math.min(1, dtc * 3));
+
+      const fwd = new THREE.Vector3(-Math.sin(heli.yaw), 0, -Math.cos(heli.yaw));
+      const rightV = new THREE.Vector3(-fwd.z, 0, fwd.x);
+      const thrust = 16;
+      const desired = new THREE.Vector3();
+      if (mag > 0.01) {
+        desired.addScaledVector(fwd, -my / mag).addScaledVector(rightV, mx / mag).multiplyScalar(thrust * mag);
+      }
+      heliVel.current.x = THREE.MathUtils.lerp(heliVel.current.x, desired.x, Math.min(1, dtc * 2.2));
+      heliVel.current.z = THREE.MathUtils.lerp(heliVel.current.z, desired.z, Math.min(1, dtc * 2.2));
+
+      const prevX = heli.pos.x, prevZ = heli.pos.z;
+      const nx = prevX + heliVel.current.x * dtc;
+      const nz = prevZ + heliVel.current.z * dtc;
+      const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, heli.pos.y, 4.5);
+      heli.pos.x = resolved.x;
+      heli.pos.z = resolved.z;
+      heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, 0, 70);
+      if (heli.pos.y <= 0) {
+        heli.pos.y = 0;
+        heli.vy = Math.max(0, heli.vy);
+      }
+
+      playerState.pos.x = heli.pos.x;
+      playerState.pos.z = heli.pos.z;
+      playerState.yaw = heli.yaw;
+
+      const camBack = new THREE.Vector3(Math.sin(heli.yaw), 0, Math.cos(heli.yaw));
+      const camTarget = new THREE.Vector3(
+        heli.pos.x + camBack.x * 14,
+        heli.pos.y + 6 + Math.sin(pitch.current) * 3,
+        heli.pos.z + camBack.z * 14,
+      );
+      camera.position.lerp(camTarget, Math.min(1, dtc * 6));
+      camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
+      return; // skip all normal on-foot logic while flying
+    }
+
+    // ---- Normal on-foot movement (unchanged from before) ----
+    yaw.current -= lookX * 2.6 * dtc;
+    pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
+
     const running = input.run || input.keys.has("ShiftLeft");
     const aiming = input.aim;
     const speedBase = aiming ? 3.5 : running ? 9 : 5;
@@ -92,6 +159,19 @@ export function Player() {
     const resolved = resolveCollision(prevX, prevZ, nx, nz, 0.6);
     p.x = resolved.x;
     p.z = resolved.z;
+
+    // Block walking through any gang's parked helicopter
+    for (const gid of [0, 1, 2, 3] as const) {
+      const h = HELICOPTERS[gid];
+      if (h.pos.y > 1.5) continue; // airborne, no ground collision needed
+      const dx = p.x - h.pos.x, dz = p.z - h.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < HELI_BODY_RADIUS && d > 0.0001) {
+        p.x = h.pos.x + (dx / d) * HELI_BODY_RADIUS;
+        p.z = h.pos.z + (dz / d) * HELI_BODY_RADIUS;
+      }
+    }
+
     p.y += vel.current.y * dtc;
     if (p.y <= 0) {
       p.y = 0;
@@ -99,17 +179,16 @@ export function Player() {
       grounded.current = true;
     }
 
-    // Share position/heading for HUD/minimap
     playerState.pos.x = p.x;
     playerState.pos.z = p.z;
     playerState.yaw = yaw.current;
 
-    // Healing near a hospital
+    pilotState.nearOwnHeli = Math.hypot(p.x - HELICOPTERS[PLAYER_GANG].pos.x, p.z - HELICOPTERS[PLAYER_GANG].pos.z) < HELI_ENTER_RADIUS;
+
     if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
       healPlayer(HEAL_RATE * dtc);
     }
 
-    // Enemy gang members deal light contact damage when close
     for (const n of NPCS) {
       if (n.dead || n.gang === PLAYER_GANG) continue;
       const d = Math.hypot(n.pos.x - p.x, n.pos.z - p.z);
@@ -118,7 +197,6 @@ export function Player() {
       }
     }
 
-    // Respawn at own gang HQ on death
     if (playerState.health <= 0) {
       const hq = GANG_HQ[PLAYER_GANG];
       p.set(hq.x, 0, hq.z);
@@ -126,7 +204,6 @@ export function Player() {
       revivePlayer();
     }
 
-    // Face
     if (aiming) {
       r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, yaw.current, Math.min(1, dtc * 18));
     } else if (mag > 0.05) {
@@ -134,7 +211,6 @@ export function Player() {
       r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, targetRot, Math.min(1, dtc * 14));
     }
 
-    // Walk cycle
     const step = running ? 13 : 8;
     walkPhase.current += dtc * step * (mag > 0.05 ? 1 : 0);
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
@@ -149,7 +225,6 @@ export function Player() {
     }
     if (r.head) r.head.rotation.x = THREE.MathUtils.lerp(r.head.rotation.x, pitch.current * 0.4, 0.2);
 
-    // Camera
     const targetDist = aiming ? 2.6 : 5.8;
     const shoulderX = aiming ? 0.7 : 0;
     const camHeight = 2.0 + Math.sin(pitch.current) * 2.4;
@@ -164,7 +239,6 @@ export function Player() {
     camera.position.set(p.x + camOffset.current.x, p.y + camOffset.current.y, p.z + camOffset.current.z);
     camera.lookAt(p.x + sideV.x * shoulderX * 0.6, p.y + 1.5, p.z + sideV.z * shoulderX * 0.6);
 
-    // Firing / damage
     fireCd.current = Math.max(0, fireCd.current - dtc);
     if (input.fire && input.aim && fireCd.current === 0) {
       fireCd.current = 0.12;
