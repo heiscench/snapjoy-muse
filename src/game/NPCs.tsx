@@ -1,136 +1,91 @@
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { Character, type CharacterRefs } from "./Character";
+import { GANGS, type GangId } from "./gangs";
+import { NPCS, damageNPC, spawnNPC, type NPCState } from "./npcState";
+import { resolveCollision } from "./worldData";
 
-type NPC = {
-  pos: THREE.Vector3;
-  dir: THREE.Vector3;
-  speed: number;
-  gang: 0 | 1 | 2 | 3;
-  phase: number;
-};
-
-const GANG_COLORS = ["#e94b4b", "#4bb0e9", "#4be97a", "#e9c94b"];
-
-function rng(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) % 4294967296;
-    return s / 4294967296;
-  };
-}
-
-export function NPCs({ count = 24 }: { count?: number }) {
-  const npcs = useMemo<NPC[]>(() => {
-    const r = rng(42);
-    return Array.from({ length: count }, () => {
-      const angle = r() * Math.PI * 2;
-      const dist = 20 + r() * 80;
-      return {
-        pos: new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist),
-        dir: new THREE.Vector3(Math.cos(r() * Math.PI * 2), 0, Math.sin(r() * Math.PI * 2)),
-        speed: 1.5 + r() * 1.5,
-        gang: Math.floor(r() * 4) as 0 | 1 | 2 | 3,
-        phase: r() * 10,
-      };
-    });
+export function NPCs({ count = 12 }: { count?: number }) {
+  useEffect(() => {
+    NPCS.length = 0;
+    for (let i = 0; i < count; i++) {
+      NPCS.push(spawnNPC(i, (i % 4) as GangId));
+    }
   }, [count]);
 
-  // Group NPCs by gang for instanced coloring
-  const groups = useMemo(() => {
-    const g: NPC[][] = [[], [], [], []];
-    npcs.forEach((n) => g[n.gang].push(n));
-    return g;
-  }, [npcs]);
+  const [, force] = useState(0);
+  useEffect(() => { force(1); }, []);
 
+  if (NPCS.length === 0) return null;
   return (
     <group>
-      {groups.map((gnpcs, gi) => (
-        <NPCGang key={gi} npcs={gnpcs} color={GANG_COLORS[gi]} />
-      ))}
+      {NPCS.map((n) => <NPCUnit key={n.id} npc={n} />)}
     </group>
   );
 }
 
-function NPCGang({ npcs, color }: { npcs: NPC[]; color: string }) {
-  const bodyRef = useRef<THREE.InstancedMesh>(null!);
-  const headRef = useRef<THREE.InstancedMesh>(null!);
-  const legLRef = useRef<THREE.InstancedMesh>(null!);
-  const legRRef = useRef<THREE.InstancedMesh>(null!);
+function NPCUnit({ npc }: { npc: NPCState }) {
+  const refs = useRef<CharacterRefs>(null!);
+  const gang = GANGS[npc.gang];
+  const baseColor = useMemo(() => new THREE.Color(gang.color), [gang.color]);
+  const hitColor = useMemo(() => new THREE.Color("#ff5050"), []);
+  const walkPhase = useRef(0);
 
   useFrame((_, dt) => {
     const dtc = Math.min(dt, 0.05);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const bodyPos = new THREE.Vector3();
-    const legPos = new THREE.Vector3();
+    const r = refs.current;
+    if (!r || !r.root) return;
 
-    npcs.forEach((n, i) => {
-      // Wander
-      n.phase += dtc;
-      if (n.phase > 3) {
-        n.phase = 0;
-        n.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
+    if (npc.dead) {
+      npc.respawn -= dtc;
+      r.root.visible = false;
+      if (npc.respawn <= 0) {
+        const s = spawnNPC(npc.id, npc.gang);
+        npc.pos.copy(s.pos);
+        npc.dir.copy(s.dir);
+        npc.hp = 100;
+        npc.dead = false;
       }
-      n.pos.addScaledVector(n.dir, n.speed * dtc);
-      // Keep bounded
-      if (n.pos.length() > 140) n.dir.multiplyScalar(-1);
+      return;
+    }
+    r.root.visible = true;
 
-      const yaw = Math.atan2(n.dir.x, n.dir.z);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-      const walk = Math.sin(n.phase * n.speed * 6) * 0.6;
+    // Wander w/ collision
+    npc.phase += dtc;
+    if (npc.phase > 3) {
+      npc.phase = 0;
+      npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
+    }
+    const nx = npc.pos.x + npc.dir.x * npc.speed * dtc;
+    const nz = npc.pos.z + npc.dir.z * npc.speed * dtc;
+    const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+    if (resolved.x === npc.pos.x && resolved.z === npc.pos.z) {
+      npc.dir.multiplyScalar(-1);
+    }
+    npc.pos.x = resolved.x;
+    npc.pos.z = resolved.z;
+    if (npc.pos.length() > 240) npc.dir.multiplyScalar(-1);
 
-      // Body
-      bodyPos.set(n.pos.x, 0.9, n.pos.z);
-      m.compose(bodyPos, q, new THREE.Vector3(0.7, 1.4, 0.42));
-      bodyRef.current?.setMatrixAt(i, m);
+    const yaw = Math.atan2(npc.dir.x, npc.dir.z);
+    r.root.position.set(npc.pos.x, 0, npc.pos.z);
+    r.root.rotation.y = yaw;
 
-      // Head
-      bodyPos.set(n.pos.x, 1.75, n.pos.z);
-      m.compose(bodyPos, q, new THREE.Vector3(0.42, 0.42, 0.42));
-      headRef.current?.setMatrixAt(i, m);
+    walkPhase.current += dtc * 8 * npc.speed * 0.5;
+    const swing = Math.sin(walkPhase.current) * 0.7;
+    if (r.legL) r.legL.rotation.x = swing;
+    if (r.legR) r.legR.rotation.x = -swing;
+    if (r.armL) r.armL.rotation.x = -swing * 0.7;
+    if (r.armR) r.armR.rotation.x = swing * 0.7;
 
-      // Legs — offset with yaw rotation applied
-      const cy = Math.cos(yaw), sy = Math.sin(yaw);
-      const legOffset = 0.18;
-      const swingOffZ = Math.sin(walk) * 0.15;
-
-      legPos.set(n.pos.x + cy * -legOffset, 0.3 + Math.abs(Math.sin(walk)) * 0.02, n.pos.z + sy * legOffset + swingOffZ);
-      const qLeg = new THREE.Quaternion().setFromEuler(new THREE.Euler(walk, yaw, 0));
-      m.compose(legPos, qLeg, new THREE.Vector3(0.24, 0.8, 0.26));
-      legLRef.current?.setMatrixAt(i, m);
-
-      legPos.set(n.pos.x + cy * legOffset, 0.3 + Math.abs(Math.sin(walk)) * 0.02, n.pos.z - sy * legOffset - swingOffZ);
-      const qLeg2 = new THREE.Quaternion().setFromEuler(new THREE.Euler(-walk, yaw, 0));
-      m.compose(legPos, qLeg2, new THREE.Vector3(0.24, 0.8, 0.26));
-      legRRef.current?.setMatrixAt(i, m);
-    });
-
-    [bodyRef, headRef, legLRef, legRRef].forEach((r) => {
-      if (r.current) r.current.instanceMatrix.needsUpdate = true;
-    });
+    // Hit flash
+    if (npc.hitFlash > 0) {
+      npc.hitFlash -= dtc;
+      if (r.torsoMat) r.torsoMat.color.copy(hitColor);
+    } else if (r.torsoMat) {
+      r.torsoMat.color.copy(baseColor);
+    }
   });
 
-  if (npcs.length === 0) return null;
-
-  return (
-    <group>
-      <instancedMesh ref={bodyRef} args={[undefined, undefined, npcs.length]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.15} roughness={0.6} />
-      </instancedMesh>
-      <instancedMesh ref={headRef} args={[undefined, undefined, npcs.length]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#d9a582" />
-      </instancedMesh>
-      <instancedMesh ref={legLRef} args={[undefined, undefined, npcs.length]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#1a1a20" />
-      </instancedMesh>
-      <instancedMesh ref={legRRef} args={[undefined, undefined, npcs.length]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#1a1a20" />
-      </instancedMesh>
-    </group>
-  );
+  return <Character ref={refs} color={gang.color} accent={gang.accent} />;
 }
