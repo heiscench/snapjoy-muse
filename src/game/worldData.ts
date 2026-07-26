@@ -189,3 +189,35 @@ export function resolveCollision(
   }
   return { x, z };
 }
+// Same idea as resolveCollision, but for the helicopter: it can fly clean
+// over a building once its altitude clears that building's height.
+export function resolveHeliCollision(
+  prevX: number,
+  prevZ: number,
+  nextX: number,
+  nextZ: number,
+  y: number,
+  radius = 4,
+): { x: number; z: number } {
+  let x = nextX;
+  let z = nextZ;
+  for (const b of BUILDINGS) {
+    if (b.type === "crane") continue;
+    if (y >= b.h) continue; // above rooftop — clear
+    const minX = b.x - b.w / 2 - radius;
+    const maxX = b.x + b.w / 2 + radius;
+    const minZ = b.z - b.d / 2 - radius;
+    const maxZ = b.z + b.d / 2 + radius;
+    if (x > minX && x < maxX && z > minZ && z < maxZ) {
+      if (!(prevX > minX && prevX < maxX && z > minZ && z < maxZ)) {
+        x = prevX;
+      } else if (!(x > minX && x < maxX && prevZ > minZ && prevZ < maxZ)) {
+        z = prevZ;
+      } else {
+        x = prevX;
+        z = prevZ;
+      }
+    }
+  }
+  return { x, z };
+}
