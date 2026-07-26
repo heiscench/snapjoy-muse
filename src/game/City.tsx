@@ -1,6 +1,7 @@
+import { Text } from "@react-three/drei";
 import { useMemo } from "react";
 import * as THREE from "three";
-import { BUILDINGS, BLOCK_SIZE, GRID, HARBOR_Z, type BuildingBox } from "./worldData";
+import { BUILDINGS, BLOCK_SIZE, GRID, HARBOR_Z, DISTRICT_LABELS, type BuildingBox } from "./worldData";
 
 const DISTRICT_ACCENT: Record<string, string> = {
   downtown: "#6ab0ff",
@@ -19,7 +20,6 @@ function Tower({ b }: { b: BuildingBox }) {
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#1a1f2b" emissive="#6ab0ff" emissiveIntensity={0.35} roughness={0.9} />
       </mesh>
-      {/* Floor-line banding */}
       {Array.from({ length: bands }).map((_, i) => (
         <mesh key={i} position={[0, (i + 0.5) * (b.h / bands), b.d / 2 + 0.02]}>
           <planeGeometry args={[b.w * 0.9, 0.15]} />
@@ -37,7 +37,6 @@ function Warehouse({ b }: { b: BuildingBox }) {
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#2a2820" roughness={0.95} />
       </mesh>
-      {/* Garage doors */}
       <mesh position={[0, b.h * 0.4, b.d / 2 + 0.02]}>
         <planeGeometry args={[b.w * 0.35, b.h * 0.55]} />
         <meshBasicMaterial color="#e8a24a" />
@@ -57,12 +56,10 @@ function Bank({ b }: { b: BuildingBox }) {
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#2a2418" emissive="#ffd66a" emissiveIntensity={0.25} roughness={0.7} />
       </mesh>
-      {/* Cap */}
       <mesh position={[0, b.h + 1, 0]}>
         <boxGeometry args={[b.w * 1.1, 2, b.d * 1.1]} />
         <meshStandardMaterial color="#3a3222" />
       </mesh>
-      {/* Columns */}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (b.w / 2 - 1.5), b.h * 0.3, b.d / 2 + 0.5]}>
           <boxGeometry args={[1, b.h * 0.6, 1]} />
@@ -80,7 +77,6 @@ function LowRise({ b }: { b: BuildingBox }) {
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#231a2a" emissive="#ff9ad6" emissiveIntensity={0.35} roughness={0.85} />
       </mesh>
-      {/* Storefronts */}
       <mesh position={[0, 1.5, b.d / 2 + 0.02]}>
         <planeGeometry args={[b.w * 0.9, 2.4]} />
         <meshBasicMaterial color="#ffe4a3" />
@@ -119,26 +115,53 @@ function Stadium({ b }: { b: BuildingBox }) {
   const segs = 16;
   return (
     <group position={[b.x, 0, b.z]}>
-      {/* Outer bowl ring built from box segments */}
       {Array.from({ length: segs }).map((_, i) => {
         const a = (i / segs) * Math.PI * 2;
         const r = b.w / 2;
         return (
-          <mesh
-            key={i}
-            position={[Math.cos(a) * r, b.h / 2, Math.sin(a) * r]}
-            rotation={[0, -a, 0]}
-          >
+          <mesh key={i} position={[Math.cos(a) * r, b.h / 2, Math.sin(a) * r]} rotation={[0, -a, 0]}>
             <boxGeometry args={[(2 * Math.PI * r) / segs, b.h, 3]} />
             <meshStandardMaterial color="#2a2f2a" emissive="#7cff9a" emissiveIntensity={0.3} />
           </mesh>
         );
       })}
-      {/* Field */}
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[b.w / 2 - 3, 24]} />
         <meshStandardMaterial color="#0f3a1a" />
       </mesh>
+    </group>
+  );
+}
+
+function Hospital({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial color="#e9edf2" roughness={0.8} />
+      </mesh>
+      {/* Red cross sign, front + back */}
+      {[b.d / 2 + 0.03, -(b.d / 2 + 0.03)].map((zOff, i) => (
+        <group key={i} position={[0, b.h * 0.55, zOff]}>
+          <mesh>
+            <boxGeometry args={[1.6, 0.5, 0.05]} />
+            <meshBasicMaterial color="#ff3b3b" />
+          </mesh>
+          <mesh>
+            <boxGeometry args={[0.5, 1.6, 0.05]} />
+            <meshBasicMaterial color="#ff3b3b" />
+          </mesh>
+        </group>
+      ))}
+      <Text
+        position={[0, b.h + 1.6, 0]}
+        fontSize={2.2}
+        color="#ff5a5a"
+        anchorX="center"
+        anchorY="middle"
+      >
+        HOSPITAL
+      </Text>
     </group>
   );
 }
@@ -156,6 +179,7 @@ export function City() {
         case "harbor": return <Harbor key={i} b={b} />;
         case "crane": return <Crane key={i} b={b} />;
         case "stadium": return <Stadium key={i} b={b} />;
+        case "hospital": return <Hospital key={i} b={b} />;
       }
     });
   }, []);
@@ -165,19 +189,16 @@ export function City() {
 
   return (
     <group>
-      {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[groundExtent, groundExtent]} />
         <meshStandardMaterial color="#0a0b10" roughness={1} />
       </mesh>
 
-      {/* Harbor water plane */}
       <mesh position={[0, 0.03, HARBOR_Z - BLOCK_SIZE * 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[groundExtent, BLOCK_SIZE * 1.4]} />
         <meshStandardMaterial color="#0d2a3f" emissive="#0a1a30" emissiveIntensity={0.2} roughness={0.4} />
       </mesh>
 
-      {/* Roads on the grid */}
       {Array.from({ length: roadCount }).map((_, i) => {
         const p = (i - (roadCount - 1) / 2) * BLOCK_SIZE;
         return (
@@ -203,9 +224,21 @@ export function City() {
       })}
 
       {rendered}
+
+      {DISTRICT_LABELS.map((d, i) => (
+        <Text
+          key={i}
+          position={[d.x, 46, d.z]}
+          fontSize={5}
+          color={DISTRICT_ACCENT[d.district]}
+          anchorX="center"
+          anchorY="middle"
+        >
+          {d.name}
+        </Text>
+      ))}
     </group>
   );
 }
 
-// Silence unused import warning in types
 export type _D = typeof DISTRICT_ACCENT;
