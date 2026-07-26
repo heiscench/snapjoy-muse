@@ -1,28 +1,31 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { Character, type CharacterRefs } from "./Character";
+import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
+import { NPCS, damageNPC } from "./npcState";
 import { Weapon } from "./Weapon";
+import { resolveCollision } from "./worldData";
 
 export function Player() {
-  const group = useRef<THREE.Group>(null!);
-  const armL = useRef<THREE.Group>(null!);
-  const armR = useRef<THREE.Group>(null!);
-  const legL = useRef<THREE.Group>(null!);
-  const legR = useRef<THREE.Group>(null!);
-  const body = useRef<THREE.Group>(null!);
-  const head = useRef<THREE.Group>(null!);
-
+  const refs = useRef<CharacterRefs>(null!);
   const vel = useRef(new THREE.Vector3());
   const yaw = useRef(0);
   const pitch = useRef(0.25);
   const grounded = useRef(true);
   const walkPhase = useRef(0);
   const camOffset = useRef(new THREE.Vector3());
+  const fireCd = useRef(0);
   const { camera } = useThree();
+  const gang = GANGS[PLAYER_GANG];
+
+  const weaponNode = useMemo(() => <Weapon />, []);
 
   useFrame((_, dt) => {
     const dtc = Math.min(dt, 0.05);
+    const r = refs.current;
+    if (!r || !r.root) return;
 
     // Look
     const lookX =
@@ -56,11 +59,9 @@ export function Player() {
       dir.addScaledVector(right, mx / (mag || 1));
       dir.normalize().multiplyScalar(speed);
     }
-    // Smooth velocity for less jitter
     vel.current.x = THREE.MathUtils.lerp(vel.current.x, dir.x, Math.min(1, dtc * 12));
     vel.current.z = THREE.MathUtils.lerp(vel.current.z, dir.z, Math.min(1, dtc * 12));
 
-    // Gravity + jump
     vel.current.y -= 22 * dtc;
     if (input.jump && grounded.current) {
       vel.current.y = 8.5;
@@ -68,50 +69,44 @@ export function Player() {
     }
     input.jump = false;
 
-    const p = group.current.position;
-    p.x += vel.current.x * dtc;
+    const p = r.root.position;
+    const prevX = p.x, prevZ = p.z;
+    const nx = p.x + vel.current.x * dtc;
+    const nz = p.z + vel.current.z * dtc;
+    const resolved = resolveCollision(prevX, prevZ, nx, nz, 0.6);
+    p.x = resolved.x;
+    p.z = resolved.z;
     p.y += vel.current.y * dtc;
-    p.z += vel.current.z * dtc;
     if (p.y <= 0) {
       p.y = 0;
       vel.current.y = 0;
       grounded.current = true;
     }
 
-    // Face movement or camera when aiming
+    // Face
     if (aiming) {
-      group.current.rotation.y = THREE.MathUtils.lerp(
-        group.current.rotation.y,
-        yaw.current,
-        Math.min(1, dtc * 18),
-      );
+      r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, yaw.current, Math.min(1, dtc * 18));
     } else if (mag > 0.05) {
       const targetRot = Math.atan2(dir.x, dir.z);
-      group.current.rotation.y = THREE.MathUtils.lerp(
-        group.current.rotation.y,
-        targetRot,
-        Math.min(1, dtc * 14),
-      );
+      r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, targetRot, Math.min(1, dtc * 14));
     }
 
     // Walk cycle
     const step = running ? 13 : 8;
     walkPhase.current += dtc * step * (mag > 0.05 ? 1 : 0);
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
-    if (legL.current && legR.current && armL.current && armR.current && body.current) {
-      legL.current.rotation.x = swing;
-      legR.current.rotation.x = -swing;
+    if (r.legL && r.legR && r.armL && r.armR && r.body) {
+      r.legL.rotation.x = swing;
+      r.legR.rotation.x = -swing;
       const armSwing = aiming ? 0 : swing * 0.8;
-      armL.current.rotation.x = -armSwing;
-      armR.current.rotation.x = aiming ? -1.4 : armSwing;
-      armL.current.rotation.z = aiming ? 0.15 : 0;
-      body.current.position.y = 1.05 + Math.abs(Math.sin(walkPhase.current)) * 0.06 * mag;
+      r.armL.rotation.x = -armSwing;
+      r.armR.rotation.x = aiming ? -1.4 : armSwing;
+      r.armL.rotation.z = aiming ? 0.15 : 0;
+      r.body.position.y = 1.05 + Math.abs(Math.sin(walkPhase.current)) * 0.06 * mag;
     }
-    if (head.current) {
-      head.current.rotation.x = THREE.MathUtils.lerp(head.current.rotation.x, pitch.current * 0.4, 0.2);
-    }
+    if (r.head) r.head.rotation.x = THREE.MathUtils.lerp(r.head.rotation.x, pitch.current * 0.4, 0.2);
 
-    // Chase camera — over-the-shoulder when aiming, wider when free
+    // Camera
     const targetDist = aiming ? 2.6 : 5.8;
     const shoulderX = aiming ? 0.7 : 0;
     const camHeight = 2.0 + Math.sin(pitch.current) * 2.4;
@@ -123,106 +118,39 @@ export function Player() {
       back.z * targetDist + sideV.z * shoulderX,
     );
     camOffset.current.lerp(targetOffset, Math.min(1, dtc * 8));
-    camera.position.set(
-      p.x + camOffset.current.x,
-      p.y + camOffset.current.y,
-      p.z + camOffset.current.z,
-    );
+    camera.position.set(p.x + camOffset.current.x, p.y + camOffset.current.y, p.z + camOffset.current.z);
     camera.lookAt(p.x + sideV.x * shoulderX * 0.6, p.y + 1.5, p.z + sideV.z * shoulderX * 0.6);
+
+    // Firing / damage
+    fireCd.current = Math.max(0, fireCd.current - dtc);
+    if (input.fire && input.aim && fireCd.current === 0) {
+      fireCd.current = 0.12;
+      // Ray from camera forward
+      const origin = camera.position.clone();
+      const forwardV = new THREE.Vector3();
+      camera.getWorldDirection(forwardV);
+      // Find closest NPC hit within cone/radius
+      let best: { d: number; npc: (typeof NPCS)[number] } | null = null;
+      for (const n of NPCS) {
+        if (n.dead) continue;
+        const toN = new THREE.Vector3(n.pos.x, 1, n.pos.z).sub(origin);
+        const dist = toN.length();
+        if (dist > 80) continue;
+        toN.normalize();
+        const dot = toN.dot(forwardV);
+        if (dot < 0.985) continue; // tight cone
+        if (!best || dist < best.d) best = { d: dist, npc: n };
+      }
+      if (best) damageNPC(best.npc, 34);
+    }
   });
 
   return (
-    <group ref={group} position={[0, 0, 0]}>
-      <group ref={body}>
-        {/* Torso */}
-        <mesh position={[0, 0.55, 0]}>
-          <boxGeometry args={[0.72, 0.9, 0.42]} />
-          <meshStandardMaterial color="#1a1a1f" roughness={0.55} />
-        </mesh>
-        {/* Chest stripe */}
-        <mesh position={[0, 0.6, 0.22]}>
-          <boxGeometry args={[0.5, 0.5, 0.02]} />
-          <meshStandardMaterial color="#8b1a1a" emissive="#3a0808" emissiveIntensity={0.3} />
-        </mesh>
-        {/* Belt */}
-        <mesh position={[0, 0.15, 0]}>
-          <boxGeometry args={[0.74, 0.08, 0.44]} />
-          <meshStandardMaterial color="#0a0a0d" />
-        </mesh>
-
-        <group ref={head} position={[0, 1.2, 0]}>
-          <mesh position={[0, 0, 0]}>
-            <boxGeometry args={[0.22, 0.16, 0.22]} />
-            <meshStandardMaterial color="#c99879" />
-          </mesh>
-          <mesh position={[0, 0.27, 0]}>
-            <boxGeometry args={[0.44, 0.44, 0.44]} />
-            <meshStandardMaterial color="#d9a582" />
-          </mesh>
-          {/* Sunglasses */}
-          <mesh position={[0, 0.32, 0.22]}>
-            <boxGeometry args={[0.38, 0.08, 0.02]} />
-            <meshStandardMaterial color="#050505" roughness={0.2} metalness={0.6} />
-          </mesh>
-          {/* Cap */}
-          <mesh position={[0, 0.52, -0.02]}>
-            <boxGeometry args={[0.46, 0.14, 0.46]} />
-            <meshStandardMaterial color="#0d0d10" />
-          </mesh>
-          <mesh position={[0, 0.46, 0.24]}>
-            <boxGeometry args={[0.46, 0.04, 0.14]} />
-            <meshStandardMaterial color="#0d0d10" />
-          </mesh>
-        </group>
-
-        {/* Arms */}
-        <group ref={armL} position={[-0.46, 1.0, 0]}>
-          <mesh position={[0, -0.4, 0]}>
-            <boxGeometry args={[0.2, 0.8, 0.22]} />
-            <meshStandardMaterial color="#1a1a1f" />
-          </mesh>
-          <mesh position={[0, -0.9, 0]}>
-            <boxGeometry args={[0.18, 0.18, 0.18]} />
-            <meshStandardMaterial color="#d9a582" />
-          </mesh>
-        </group>
-        <group ref={armR} position={[0.46, 1.0, 0]}>
-          <mesh position={[0, -0.4, 0]}>
-            <boxGeometry args={[0.2, 0.8, 0.22]} />
-            <meshStandardMaterial color="#1a1a1f" />
-          </mesh>
-          <mesh position={[0, -0.9, 0]}>
-            <boxGeometry args={[0.18, 0.18, 0.18]} />
-            <meshStandardMaterial color="#d9a582" />
-          </mesh>
-          {/* Weapon parented to right hand */}
-          <group position={[0, -0.95, 0.15]}>
-            <Weapon />
-          </group>
-        </group>
-
-        {/* Legs */}
-        <group ref={legL} position={[-0.18, 0.1, 0]}>
-          <mesh position={[0, -0.4, 0]}>
-            <boxGeometry args={[0.26, 0.85, 0.28]} />
-            <meshStandardMaterial color="#2a2f3a" />
-          </mesh>
-          <mesh position={[0, -0.9, 0.05]}>
-            <boxGeometry args={[0.28, 0.12, 0.4]} />
-            <meshStandardMaterial color="#050505" />
-          </mesh>
-        </group>
-        <group ref={legR} position={[0.18, 0.1, 0]}>
-          <mesh position={[0, -0.4, 0]}>
-            <boxGeometry args={[0.26, 0.85, 0.28]} />
-            <meshStandardMaterial color="#2a2f3a" />
-          </mesh>
-          <mesh position={[0, -0.9, 0.05]}>
-            <boxGeometry args={[0.28, 0.12, 0.4]} />
-            <meshStandardMaterial color="#050505" />
-          </mesh>
-        </group>
-      </group>
-    </group>
+    <Character
+      ref={refs}
+      color={gang.color}
+      accent={gang.accent}
+      showWeaponSlot={weaponNode}
+    />
   );
 }

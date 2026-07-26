@@ -6,11 +6,14 @@ import { Player } from "./Player";
 import { Joystick } from "./Joystick";
 import { NPCs } from "./NPCs";
 import { Vehicles } from "./Vehicles";
+import { DayNight } from "./DayNight";
+import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [aiming, setAiming] = useState(false);
+  const gang = GANGS[PLAYER_GANG];
 
   const onMove = useCallback((v: { x: number; y: number }) => {
     input.move.x = v.x;
@@ -30,14 +33,12 @@ export function GameScene() {
     <div className="fixed inset-0 bg-black" onClick={requestLock}>
       <Canvas
         dpr={[1, 1.25]}
-        camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 300 }}
+        camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 400 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
-        <color attach="background" args={["#05060a"]} />
-        <fog attach="fog" args={["#05060a", 40, 180]} />
-        <hemisphereLight args={["#5a6a95", "#08080f", 0.6]} />
-        <directionalLight position={[40, 70, 20]} intensity={0.5} color="#a9b8ff" />
-        <Stars radius={200} depth={30} count={250} factor={3} fade speed={0.2} />
+        <fog attach="fog" args={["#05060a", 60, 260]} />
+        <DayNight />
+        <Stars radius={220} depth={30} count={220} factor={3} fade speed={0.2} />
         <City />
         <Vehicles />
         <NPCs />
@@ -46,26 +47,26 @@ export function GameScene() {
 
       {/* Top HUD */}
       <div className="pointer-events-none fixed left-4 top-4 z-20 flex gap-2">
-        <div className="rounded bg-black/50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white/80 backdrop-blur">
-          Gang Wars
+        <div
+          className="rounded px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur border"
+          style={{ backgroundColor: `${gang.color}cc`, borderColor: gang.accent }}
+        >
+          {gang.name}
         </div>
         <div className="rounded bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur">
           District: Downtown
         </div>
       </div>
 
-      {/* Crosshair when aiming */}
       {aiming && (
         <div className="pointer-events-none fixed left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
           <div className="h-3 w-3 rounded-full border-2 border-white/80" />
         </div>
       )}
 
-      {/* Controls */}
       <Joystick side="left" onChange={onMove} label="Move" />
       <Joystick side="right" onChange={onLook} label="Look" />
 
-      {/* Action buttons */}
       <div className="fixed bottom-40 right-8 z-20 flex flex-col gap-3">
         <button
           onPointerDown={() => (input.jump = true)}
@@ -86,21 +87,11 @@ export function GameScene() {
         </button>
       </div>
 
-      {/* Aim + Fire */}
       <div className="fixed bottom-40 left-8 z-20 flex flex-col gap-3">
         <button
-          onPointerDown={() => {
-            input.aim = true;
-            setAiming(true);
-          }}
-          onPointerUp={() => {
-            input.aim = false;
-            setAiming(false);
-          }}
-          onPointerCancel={() => {
-            input.aim = false;
-            setAiming(false);
-          }}
+          onPointerDown={() => { input.aim = true; setAiming(true); }}
+          onPointerUp={() => { input.aim = false; setAiming(false); }}
+          onPointerCancel={() => { input.aim = false; setAiming(false); }}
           className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
             aiming ? "border-cyan-300 bg-cyan-500/40" : "border-white/20 bg-black/40"
           }`}
@@ -117,7 +108,6 @@ export function GameScene() {
         </button>
       </div>
 
-      {/* Orientation hint */}
       <div className="pointer-events-none fixed right-4 top-4 z-20 rounded bg-black/50 px-3 py-1 text-[10px] text-white/60 backdrop-blur">
         Right-click to aim · Left-click to fire
       </div>
