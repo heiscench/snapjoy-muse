@@ -11,6 +11,7 @@ import { DayNight } from "./DayNight";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
+import { pilotState } from "./vehicleState";
 import { Minimap } from "./Minimap";
 
 const TOUCH_LOOK_SENSITIVITY = 0.12;
@@ -47,11 +48,29 @@ function HealthBar() {
   );
 }
 
+function useVehicleUi() {
+  const [piloting, setPiloting] = useState(false);
+  const [nearHeli, setNearHeli] = useState(false);
+  useEffect(() => {
+    let raf: number;
+    const tick = () => {
+      setPiloting(pilotState.piloting);
+      setNearHeli(pilotState.nearOwnHeli);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return { piloting, nearHeli };
+}
+
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
+  const { piloting, nearHeli } = useVehicleUi();
+  const inVehicleMode = piloting || nearHeli;
 
   const moveRef = useRef<HTMLDivElement>(null);
   const aimRef = useRef<HTMLButtonElement>(null);
@@ -83,15 +102,19 @@ export function GameScene() {
         lastY: e.clientY,
       });
       if (zone === "aim") {
-        input.aim = true;
-        setAiming(true);
+        if (pilotState.piloting || pilotState.nearOwnHeli) {
+          pilotState.interactPressed = true;
+        } else {
+          input.aim = true;
+          setAiming(true);
+        }
       } else if (zone === "jump") {
         input.jump = true;
       } else if (zone === "run") {
         input.run = !input.run;
         setRunning(input.run);
       } else if (zone === "fire") {
-        input.fire = true;
+        if (!pilotState.piloting) input.fire = true;
       } else if (zone === "move") {
         setMoveKnob({ x: 0, y: 0 });
       }
@@ -129,10 +152,14 @@ export function GameScene() {
     if (!t) return;
     touches.current.delete(e.pointerId);
     if (t.zone === "aim") {
-      input.aim = false;
-      setAiming(false);
+      if (!pilotState.piloting && !pilotState.nearOwnHeli) {
+        input.aim = false;
+        setAiming(false);
+      }
     } else if (t.zone === "fire") {
       input.fire = false;
+    } else if (t.zone === "jump") {
+      input.jump = false;
     } else if (t.zone === "move") {
       input.move.x = 0;
       input.move.y = 0;
@@ -144,6 +171,8 @@ export function GameScene() {
     const el = document.querySelector("canvas");
     if (el && !document.pointerLockElement) (el as HTMLCanvasElement).requestPointerLock?.();
   };
+
+  const aimLabel = piloting ? "EXIT" : nearHeli ? "ENTER" : "AIM";
 
   return (
     <div
@@ -184,11 +213,16 @@ export function GameScene() {
           </div>
         </div>
         <HealthBar />
+        {piloting && (
+          <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
+            Piloting — Jump: climb · Run: descend
+          </div>
+        )}
       </div>
 
       <Minimap />
 
-      {aiming && (
+      {aiming && !inVehicleMode && (
         <div className="pointer-events-none fixed left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
           <div className="h-3 w-3 rounded-full border-2 border-white/80" />
         </div>
@@ -209,10 +243,16 @@ export function GameScene() {
         <button
           ref={aimRef}
           className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
-            aiming ? "border-cyan-300 bg-cyan-500/40" : "border-white/20 bg-black/40"
+            aimLabel === "EXIT"
+              ? "border-red-300 bg-red-500/40"
+              : aimLabel === "ENTER"
+              ? "border-green-300 bg-green-500/40"
+              : aiming
+              ? "border-cyan-300 bg-cyan-500/40"
+              : "border-white/20 bg-black/40"
           }`}
         >
-          Aim
+          {aimLabel}
         </button>
       </div>
 
@@ -221,7 +261,7 @@ export function GameScene() {
           ref={jumpRef}
           className="h-14 w-14 rounded-full border border-white/20 bg-black/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-white/20"
         >
-          Jump
+          {piloting ? "Up" : "Jump"}
         </button>
         <button
           ref={runRef}
@@ -229,11 +269,14 @@ export function GameScene() {
             running ? "border-yellow-300 bg-yellow-500/40" : "border-white/20 bg-black/40"
           }`}
         >
-          Run
+          {piloting ? "Down" : "Run"}
         </button>
         <button
           ref={fireRef}
-          className="h-14 w-14 rounded-full border border-red-400/60 bg-red-600/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-red-500/60"
+          disabled={piloting}
+          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
+            piloting ? "border-white/10 bg-black/20 opacity-40" : "border-red-400/60 bg-red-600/40 active:bg-red-500/60"
+          }`}
         >
           Fire
         </button>
