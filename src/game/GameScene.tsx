@@ -74,7 +74,6 @@ export function GameScene() {
 
   const onDown = useCallback(
     (e: React.PointerEvent) => {
-      e.preventDefault();
       const zone = zoneOf(e.clientX, e.clientY);
       touches.current.set(e.pointerId, {
         zone,
@@ -101,7 +100,6 @@ export function GameScene() {
   );
 
   const onMove = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
     const t = touches.current.get(e.pointerId);
     if (!t) return;
     if (t.zone === "look") {
@@ -127,7 +125,6 @@ export function GameScene() {
   }, []);
 
   const onUp = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
     const t = touches.current.get(e.pointerId);
     if (!t) return;
     touches.current.delete(e.pointerId);
@@ -174,7 +171,6 @@ export function GameScene() {
         <Tracers />
       </Canvas>
 
-      {/* Top HUD */}
       <div className="pointer-events-none fixed left-4 top-4 z-20 flex flex-col gap-2">
         <div className="flex gap-2">
           <div
@@ -198,7 +194,6 @@ export function GameScene() {
         </div>
       )}
 
-      {/* Move joystick (visual only — touch routing handled by the single dispatcher above) */}
       <div ref={moveRef} className="fixed bottom-6 left-6 z-20 h-32 w-32 select-none">
         <div className="absolute inset-0 rounded-full border border-white/25 bg-white/5" />
         <div
