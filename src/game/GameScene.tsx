@@ -26,64 +26,38 @@ function hitTest(el: HTMLElement | null, x: number, y: number) {
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
-function HealthBar() {
-  const [health, setHealth] = useState(playerState.health);
-  useEffect(() => {
-    let raf: number;
-    const tick = () => {
-      setHealth(playerState.health);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const pct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
-  const color = pct > 50 ? "#5cff8a" : pct > 20 ? "#ffd66a" : "#ff5a5a";
-  return (
-    <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
+type HudState = { health: number; piloting: boolean; nearHeli: boolean; error: string | null };
 
-function PilotErrorBanner() {
-  const [err, setErr] = useState<string | null>(null);
+// One rAF loop for the whole HUD instead of three separate ones, and only
+// re-renders when something actually changed (not blindly every frame).
+function useHud(): HudState {
+  const [state, setState] = useState<HudState>({
+    health: playerState.health,
+    piloting: pilotState.piloting,
+    nearHeli: pilotState.nearOwnHeli,
+    error: pilotState.lastError,
+  });
+  const last = useRef(state);
   useEffect(() => {
     let raf: number;
     const tick = () => {
-      setErr(pilotState.lastError);
+      const next: HudState = {
+        health: playerState.health,
+        piloting: pilotState.piloting,
+        nearHeli: pilotState.nearOwnHeli,
+        error: pilotState.lastError,
+      };
+      const l = last.current;
+      if (next.health !== l.health || next.piloting !== l.piloting || next.nearHeli !== l.nearHeli || next.error !== l.error) {
+        last.current = next;
+        setState(next);
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
-  if (!err) return null;
-  return (
-    <button
-      onClick={() => { pilotState.lastError = null; }}
-      className="fixed left-1/2 top-24 z-30 -translate-x-1/2 rounded bg-red-900/90 px-3 py-2 text-xs text-white shadow-lg"
-    >
-      Flight error (tap to dismiss): {err}
-    </button>
-  );
-}
-
-function useVehicleUi() {
-  const [piloting, setPiloting] = useState(false);
-  const [nearHeli, setNearHeli] = useState(false);
-  useEffect(() => {
-    let raf: number;
-    const tick = () => {
-      setPiloting(pilotState.piloting);
-      setNearHeli(pilotState.nearOwnHeli);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  return { piloting, nearHeli };
+  return state;
 }
 
 export function GameScene() {
@@ -91,8 +65,10 @@ export function GameScene() {
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
-  const { piloting, nearHeli } = useVehicleUi();
+  const { health, piloting, nearHeli, error } = useHud();
   const inVehicleMode = piloting || nearHeli;
+  const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
+  const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
 
   const moveRef = useRef<HTMLDivElement>(null);
   const aimRef = useRef<HTMLButtonElement>(null);
@@ -234,7 +210,11 @@ export function GameScene() {
             District: Downtown
           </div>
         </div>
-        <HealthBar />
+        <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full" style={{ width: `${healthPct}%`, backgroundColor: healthColor }} />
+          </div>
+        </div>
         {piloting && (
           <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
             Piloting — Jump: climb · Run: descend
@@ -243,6 +223,15 @@ export function GameScene() {
       </div>
 
       <Minimap />
+
+      {error && (
+        <button
+          onClick={() => { pilotState.lastError = null; }}
+          className="fixed left-1/2 top-24 z-30 max-w-[80vw] -translate-x-1/2 rounded bg-red-900/90 px-3 py-2 text-xs text-white shadow-lg"
+        >
+          Flight error (tap to dismiss): {error}
+        </button>
+      )}
 
       {aiming && !inVehicleMode && (
         <div className="pointer-events-none fixed left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
