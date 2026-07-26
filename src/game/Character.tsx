@@ -108,7 +108,13 @@ export const Character = forwardRef<CharacterRefs, Props>(function Character(
             <meshStandardMaterial color={skin} />
           </mesh>
           {showWeaponSlot && (
-            <group position={[0, -0.95, 0.15]}>{showWeaponSlot}</group>
+            // rotation.x = +1.4 exactly cancels the arm's -1.4 aim-pose rotation
+            // (same axis, so they compose to zero), so the gun's own forward
+            // axis stays pointing where the character faces while aiming,
+            // instead of rotating up with the arm bone.
+            <group position={[0, -0.95, 0.15]} rotation={[1.4, 0, 0]}>
+              {showWeaponSlot}
+            </group>
           )}
         </group>
 
