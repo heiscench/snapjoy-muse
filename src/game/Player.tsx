@@ -1,3 +1,4 @@
+
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -6,7 +7,15 @@ import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
 import { Weapon } from "./Weapon";
-import { resolveCollision } from "./worldData";
+import { resolveCollision, nearestHospitalDistance, GANG_HQ } from "./worldData";
+import { playerState, damagePlayer, healPlayer, revivePlayer } from "./playerState";
+import { spawnTracer } from "./tracerState";
+
+const HEAL_RADIUS = 8;
+const HEAL_RATE = 22; // hp/sec near a hospital
+const ENEMY_CONTACT_RANGE = 9;
+const ENEMY_HIT_CHANCE_PER_SEC = 0.35;
+const ENEMY_HIT_DAMAGE = 6;
 
 export function Player() {
   const refs = useRef<CharacterRefs>(null!);
@@ -28,7 +37,7 @@ export function Player() {
     const r = refs.current;
     if (!r || !r.root) return;
 
-    // Spawn in a clear street gap, not inside the downtown tower at (0,0).
+    // Spawn in a clear street gap, not inside the downtown building at (0,0).
     if (!hasSpawned.current) {
       r.root.position.set(24, 0, 24);
       hasSpawned.current = true;
@@ -90,6 +99,33 @@ export function Player() {
       grounded.current = true;
     }
 
+    // Share position/heading for HUD/minimap
+    playerState.pos.x = p.x;
+    playerState.pos.z = p.z;
+    playerState.yaw = yaw.current;
+
+    // Healing near a hospital
+    if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
+      healPlayer(HEAL_RATE * dtc);
+    }
+
+    // Enemy gang members deal light contact damage when close
+    for (const n of NPCS) {
+      if (n.dead || n.gang === PLAYER_GANG) continue;
+      const d = Math.hypot(n.pos.x - p.x, n.pos.z - p.z);
+      if (d < ENEMY_CONTACT_RANGE && Math.random() < ENEMY_HIT_CHANCE_PER_SEC * dtc) {
+        damagePlayer(ENEMY_HIT_DAMAGE);
+      }
+    }
+
+    // Respawn at own gang HQ on death
+    if (playerState.health <= 0) {
+      const hq = GANG_HQ[PLAYER_GANG];
+      p.set(hq.x, 0, hq.z);
+      vel.current.set(0, 0, 0);
+      revivePlayer();
+    }
+
     // Face
     if (aiming) {
       r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, yaw.current, Math.min(1, dtc * 18));
@@ -135,6 +171,8 @@ export function Player() {
       const origin = camera.position.clone();
       const forwardV = new THREE.Vector3();
       camera.getWorldDirection(forwardV);
+      spawnTracer(origin, forwardV);
+
       let best: { d: number; npc: (typeof NPCS)[number] } | null = null;
       for (const n of NPCS) {
         if (n.dead) continue;
