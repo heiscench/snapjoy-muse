@@ -7,7 +7,8 @@ export type BuildingType =
   | "bank"         // Bank
   | "lowrise"      // Shopping
   | "harbor"       // Harbor low structure
-  | "crane";       // Harbor accent
+  | "crane"        // Harbor accent
+  | "hospital";    // One per district
 
 export type District =
   | "downtown"
@@ -66,6 +67,19 @@ function buildingForDistrict(d: District, r: () => number): { type: BuildingType
   }
 }
 
+// One dedicated block per district becomes a hospital instead of its usual building.
+const HOSPITAL_BLOCKS: Array<[number, number]> = [
+  [0, 0],   // downtown
+  [-3, 0],  // industrial
+  [4, 4],   // stadium
+  [3, -2],  // bank
+  [0, 2],   // shopping
+  [0, -3],  // harbor
+];
+function isHospitalBlock(gx: number, gz: number) {
+  return HOSPITAL_BLOCKS.some(([hx, hz]) => hx === gx && hz === gz);
+}
+
 export const BUILDINGS: BuildingBox[] = (() => {
   const r = rng(20260726);
   const list: BuildingBox[] = [];
@@ -74,10 +88,12 @@ export const BUILDINGS: BuildingBox[] = (() => {
       const cx = gx * BLOCK_SIZE;
       const cz = gz * BLOCK_SIZE;
       const d = districtFor(gx, gz);
-      // Stadium block hosts only one huge landmark structure.
-      if (d === "stadium" && (gx !== 3 || gz !== 3)) {
-        // still add a bank-ish nothing; skip to keep it sparse
+
+      if (isHospitalBlock(gx, gz)) {
+        list.push({ x: cx, z: cz, w: 26, d: 20, h: 16, type: "hospital", district: d });
+        continue;
       }
+
       const spec = buildingForDistrict(d, r);
       list.push({
         x: cx,
@@ -105,6 +121,42 @@ export const BUILDINGS: BuildingBox[] = (() => {
   return list;
 })();
 
+// Hospitals — same coordinates as HOSPITAL_BLOCKS above, exposed for gameplay/minimap.
+export const HOSPITALS: { x: number; z: number; district: District }[] = HOSPITAL_BLOCKS.map(
+  ([gx, gz]) => ({ x: gx * BLOCK_SIZE, z: gz * BLOCK_SIZE, district: districtFor(gx, gz) }),
+);
+
+export function nearestHospitalDistance(x: number, z: number): number {
+  let best = Infinity;
+  for (const h of HOSPITALS) {
+    const dx = x - h.x;
+    const dz = z - h.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < best) best = dist;
+  }
+  return best;
+}
+
+// One parked-helicopter pad per gang. Positions chosen to sit in open street
+// gaps, not inside any building footprint — adjust freely if you retune the
+// city layout.
+export const GANG_HQ: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
+  0: { x: 24, z: -24 },    // Crimson Vipers — Downtown
+  1: { x: -168, z: 24 },   // Neon Yakuza — Industrial
+  2: { x: 24, z: 152 },    // Toxic Skulls — Shopping
+  3: { x: 24, z: -168 },   // Violet Kings — Harbor
+};
+
+// Floating district signage — name + world position for the label.
+export const DISTRICT_LABELS: { name: string; district: District; x: number; z: number }[] = [
+  { name: "DOWNTOWN", district: "downtown", x: 0, z: 40 },
+  { name: "INDUSTRIAL AREA", district: "industrial", x: -192, z: 60 },
+  { name: "STADIUM", district: "stadium", x: 256, z: 300 },
+  { name: "BANK DISTRICT", district: "bank", x: 192, z: -170 },
+  { name: "SHOPPING DISTRICT", district: "shopping", x: 0, z: 170 },
+  { name: "HARBOR", district: "harbor", x: 0, z: -230 },
+];
+
 // Harbor "water" plane bounds
 export const HARBOR_Z = -GRID * BLOCK_SIZE - BLOCK_SIZE / 2;
 
@@ -125,7 +177,6 @@ export function resolveCollision(
     const minZ = b.z - b.d / 2 - radius;
     const maxZ = b.z + b.d / 2 + radius;
     if (x > minX && x < maxX && z > minZ && z < maxZ) {
-      // Test X-only movement
       if (!(prevX > minX && prevX < maxX && z > minZ && z < maxZ)) {
         x = prevX;
       } else if (!(x > minX && x < maxX && prevZ > minZ && prevZ < maxZ)) {
