@@ -8,6 +8,7 @@ import { Guards } from "./Guards";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { Tracers } from "./Tracers";
+import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { DayNight } from "./DayNight";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
