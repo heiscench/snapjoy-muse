@@ -205,6 +205,8 @@ export function Player() {
 
     pilotState.nearOwnHeli =
       Math.hypot(p.x - HELICOPTERS[PLAYER_GANG].pos.x, p.z - HELICOPTERS[PLAYER_GANG].pos.z) < HELI_ENTER_RADIUS;
+const shop = WEAPON_SHOPS[PLAYER_GANG];
+shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
 
     if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
       healPlayer(HEAL_RATE * dtc);
