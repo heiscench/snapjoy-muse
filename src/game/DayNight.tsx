@@ -2,16 +2,14 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
-// Full cycle in seconds (12 minutes).
 const CYCLE_SECONDS = 12 * 60;
 
-// Keyframes across normalized time t in [0,1]. 0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset.
 const KEYS = [
-  { t: 0.0,  sky: "#05060a", fog: "#05060a", sun: "#8ea6ff", intensity: 0.25 }, // night
-  { t: 0.22, sky: "#3d2a3a", fog: "#3d2a3a", sun: "#ff9b6a", intensity: 0.6  }, // sunrise
-  { t: 0.5,  sky: "#7fb8e6", fog: "#a9c8dc", sun: "#fff2c6", intensity: 1.1  }, // noon
-  { t: 0.78, sky: "#5b2c3a", fog: "#5b2c3a", sun: "#ff7a4a", intensity: 0.55 }, // sunset
-  { t: 1.0,  sky: "#05060a", fog: "#05060a", sun: "#8ea6ff", intensity: 0.25 }, // night again
+  { t: 0.0,  sky: "#05060a", fog: "#05060a", sun: "#8ea6ff", intensity: 0.18 },
+  { t: 0.22, sky: "#3d2a3a", fog: "#3d2a3a", sun: "#ff9b6a", intensity: 1.0  },
+  { t: 0.5,  sky: "#bfe0f7", fog: "#cfe6f2", sun: "#fff8e0", intensity: 2.6  },
+  { t: 0.78, sky: "#5b2c3a", fog: "#5b2c3a", sun: "#ff7a4a", intensity: 0.9  },
+  { t: 1.0,  sky: "#05060a", fog: "#05060a", sun: "#8ea6ff", intensity: 0.18 },
 ];
 
 function lerpColor(a: string, b: string, k: number, out: THREE.Color) {
@@ -21,6 +19,7 @@ function lerpColor(a: string, b: string, k: number, out: THREE.Color) {
 export function DayNight() {
   const dirRef = useRef<THREE.DirectionalLight>(null!);
   const hemiRef = useRef<THREE.HemisphereLight>(null!);
+  const ambRef = useRef<THREE.AmbientLight>(null!);
   const { scene } = useThree();
   const start = useMemo(() => performance.now() / 1000, []);
   const skyColor = useMemo(() => new THREE.Color("#05060a"), []);
@@ -31,7 +30,6 @@ export function DayNight() {
     const now = performance.now() / 1000 - start;
     const t = (now / CYCLE_SECONDS) % 1;
 
-    // Find surrounding keyframes.
     let i = 0;
     while (i < KEYS.length - 1 && KEYS[i + 1].t < t) i++;
     const a = KEYS[i];
@@ -51,19 +49,22 @@ export function DayNight() {
     if (dirRef.current) {
       dirRef.current.color.copy(sunColor);
       dirRef.current.intensity = intensity;
-      // Sun arc: angle from t
       const ang = t * Math.PI * 2 - Math.PI / 2;
       const r = 90;
       dirRef.current.position.set(Math.cos(ang) * r, Math.max(15, Math.sin(ang) * r + 30), 20);
     }
     if (hemiRef.current) {
-      hemiRef.current.intensity = 0.35 + intensity * 0.4;
-      hemiRef.current.color.copy(skyColor).lerp(new THREE.Color("#a9c8dc"), 0.5);
+      hemiRef.current.intensity = 0.3 + intensity * 0.35;
+      hemiRef.current.color.copy(skyColor).lerp(new THREE.Color("#eaf4ff"), 0.5);
+    }
+    if (ambRef.current) {
+      ambRef.current.intensity = 0.08 + intensity * 0.12;
     }
   });
 
   return (
     <>
+      <ambientLight ref={ambRef} intensity={0.15} />
       <hemisphereLight ref={hemiRef} args={["#5a6a95", "#08080f", 0.6]} />
       <directionalLight ref={dirRef} position={[40, 70, 20]} intensity={0.5} color="#a9b8ff" />
     </>
