@@ -107,7 +107,6 @@ export function Vehicles({ count = 22 }: { count?: number }) {
     const r = rng(20260726);
     const list: Car[] = [];
     for (let i = 0; i < count; i++) {
-      // Park along road edges (between blocks).
       const gx = Math.floor(r() * (GRID * 2 + 1)) - GRID;
       const gz = Math.floor(r() * (GRID * 2 + 1)) - GRID;
       const alongX = r() < 0.5;
@@ -118,7 +117,6 @@ export function Vehicles({ count = 22 }: { count?: number }) {
       const rotY = alongX ? Math.PI / 2 : 0;
       const typeRoll = r();
       const type: CarType = typeRoll < 0.45 ? "sedan" : typeRoll < 0.8 ? "suv" : "sport";
-      // 40% civilian, 60% gang-colored
       let color: string;
       if (r() < 0.4) color = CIVILIAN_COLORS[Math.floor(r() * CIVILIAN_COLORS.length)];
       else color = GANGS[Math.floor(r() * 4)].color;
@@ -127,10 +125,32 @@ export function Vehicles({ count = 22 }: { count?: number }) {
     return list;
   }, [count]);
 
+  useEffect(() => { initCarHealth(cars.length); }, [cars.length]);
+
+  const [, force] = useState(0);
+  useFrame((_, dt) => {
+    let changed = false;
+    for (let i = 0; i < carDestroyed.length; i++) {
+      if (carDestroyed[i]) {
+        carRespawn[i] -= dt;
+        if (carRespawn[i] <= 0) {
+          carDestroyed[i] = false;
+          changed = true;
+        }
+      }
+    }
+    if (changed) force((n) => n + 1);
+  });
+
   return (
     <group>
       {cars.map((c, i) => (
-        <group key={i} position={[c.x, 0, c.z]} rotation={[0, c.rotY, 0]}>
+        <group
+          key={i}
+          position={[c.x, 0, c.z]}
+          rotation={[0, c.rotY, 0]}
+          visible={!carDestroyed[i]}
+        >
           {c.type === "sedan" && <Sedan color={c.color} />}
           {c.type === "suv" && <SUV color={c.color} />}
           {c.type === "sport" && <Sport color={c.color} />}
@@ -139,3 +159,6 @@ export function Vehicles({ count = 22 }: { count?: number }) {
     </group>
   );
 }
+
+// Expose CAR_MAX_HP for callers reasoning about damage scaling (unused directly here).
+void CAR_MAX_HP;
