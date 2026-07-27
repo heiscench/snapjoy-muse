@@ -67,14 +67,10 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     }
     r.root.visible = true;
 
-    // ---- AI: acquire a target (player) ----
     const pp = playerState.pos;
     const distToPlayer = Math.hypot(npc.pos.x - pp.x, npc.pos.z - pp.z);
     const isEnemyOfPlayer = npc.gang !== PLAYER_GANG;
 
-    // Aggro rules:
-    //  - Enemy NPC in its own owned district: on-sight when player enters (any distance in district).
-    //  - Enemy NPC anywhere: aggro if within DETECT_RANGE.
     let wantsCombat = false;
     let following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
     if (isEnemyOfPlayer) {
@@ -85,7 +81,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       if (distToPlayer < DETECT_RANGE) wantsCombat = true;
     }
     if (following && playerState.health > 0) {
-      // Followers mirror combat when the player is engaging (aiming or in danger).
       const anyThreatNearPlayer = NPCS.some(
         (o) => !o.dead && o.gang !== PLAYER_GANG && Math.hypot(o.pos.x - pp.x, o.pos.z - pp.z) < DETECT_RANGE,
       );
@@ -95,9 +90,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     if (wantsCombat) npc.mode = "combat";
     else if (npc.mode === "combat" && distToPlayer > DETECT_RANGE * 1.5) npc.mode = "patrol";
 
-    // ---- Movement ----
     if (npc.mode === "combat" && isEnemyOfPlayer) {
-      // Straight-line move toward player + collision resolve.
       const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
       const d = Math.hypot(dx, dz) || 1;
       const nx = npc.pos.x + (dx / d) * NPC_MOVE_COMBAT * dtc;
@@ -106,7 +99,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       npc.pos.x = resolved.x; npc.pos.z = resolved.z;
       npc.dir.set(dx / d, 0, dz / d);
 
-      // Fire at player.
       npc.fireCd = Math.max(0, npc.fireCd - dtc);
       if (distToPlayer < 40 && npc.fireCd === 0) {
         npc.fireCd = NPC_FIRE_RATE;
@@ -127,7 +119,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         npc.dir.set(dx / d, 0, dz / d);
       }
     } else {
-      // Patrol wander, constrained to home district radius.
       npc.phase += dtc;
       if (npc.phase > 3) {
         npc.phase = 0;
@@ -164,15 +155,13 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       r.torsoMat.color.copy(baseColor);
     }
 
-    // Ally marker: only visible on player's gang, only visible to that gang.
-    // (Rival gangs never render this — enforced by the isAlly check.)
     const isAlly = npc.gang === PLAYER_GANG;
     if (marker.current) {
       marker.current.visible = isAlly;
+      marker.current.position.set(npc.pos.x, 2.4, npc.pos.z);
       if (isAlly) marker.current.rotation.y += dtc * 3;
     }
 
-    // Project world position to screen for squad tap detection (allies only).
     if (isAlly) {
       _screenV.set(npc.pos.x, 1.8, npc.pos.z).project(camera);
       const inFront = _screenV.z < 1 && _screenV.z > -1;
@@ -186,9 +175,8 @@ function NPCUnit({ npc }: { npc: NPCState }) {
 
   return (
     <group>
-      <Character ref={refs} color={gang.color} accent={gang.accent} />
-      {/* Ally / follower marker — invisible to rivals since only same-gang render it */}
-      <mesh ref={marker} position={[npc.pos.x, 2.4, npc.pos.z]} visible={false}>
+      <Character ref={refs} color={gang.color} accent={gang.accent} scale={1.15} />
+      <mesh ref={marker} position={[0, 2.4, 0]} visible={false}>
         <coneGeometry args={[0.18, 0.35, 4]} />
         <meshBasicMaterial color={isFollowing(npc.id) ? "#5cff8a" : GANGS[PLAYER_GANG].accent} />
       </mesh>
