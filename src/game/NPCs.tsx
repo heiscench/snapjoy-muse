@@ -1,10 +1,20 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
-import { GANGS, type GangId } from "./gangs";
+import { GANGS, PLAYER_GANG, type GangId } from "./gangs";
 import { NPCS, damageNPC, spawnNPC, type NPCState } from "./npcState";
-import { resolveCollision } from "./worldData";
+import { resolveCollision, districtAt } from "./worldData";
+import { playerState, damagePlayer } from "./playerState";
+import { territoryState } from "./territoryState";
+import { spawnTracer } from "./tracerState";
+import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED, squadState } from "./squadState";
+
+const DETECT_RANGE = 22;
+const NPC_FIRE_RATE = 0.9;
+const NPC_DAMAGE = 5;
+const NPC_MOVE_COMBAT = 3.2;
+const AGGRO_TIME = 6;
 
 export function NPCs({ count = 12 }: { count?: number }) {
   useEffect(() => {
@@ -25,12 +35,16 @@ export function NPCs({ count = 12 }: { count?: number }) {
   );
 }
 
+const _screenV = new THREE.Vector3();
+
 function NPCUnit({ npc }: { npc: NPCState }) {
   const refs = useRef<CharacterRefs>(null!);
   const gang = GANGS[npc.gang];
   const baseColor = useMemo(() => new THREE.Color(gang.color), [gang.color]);
   const hitColor = useMemo(() => new THREE.Color("#ff5050"), []);
   const walkPhase = useRef(0);
+  const marker = useRef<THREE.Mesh>(null!);
+  const { camera, size } = useThree();
 
   useFrame((_, dt) => {
     const dtc = Math.min(dt, 0.05);
@@ -40,32 +54,97 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     if (npc.dead) {
       npc.respawn -= dtc;
       r.root.visible = false;
+      npc.screenVisible = false;
       if (npc.respawn <= 0) {
         const s = spawnNPC(npc.id, npc.gang);
         npc.pos.copy(s.pos);
         npc.dir.copy(s.dir);
         npc.hp = 100;
         npc.dead = false;
+        npc.mode = "patrol";
       }
       return;
     }
     r.root.visible = true;
 
-    // Wander w/ collision
-    npc.phase += dtc;
-    if (npc.phase > 3) {
-      npc.phase = 0;
-      npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
+    // ---- AI: acquire a target (player) ----
+    const pp = playerState.pos;
+    const distToPlayer = Math.hypot(npc.pos.x - pp.x, npc.pos.z - pp.z);
+    const isEnemyOfPlayer = npc.gang !== PLAYER_GANG;
+
+    // Aggro rules:
+    //  - Enemy NPC in its own owned district: on-sight when player enters (any distance in district).
+    //  - Enemy NPC anywhere: aggro if within DETECT_RANGE.
+    let wantsCombat = false;
+    let following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
+    if (isEnemyOfPlayer) {
+      const npcDistrict = districtAt(npc.pos.x, npc.pos.z);
+      const playerDistrict = districtAt(pp.x, pp.z);
+      const ownsThis = territoryState.owners[npcDistrict] === npc.gang;
+      if (ownsThis && playerDistrict === npcDistrict) wantsCombat = true;
+      if (distToPlayer < DETECT_RANGE) wantsCombat = true;
     }
-    const nx = npc.pos.x + npc.dir.x * npc.speed * dtc;
-    const nz = npc.pos.z + npc.dir.z * npc.speed * dtc;
-    const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
-    if (resolved.x === npc.pos.x && resolved.z === npc.pos.z) {
-      npc.dir.multiplyScalar(-1);
+    if (following && playerState.health > 0) {
+      // Followers mirror combat when the player is engaging (aiming or in danger).
+      const anyThreatNearPlayer = NPCS.some(
+        (o) => !o.dead && o.gang !== PLAYER_GANG && Math.hypot(o.pos.x - pp.x, o.pos.z - pp.z) < DETECT_RANGE,
+      );
+      if (anyThreatNearPlayer) wantsCombat = true;
     }
-    npc.pos.x = resolved.x;
-    npc.pos.z = resolved.z;
-    if (npc.pos.length() > 240) npc.dir.multiplyScalar(-1);
+
+    if (wantsCombat) npc.mode = "combat";
+    else if (npc.mode === "combat" && distToPlayer > DETECT_RANGE * 1.5) npc.mode = "patrol";
+
+    // ---- Movement ----
+    if (npc.mode === "combat" && isEnemyOfPlayer) {
+      // Straight-line move toward player + collision resolve.
+      const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      const nx = npc.pos.x + (dx / d) * NPC_MOVE_COMBAT * dtc;
+      const nz = npc.pos.z + (dz / d) * NPC_MOVE_COMBAT * dtc;
+      const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+      npc.pos.x = resolved.x; npc.pos.z = resolved.z;
+      npc.dir.set(dx / d, 0, dz / d);
+
+      // Fire at player.
+      npc.fireCd = Math.max(0, npc.fireCd - dtc);
+      if (distToPlayer < 40 && npc.fireCd === 0) {
+        npc.fireCd = NPC_FIRE_RATE;
+        const from = new THREE.Vector3(npc.pos.x, 1.4, npc.pos.z);
+        const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
+        spawnTracer(from, to);
+        if (distToPlayer < 36) damagePlayer(NPC_DAMAGE);
+      }
+    } else if (following) {
+      const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > FOLLOW_RADIUS) {
+        const s = Math.min(FOLLOW_MAX_SPEED, d);
+        const nx = npc.pos.x + (dx / d) * s * dtc;
+        const nz = npc.pos.z + (dz / d) * s * dtc;
+        const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+        npc.pos.x = resolved.x; npc.pos.z = resolved.z;
+        npc.dir.set(dx / d, 0, dz / d);
+      }
+    } else {
+      // Patrol wander, constrained to home district radius.
+      npc.phase += dtc;
+      if (npc.phase > 3) {
+        npc.phase = 0;
+        npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
+      }
+      const nx = npc.pos.x + npc.dir.x * npc.speed * dtc;
+      const nz = npc.pos.z + npc.dir.z * npc.speed * dtc;
+      const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+      if (resolved.x === npc.pos.x && resolved.z === npc.pos.z) npc.dir.multiplyScalar(-1);
+      npc.pos.x = resolved.x; npc.pos.z = resolved.z;
+
+      const distHome = Math.hypot(npc.pos.x - npc.home.x, npc.pos.z - npc.home.z);
+      if (distHome > npc.wanderRadius) {
+        const towardHome = new THREE.Vector3(npc.home.x - npc.pos.x, 0, npc.home.z - npc.pos.z).normalize();
+        npc.dir.copy(towardHome);
+      }
+    }
 
     const yaw = Math.atan2(npc.dir.x, npc.dir.z);
     r.root.position.set(npc.pos.x, 0, npc.pos.z);
@@ -78,14 +157,42 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     if (r.armL) r.armL.rotation.x = -swing * 0.7;
     if (r.armR) r.armR.rotation.x = swing * 0.7;
 
-    // Hit flash
     if (npc.hitFlash > 0) {
       npc.hitFlash -= dtc;
       if (r.torsoMat) r.torsoMat.color.copy(hitColor);
     } else if (r.torsoMat) {
       r.torsoMat.color.copy(baseColor);
     }
+
+    // Ally marker: only visible on player's gang, only visible to that gang.
+    // (Rival gangs never render this — enforced by the isAlly check.)
+    const isAlly = npc.gang === PLAYER_GANG;
+    if (marker.current) {
+      marker.current.visible = isAlly;
+      if (isAlly) marker.current.rotation.y += dtc * 3;
+    }
+
+    // Project world position to screen for squad tap detection (allies only).
+    if (isAlly) {
+      _screenV.set(npc.pos.x, 1.8, npc.pos.z).project(camera);
+      const inFront = _screenV.z < 1 && _screenV.z > -1;
+      npc.screenX = (_screenV.x * 0.5 + 0.5) * size.width;
+      npc.screenY = (-_screenV.y * 0.5 + 0.5) * size.height;
+      npc.screenVisible = inFront;
+    } else {
+      npc.screenVisible = false;
+    }
   });
 
-  return <Character ref={refs} color={gang.color} accent={gang.accent} />;
+  return (
+    <group>
+      <Character ref={refs} color={gang.color} accent={gang.accent} />
+      {/* Ally / follower marker — invisible to rivals since only same-gang render it */}
+      <mesh ref={marker} position={[npc.pos.x, 2.4, npc.pos.z]} visible={false}>
+        <coneGeometry args={[0.18, 0.35, 4]} />
+        <meshBasicMaterial color={isFollowing(npc.id) ? "#5cff8a" : GANGS[PLAYER_GANG].accent} />
+      </mesh>
+      {squadState.followers.has(npc.id) && null}
+    </group>
+  );
 }

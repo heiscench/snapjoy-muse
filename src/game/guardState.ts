@@ -1,0 +1,104 @@
+// Neutral security + bank guards. Kept separate from NPCS to avoid touching
+// the existing wander/respawn loop.
+import * as THREE from "three";
+import { NEUTRAL_HQS, ROBBABLE_BANKS, type District } from "./worldData";
+import { registerGuardsAliveForBank, GUARD_RESPAWN } from "./territoryState";
+import type { GangId } from "./gangs";
+
+export type GuardKind = "bank" | "neutral";
+
+export type GuardState = {
+  id: number;
+  kind: GuardKind;
+  bankId?: number;      // set for kind === "bank"
+  district?: District;  // set for kind === "neutral"
+  gang: GangId | null;  // neutral guards may re-skin to capturing gang
+  home: THREE.Vector3;
+  pos: THREE.Vector3;
+  dir: THREE.Vector3;
+  hp: number;
+  maxHp: number;
+  dead: boolean;
+  respawn: number;      // seconds until respawn
+  hitFlash: number;
+  fireCd: number;
+  aggroT: number;       // time remaining in aggro state
+};
+
+export const GUARD_MAX_HP = 220;
+export const GUARD_DAMAGE = 12;
+export const GUARD_FIRE_RATE = 0.6;
+export const GUARD_DETECT_RANGE = 20;
+export const NEUTRAL_GUARDS_PER_HQ = 2;
+export const BANK_GUARDS_PER_BANK = 3;
+
+export const GUARDS: GuardState[] = [];
+
+let nextId = 1;
+
+function spawnAround(cx: number, cz: number, offset: number): THREE.Vector3 {
+  const a = Math.random() * Math.PI * 2;
+  return new THREE.Vector3(cx + Math.cos(a) * offset, 0, cz + Math.sin(a) * offset);
+}
+
+export function initGuards() {
+  GUARDS.length = 0;
+  nextId = 1;
+  // Bank guards
+  for (const b of ROBBABLE_BANKS) {
+    for (let i = 0; i < BANK_GUARDS_PER_BANK; i++) {
+      const home = spawnAround(b.x, b.z, 12);
+      GUARDS.push({
+        id: nextId++, kind: "bank", bankId: b.id, gang: null,
+        home, pos: home.clone(),
+        dir: new THREE.Vector3(0, 0, 1),
+        hp: GUARD_MAX_HP, maxHp: GUARD_MAX_HP,
+        dead: false, respawn: 0, hitFlash: 0, fireCd: 0, aggroT: 0,
+      });
+    }
+  }
+  // Neutral district guards
+  for (const n of NEUTRAL_HQS) {
+    for (let i = 0; i < NEUTRAL_GUARDS_PER_HQ; i++) {
+      const home = spawnAround(n.x, n.z, 6);
+      GUARDS.push({
+        id: nextId++, kind: "neutral", district: n.district, gang: null,
+        home, pos: home.clone(),
+        dir: new THREE.Vector3(0, 0, 1),
+        hp: GUARD_MAX_HP, maxHp: GUARD_MAX_HP,
+        dead: false, respawn: 0, hitFlash: 0, fireCd: 0, aggroT: 0,
+      });
+    }
+  }
+}
+
+export function damageGuard(g: GuardState, amount: number) {
+  if (g.dead) return;
+  g.hp -= amount;
+  g.hitFlash = 0.25;
+  g.aggroT = 8;
+  if (g.hp <= 0) {
+    g.dead = true;
+    g.respawn = GUARD_RESPAWN;
+  }
+}
+
+// Territory system asks: are any guards for this bank still alive?
+registerGuardsAliveForBank((bankId: number) => {
+  for (const g of GUARDS) {
+    if (g.kind === "bank" && g.bankId === bankId && !g.dead) return true;
+  }
+  return false;
+});
+
+// Called by the territory system when a neutral district's HQ is captured.
+export function reskinNeutralDistrictGuards(district: District, gang: GangId) {
+  for (const g of GUARDS) {
+    if (g.kind === "neutral" && g.district === district) {
+      g.gang = gang;
+      g.dead = true;
+      g.respawn = 2; // quick respawn re-skinned
+      g.hp = GUARD_MAX_HP;
+    }
+  }
+}
