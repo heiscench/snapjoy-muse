@@ -34,7 +34,7 @@ export function Weapon() {
 
     cooldown.current = Math.max(0, cooldown.current - dt);
     const w = currentWeapon();
-    if (input.fire && cooldown.current === 0 && input.aim) {
+    if (input.fire && cooldown.current === 0) {
       cooldown.current = w.fireRate;
       setFlash(1);
       setTimeout(() => setFlash(0), 40);
