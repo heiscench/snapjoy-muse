@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GANGS } from "./gangs";
 import { BLOCK_SIZE, GRID } from "./worldData";
+import { initCarHealth, carDestroyed, carRespawn, CAR_MAX_HP } from "./vehicleState";
+import { useFrame } from "@react-three/fiber";
 
 type CarType = "sedan" | "suv" | "sport";
 
