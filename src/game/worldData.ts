@@ -261,3 +261,11 @@ export function resolveHeliCollision(
   }
   return { x, z };
 }
+// Weapon shop kiosk per gang — a short walk from that gang's HQ.
+export const WEAPON_SHOPS: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
+  0: { x: 40, z: -24 },
+  1: { x: -148, z: 24 },
+  2: { x: 40, z: 152 },
+  3: { x: 40, z: -168 },
+};
+export const SHOP_RADIUS = 7;
