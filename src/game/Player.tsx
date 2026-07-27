@@ -5,11 +5,17 @@ import { Character, type CharacterRefs } from "./Character";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
+import { GUARDS, damageGuard } from "./guardState";
 import { Weapon } from "./Weapon";
 import { resolveCollision, resolveHeliCollision, nearestHospitalDistance, GANG_HQ } from "./worldData";
-import { playerState, damagePlayer, healPlayer, revivePlayer } from "./playerState";
+import {
+  playerState, damagePlayer, healPlayer, revivePlayer,
+  earnMoney, spendMoney, DEATH_COST, KILL_BOUNTY,
+} from "./playerState";
 import { spawnTracer } from "./tracerState";
-import { HELICOPTERS, pilotState } from "./vehicleState";
+import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
+import { currentWeapon } from "./weaponState";
+import { tickTerritory, onPlayerKill } from "./territoryState";
 
 const HEAL_RADIUS = 8;
 const HEAL_RATE = 22;
