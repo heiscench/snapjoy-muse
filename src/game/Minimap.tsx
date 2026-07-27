@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { BUILDINGS, HOSPITALS, GANG_HQ, BLOCK_SIZE, GRID } from "./worldData";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { playerState } from "./playerState";
+import { territoryState } from "./territoryState";
 
 const WORLD_EXTENT = (GRID + 1) * BLOCK_SIZE;
 const SIZE = 160;
@@ -21,7 +22,17 @@ export function Minimap() {
       ctx.fillStyle = "rgba(5,6,10,0.9)";
       ctx.fillRect(0, 0, SIZE, SIZE);
 
-      ctx.fillStyle = "rgba(120,140,180,0.35)";
+      // District ownership tint — faint overlay behind buildings.
+      for (const b of BUILDINGS) {
+        const owner = territoryState.owners[b.district];
+        if (owner === null || owner === undefined) continue;
+        const c = GANGS[owner].accent;
+        const { mx, mz } = toMap(b.x, b.z);
+        ctx.fillStyle = c + "55";
+        ctx.fillRect(mx - (b.w * scale) / 2 - 2, mz - (b.d * scale) / 2 - 2, Math.max(3, b.w * scale) + 4, Math.max(3, b.d * scale) + 4);
+      }
+
+      ctx.fillStyle = "rgba(120,140,180,0.7)";
       for (const b of BUILDINGS) {
         const { mx, mz } = toMap(b.x, b.z);
         ctx.fillRect(mx - (b.w * scale) / 2, mz - (b.d * scale) / 2, Math.max(1.5, b.w * scale), Math.max(1.5, b.d * scale));

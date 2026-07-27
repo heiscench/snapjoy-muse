@@ -1,10 +1,18 @@
 // Shared player state, read by HUD/minimap without needing React re-renders
 // for every physics frame (same pattern as npcState.ts).
+
+export const START_MONEY = 500;
+export const DEATH_COST = 100;
+export const KILL_BOUNTY = 50;
+export const STADIUM_REP_PER_KILL = 1;
+
 export const playerState = {
   health: 100,
   maxHealth: 100,
   pos: { x: 24, z: 24 },
   yaw: 0,
+  money: START_MONEY,
+  reputation: 0,
 };
 
 export function damagePlayer(amount: number) {
@@ -17,4 +25,22 @@ export function healPlayer(amount: number) {
 
 export function revivePlayer() {
   playerState.health = playerState.maxHealth;
+}
+
+export function earnMoney(amount: number) {
+  playerState.money = Math.max(0, playerState.money + Math.floor(amount));
+}
+
+export function spendMoney(amount: number): boolean {
+  const cost = Math.floor(amount);
+  if (playerState.money < cost) {
+    playerState.money = Math.max(0, playerState.money);
+    return false;
+  }
+  playerState.money -= cost;
+  return true;
+}
+
+export function addReputation(amount: number) {
+  playerState.reputation = Math.max(0, playerState.reputation + amount);
 }

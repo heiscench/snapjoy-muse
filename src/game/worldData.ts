@@ -41,13 +41,22 @@ export const BLOCK_SIZE = 64;
 export const ROAD_WIDTH = 20;
 export const GRID = 4; // -4..4 => 9x9 blocks
 
-function districtFor(gx: number, gz: number): District {
+export function districtFor(gx: number, gz: number): District {
   if (gz <= -3) return "harbor";
   if (gx <= -3) return "industrial";
   if (gx >= 3 && gz >= 3) return "stadium";
   if (gx >= 2 && gz <= -2) return "bank";
   if (gz >= 2) return "shopping";
   return "downtown";
+}
+
+export function districtAt(x: number, z: number): District {
+  const gx = Math.round(x / BLOCK_SIZE);
+  const gz = Math.round(z / BLOCK_SIZE);
+  return districtFor(
+    Math.max(-GRID, Math.min(GRID, gx)),
+    Math.max(-GRID, Math.min(GRID, gz)),
+  );
 }
 
 function buildingForDistrict(d: District, r: () => number): { type: BuildingType; w: number; depth: number; h: number } {
@@ -104,7 +113,6 @@ export const BUILDINGS: BuildingBox[] = (() => {
         type: spec.type,
         district: d,
       });
-      // Harbor: add a crane accent near the harbor building.
       if (d === "harbor" && r() > 0.4) {
         list.push({
           x: cx + 14,
@@ -137,17 +145,15 @@ export function nearestHospitalDistance(x: number, z: number): number {
   return best;
 }
 
-// One parked-helicopter pad per gang. Positions chosen to sit in open street
-// gaps, not inside any building footprint — adjust freely if you retune the
-// city layout.
+// One parked-helicopter pad per gang.
 export const GANG_HQ: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
-  0: { x: 24, z: -24 },    // Crimson Vipers — Downtown
-  1: { x: -168, z: 24 },   // Neon Yakuza — Industrial
-  2: { x: 24, z: 152 },    // Toxic Skulls — Shopping
-  3: { x: 24, z: -168 },   // Violet Kings — Harbor
+  0: { x: 24, z: -24 },
+  1: { x: -168, z: 24 },
+  2: { x: 24, z: 152 },
+  3: { x: 24, z: -168 },
 };
 
-// Floating district signage — name + world position for the label.
+// Floating district signage — also serves as capture-zone centers.
 export const DISTRICT_LABELS: { name: string; district: District; x: number; z: number }[] = [
   { name: "DOWNTOWN", district: "downtown", x: 0, z: 40 },
   { name: "INDUSTRIAL AREA", district: "industrial", x: -192, z: 60 },
@@ -157,10 +163,27 @@ export const DISTRICT_LABELS: { name: string; district: District; x: number; z: 
   { name: "HARBOR", district: "harbor", x: 0, z: -230 },
 ];
 
+// Neutral districts (not held by any gang initially) get an HQ point + guards.
+export const NEUTRAL_HQS: { district: District; x: number; z: number }[] = [
+  { district: "stadium", x: 256, z: 300 },
+  { district: "bank",    x: 192, z: -170 },
+];
+
+// Rob-able banks — subset of bank buildings to keep guard count reasonable.
+export const ROBBABLE_BANKS: { id: number; x: number; z: number }[] = BUILDINGS
+  .map((b, i) => ({ b, i }))
+  .filter(({ b }) => b.type === "bank")
+  .slice(0, 3)
+  .map(({ b, i }) => ({ id: i, x: b.x, z: b.z }));
+
+// Capture / vault zone radius (units).
+export const CAPTURE_RADIUS = 15;
+export const VAULT_RADIUS = 8;
+
 // Harbor "water" plane bounds
 export const HARBOR_Z = -GRID * BLOCK_SIZE - BLOCK_SIZE / 2;
 
-// AABB collision helper (XZ plane). Returns adjusted position preventing entry.
+// AABB collision helper (XZ plane).
 export function resolveCollision(
   prevX: number,
   prevZ: number,
@@ -189,8 +212,7 @@ export function resolveCollision(
   }
   return { x, z };
 }
-// Same idea as resolveCollision, but for the helicopter: it can fly clean
-// over a building once its altitude clears that building's height.
+
 export function resolveHeliCollision(
   prevX: number,
   prevZ: number,
@@ -203,7 +225,7 @@ export function resolveHeliCollision(
   let z = nextZ;
   for (const b of BUILDINGS) {
     if (b.type === "crane") continue;
-    if (y >= b.h) continue; // above rooftop — clear
+    if (y >= b.h) continue;
     const minX = b.x - b.w / 2 - radius;
     const maxX = b.x + b.w / 2 + radius;
     const minZ = b.z - b.d / 2 - radius;

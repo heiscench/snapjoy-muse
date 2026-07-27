@@ -14,6 +14,22 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   useFrame((_, dt) => {
     const h = HELICOPTERS[gangId];
     if (!group.current || !rotor.current) return;
+
+    // Destroyed → hide + respawn at HQ after a delay.
+    if (h.destroyed) {
+      group.current.visible = false;
+      h.respawn -= dt;
+      if (h.respawn <= 0) {
+        const hq = GANG_HQ[gangId];
+        h.pos.set(hq.x, 0, hq.z);
+        h.yaw = 0; h.vy = 0;
+        h.hp = 300;
+        h.destroyed = false;
+      }
+      return;
+    }
+    group.current.visible = true;
+
     const flying = h.pos.y > 0.5 || Math.abs(h.vy) > 0.5;
     rotor.current.rotation.y += dt * (flying ? 22 : 1.2);
 
@@ -23,7 +39,6 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
 
     group.current.position.set(h.pos.x, h.pos.y, h.pos.z);
     group.current.rotation.y = h.yaw;
-    // Bank into horizontal movement for a bit of flight feel
     const localX = Math.cos(-h.yaw) * vx - Math.sin(-h.yaw) * vz;
     group.current.rotation.z = THREE.MathUtils.lerp(
       group.current.rotation.z,
