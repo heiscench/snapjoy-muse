@@ -267,7 +267,7 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
     camera.lookAt(p.x + sideV.x * shoulderX * 0.6, p.y + 1.5, p.z + sideV.z * shoulderX * 0.6);
 
     fireCd.current = Math.max(0, fireCd.current - dtc);
-    if (input.fire && input.aim && fireCd.current === 0) {
+   if (input.fire && fireCd.current === 0) {
       const w = currentWeapon();
       fireCd.current = w.fireRate;
       const origin = camera.position.clone();
