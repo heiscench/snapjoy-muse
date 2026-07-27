@@ -337,11 +337,12 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
   });
 
   return (
-    <Character
-      ref={refs}
-      color={gang.color}
-      accent={gang.accent}
-      showWeaponSlot={weaponNode}
+  <Character
+    ref={refs}
+    color={gang.color}
+    accent={gang.accent}
+    showWeaponSlot={weaponNode}
+    scale={1.15}
     />
   );
 }
