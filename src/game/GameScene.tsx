@@ -30,29 +30,53 @@ function hitTest(el: HTMLElement | null, x: number, y: number) {
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
-type HudState = { health: number; piloting: boolean; nearHeli: boolean; error: string | null };
+type HudState = {
+  health: number; piloting: boolean; nearHeli: boolean; error: string | null;
+  money: number; reputation: number;
+  capturePct: number; captureName: string | null;
+  robberyPct: number;
+  message: string | null;
+};
 
-// One rAF loop for the whole HUD instead of three separate ones, and only
-// re-renders when something actually changed (not blindly every frame).
 function useHud(): HudState {
   const [state, setState] = useState<HudState>({
     health: playerState.health,
     piloting: pilotState.piloting,
     nearHeli: pilotState.nearOwnHeli,
     error: pilotState.lastError,
+    money: playerState.money,
+    reputation: playerState.reputation,
+    capturePct: 0, captureName: null,
+    robberyPct: 0,
+    message: null,
   });
   const last = useRef(state);
   useEffect(() => {
     let raf: number;
     const tick = () => {
+      const captureName = territoryState.captureDistrict;
+      const capturePct = captureName ? (territoryState.captureProgress / CAPTURE_TIME) * 100 : 0;
+      const robberyPct = territoryState.robberyBankId !== null
+        ? (territoryState.robberyProgress / ROBBERY_TIME) * 100 : 0;
       const next: HudState = {
-        health: playerState.health,
+        health: Math.round(playerState.health),
         piloting: pilotState.piloting,
         nearHeli: pilotState.nearOwnHeli,
         error: pilotState.lastError,
+        money: Math.floor(playerState.money),
+        reputation: Math.floor(playerState.reputation),
+        capturePct: Math.round(capturePct),
+        captureName,
+        robberyPct: Math.round(robberyPct),
+        message: territoryState.captureMessage,
       };
       const l = last.current;
-      if (next.health !== l.health || next.piloting !== l.piloting || next.nearHeli !== l.nearHeli || next.error !== l.error) {
+      if (
+        next.health !== l.health || next.piloting !== l.piloting || next.nearHeli !== l.nearHeli ||
+        next.error !== l.error || next.money !== l.money || next.reputation !== l.reputation ||
+        next.capturePct !== l.capturePct || next.captureName !== l.captureName ||
+        next.robberyPct !== l.robberyPct || next.message !== l.message
+      ) {
         last.current = next;
         setState(next);
       }
