@@ -10,6 +10,7 @@ const DISTRICT_ACCENT: Record<string, string> = {
   bank: "#ffd66a",
   shopping: "#ff9ad6",
   harbor: "#6adfff",
+  residential: "#ffb86a",
 };
 
 function Tower({ b }: { b: BuildingBox }) {
@@ -140,7 +141,6 @@ function Hospital({ b }: { b: BuildingBox }) {
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#e9edf2" roughness={0.8} />
       </mesh>
-      {/* Red cross sign, front + back */}
       {[b.d / 2 + 0.03, -(b.d / 2 + 0.03)].map((zOff, i) => (
         <group key={i} position={[0, b.h * 0.55, zOff]}>
           <mesh>
@@ -153,15 +153,36 @@ function Hospital({ b }: { b: BuildingBox }) {
           </mesh>
         </group>
       ))}
-      <Text
-        position={[0, b.h + 1.6, 0]}
-        fontSize={2.2}
-        color="#ff5a5a"
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text position={[0, b.h + 1.6, 0]} fontSize={2.2} color="#ff5a5a" anchorX="center" anchorY="middle">
         HOSPITAL
       </Text>
+    </group>
+  );
+}
+
+function House({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      {/* Body */}
+      <mesh position={[0, b.h / 2, 0]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial color="#5a4838" roughness={0.9} />
+      </mesh>
+      {/* Peaked roof */}
+      <mesh position={[0, b.h + 0.9, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <coneGeometry args={[b.w * 0.75, 1.8, 4]} />
+        <meshStandardMaterial color="#2a1f18" roughness={0.85} />
+      </mesh>
+      {/* Warm window glow */}
+      <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
+        <planeGeometry args={[b.w * 0.35, b.h * 0.3]} />
+        <meshBasicMaterial color="#ffcf7a" />
+      </mesh>
+      {/* Door */}
+      <mesh position={[0, b.h * 0.22, b.d / 2 + 0.03]}>
+        <planeGeometry args={[b.w * 0.22, b.h * 0.44]} />
+        <meshBasicMaterial color="#2a1810" />
+      </mesh>
     </group>
   );
 }
@@ -180,6 +201,7 @@ export function City() {
         case "crane": return <Crane key={i} b={b} />;
         case "stadium": return <Stadium key={i} b={b} />;
         case "hospital": return <Hospital key={i} b={b} />;
+        case "house": return <House key={i} b={b} />;
       }
     });
   }, []);
