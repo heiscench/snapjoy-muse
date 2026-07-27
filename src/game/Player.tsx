@@ -17,7 +17,7 @@ import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 
-const HEAL_RADIUS = 8;
+const HEAL_RADIUS = 22; // must clear the hospital building's own footprint (~16 units)
 const HEAL_RATE = 22;
 const ENEMY_CONTACT_RANGE = 9;
 const ENEMY_HIT_CHANCE_PER_SEC = 0.35;
