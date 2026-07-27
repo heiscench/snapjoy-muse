@@ -6,6 +6,7 @@ import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
 import { GUARDS, damageGuard } from "./guardState";
+import { shopState } from "./shopState";
 import { Weapon } from "./Weapon";
 import { resolveCollision, resolveHeliCollision, nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS } from "./worldData";
 import {
