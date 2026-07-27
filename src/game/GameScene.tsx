@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
+import { Guards } from "./Guards";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { Tracers } from "./Tracers";
@@ -13,6 +14,9 @@ import { input } from "./input";
 import { playerState } from "./playerState";
 import { pilotState } from "./vehicleState";
 import { Minimap } from "./Minimap";
+import { WeaponShop } from "./WeaponShop";
+import { SquadPrompt } from "./SquadPrompt";
+import { territoryState, CAPTURE_TIME, ROBBERY_TIME } from "./territoryState";
 
 const TOUCH_LOOK_SENSITIVITY = 0.12;
 const MAX_DRAG_STEP = 40;
