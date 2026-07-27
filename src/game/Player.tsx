@@ -7,7 +7,7 @@ import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
 import { GUARDS, damageGuard } from "./guardState";
 import { Weapon } from "./Weapon";
-import { resolveCollision, resolveHeliCollision, nearestHospitalDistance, GANG_HQ } from "./worldData";
+import { resolveCollision, resolveHeliCollision, nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS } from "./worldData";
 import {
   playerState, damagePlayer, healPlayer, revivePlayer,
   earnMoney, spendMoney, DEATH_COST, KILL_BOUNTY,
