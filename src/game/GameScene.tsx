@@ -93,7 +93,7 @@ export function GameScene() {
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
-  const { health, piloting, nearHeli, error } = useHud();
+  const { health, piloting, nearHeli, error, money, reputation, capturePct, captureName, robberyPct, message } = useHud();
   const inVehicleMode = piloting || nearHeli;
   const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
   const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
@@ -226,6 +226,7 @@ export function GameScene() {
         <Vehicles />
         <Helicopters />
         <NPCs />
+        <Guards />
         <Player />
         <Tracers />
       </Canvas>
@@ -242,11 +243,40 @@ export function GameScene() {
             District: Downtown
           </div>
         </div>
+        <div className="flex gap-2">
+          <div className="rounded bg-black/60 px-3 py-1 text-xs font-bold text-green-300 backdrop-blur">
+            ${money}
+          </div>
+          <div className="rounded bg-black/60 px-3 py-1 text-xs font-bold text-yellow-300 backdrop-blur">
+            REP {reputation}
+          </div>
+        </div>
         <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
             <div className="h-full rounded-full" style={{ width: `${healthPct}%`, backgroundColor: healthColor }} />
           </div>
         </div>
+        {captureName && (
+          <div className="w-44 rounded bg-black/60 p-1 backdrop-blur">
+            <div className="mb-0.5 text-[9px] uppercase tracking-widest text-cyan-300">Capturing {captureName}</div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-cyan-400" style={{ width: `${capturePct}%` }} />
+            </div>
+          </div>
+        )}
+        {robberyPct > 0 && (
+          <div className="w-44 rounded bg-black/60 p-1 backdrop-blur">
+            <div className="mb-0.5 text-[9px] uppercase tracking-widest text-green-300">Robbing vault</div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-green-400" style={{ width: `${robberyPct}%` }} />
+            </div>
+          </div>
+        )}
+        {message && (
+          <div className="rounded bg-black/70 px-3 py-1 text-[10px] uppercase tracking-widest text-yellow-200 backdrop-blur">
+            {message}
+          </div>
+        )}
         {piloting && (
           <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
             Piloting — Jump: climb · Run: descend
@@ -255,6 +285,8 @@ export function GameScene() {
       </div>
 
       <Minimap />
+      <WeaponShop />
+      <SquadPrompt />
 
       {error && (
         <button
