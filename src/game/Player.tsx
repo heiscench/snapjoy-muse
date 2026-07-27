@@ -222,7 +222,11 @@ export function Player() {
       p.set(hq.x, 0, hq.z);
       vel.current.set(0, 0, 0);
       revivePlayer();
+      spendMoney(DEATH_COST);
     }
+
+    // Territory / robbery channels
+    tickTerritory(dtc, p.x, p.z);
 
     if (aiming) {
       r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, yaw.current, Math.min(1, dtc * 18));
@@ -261,24 +265,71 @@ export function Player() {
 
     fireCd.current = Math.max(0, fireCd.current - dtc);
     if (input.fire && input.aim && fireCd.current === 0) {
-      fireCd.current = 0.12;
+      const w = currentWeapon();
+      fireCd.current = w.fireRate;
       const origin = camera.position.clone();
       const forwardV = new THREE.Vector3();
       camera.getWorldDirection(forwardV);
-      spawnTracer(origin, forwardV);
 
-      let best: { d: number; npc: (typeof NPCS)[number] } | null = null;
-      for (const n of NPCS) {
-        if (n.dead) continue;
-        const toN = new THREE.Vector3(n.pos.x, 1, n.pos.z).sub(origin);
-        const dist = toN.length();
-        if (dist > 80) continue;
-        toN.normalize();
-        const dot = toN.dot(forwardV);
-        if (dot < 0.985) continue;
-        if (!best || dist < best.d) best = { d: dist, npc: n };
+      for (let pellet = 0; pellet < w.pellets; pellet++) {
+        const dir = forwardV.clone();
+        if (w.pellets > 1) {
+          dir.x += (Math.random() - 0.5) * 0.08;
+          dir.y += (Math.random() - 0.5) * 0.08;
+          dir.z += (Math.random() - 0.5) * 0.08;
+          dir.normalize();
+        }
+        spawnTracer(origin, dir);
+
+        // Hit NPCs
+        let bestN: { d: number; npc: (typeof NPCS)[number] } | null = null;
+        for (const n of NPCS) {
+          if (n.dead) continue;
+          const toN = new THREE.Vector3(n.pos.x, 1, n.pos.z).sub(origin);
+          const dist = toN.length();
+          if (dist > w.range) continue;
+          toN.normalize();
+          const dot = toN.dot(dir);
+          if (dot < w.spread) continue;
+          if (!bestN || dist < bestN.d) bestN = { d: dist, npc: n };
+        }
+        // Hit guards
+        let bestG: { d: number; g: (typeof GUARDS)[number] } | null = null;
+        for (const g of GUARDS) {
+          if (g.dead) continue;
+          const toG = new THREE.Vector3(g.pos.x, 1, g.pos.z).sub(origin);
+          const dist = toG.length();
+          if (dist > w.range) continue;
+          toG.normalize();
+          const dot = toG.dot(dir);
+          if (dot < w.spread) continue;
+          if (!bestG || dist < bestG.d) bestG = { d: dist, g };
+        }
+        // Hit helicopters (occupied one damages player if destroyed)
+        for (const gid of [0, 1, 2, 3] as const) {
+          const h = HELICOPTERS[gid];
+          if (h.destroyed) continue;
+          const toH = new THREE.Vector3(h.pos.x, h.pos.y + 1.4, h.pos.z).sub(origin);
+          const dist = toH.length();
+          if (dist > w.range) continue;
+          toH.normalize();
+          const dot = toH.dot(dir);
+          if (dot < w.spread - 0.005) continue;
+          const occupied = pilotState.piloting && gid === PLAYER_GANG;
+          const res = damageHeli(gid, w.damage, occupied);
+          if (res.occupantDamage > 0) damagePlayer(res.occupantDamage);
+        }
+
+        // Prefer closer target
+        if (bestN && bestG) {
+          if (bestN.d <= bestG.d) { damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); } }
+          else damageGuard(bestG.g, w.damage);
+        } else if (bestN) {
+          damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+        } else if (bestG) {
+          damageGuard(bestG.g, w.damage);
+        }
       }
-      if (best) damageNPC(best.npc, 34);
     }
   });
 
