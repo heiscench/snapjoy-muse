@@ -15,21 +15,19 @@ import {
   STADIUM_REP_PER_KILL,
 } from "./playerState";
 
-// ---- Tunables ------------------------------------------------------------
-export const CAPTURE_TIME = 30;             // seconds
-export const CAPTURE_LOCK = 5 * 60;         // seconds after successful capture
+export const CAPTURE_TIME = 30;
+export const CAPTURE_LOCK = 5 * 60;
 export const HARBOR_INCOME_PER_SEC = 2;
 export const BANK_INCOME_PER_SEC = 3;
 export const INDUSTRIAL_WEAPON_DISCOUNT = 0.25;
-export const STADIUM_REP_TICK = 0.15;       // per second
+export const STADIUM_REP_TICK = 0.15;
 
-export const ROBBERY_TIME = 30;             // vault channel seconds
-export const ROBBERY_COOLDOWN = 10 * 60;    // per bank
+export const ROBBERY_TIME = 30;
+export const ROBBERY_COOLDOWN = 10 * 60;
 export const GUARD_RESPAWN = 5 * 60;
 export const ROBBERY_MIN_PAYOUT = 2000;
 export const ROBBERY_MAX_PAYOUT = 4000;
 
-// ---- District ownership --------------------------------------------------
 export type Owner = GangId | null;
 
 const INITIAL_OWNERS: Record<District, Owner> = {
@@ -39,21 +37,19 @@ const INITIAL_OWNERS: Record<District, Owner> = {
   harbor: 3,
   stadium: null,
   bank: null,
+  residential: null,
 };
 
 export const territoryState = {
   owners: { ...INITIAL_OWNERS } as Record<District, Owner>,
-  // capture channel
   captureDistrict: null as District | null,
   captureProgress: 0,
   captureMessage: null as string | null,
   captureMessageT: 0,
-  lockUntil: {} as Partial<Record<District, number>>, // seconds since epoch (perf.now/1000)
-  // bank robbery
+  lockUntil: {} as Partial<Record<District, number>>,
   robberyBankId: null as number | null,
   robberyProgress: 0,
   robberyLockUntil: {} as Record<number, number>,
-  // internal
   _lastHealth: playerState.health,
   _tSecs: 0,
 };
@@ -70,7 +66,6 @@ export function weaponDiscount(): number {
   return playerHolds("industrial") ? INDUSTRIAL_WEAPON_DISCOUNT : 0;
 }
 
-// Called from Player fire logic when the player kills an NPC.
 export function onPlayerKill() {
   if (playerHolds("stadium")) addReputation(STADIUM_REP_PER_KILL * 2);
   else addReputation(STADIUM_REP_PER_KILL);
@@ -85,28 +80,22 @@ function setMessage(msg: string) {
   territoryState.captureMessageT = 3;
 }
 
-// ---- Per-frame tick ------------------------------------------------------
-// Player.tsx calls this once per frame (already inside its useFrame).
 export function tickTerritory(dt: number, playerX: number, playerZ: number) {
   const s = territoryState;
   s._tSecs += dt;
 
-  // Fade capture toast.
   if (s.captureMessageT > 0) {
     s.captureMessageT = Math.max(0, s.captureMessageT - dt);
     if (s.captureMessageT === 0) s.captureMessage = null;
   }
 
-  // Passive income from held districts.
   if (playerHolds("harbor")) earnMoney(HARBOR_INCOME_PER_SEC * dt);
   if (playerHolds("bank")) earnMoney(BANK_INCOME_PER_SEC * dt);
   if (playerHolds("stadium")) addReputation(STADIUM_REP_TICK * dt);
 
-  // Damage reset (works for both capture + robbery channels).
   const damaged = playerState.health < s._lastHealth - 0.01;
   s._lastHealth = playerState.health;
 
-  // ---- District capture channel ----
   let inZone: District | null = null;
   for (const lbl of DISTRICT_LABELS) {
     const d2 = Math.hypot(lbl.x - playerX, lbl.z - playerZ);
@@ -145,7 +134,6 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
     s.captureProgress = 0;
   }
 
-  // ---- Bank robbery channel ----
   let inVault: { id: number } | null = null;
   for (const b of ROBBABLE_BANKS) {
     const d2 = Math.hypot(b.x - playerX, b.z - playerZ);
@@ -153,7 +141,6 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
   }
   if (inVault) {
     const lockUntil = s.robberyLockUntil[inVault.id] ?? 0;
-    // Guards must all be dead — imported lazily to avoid circular dep.
     const guardsAlive = anyGuardAliveForBank(inVault.id);
     if (s._tSecs < lockUntil || guardsAlive) {
       if (s.robberyBankId !== inVault.id) {
@@ -185,7 +172,6 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
   }
 }
 
-// Wired by guardState after import to break the module cycle.
 let _guardsAliveForBank: (bankId: number) => boolean = () => false;
 export function registerGuardsAliveForBank(fn: (bankId: number) => boolean) {
   _guardsAliveForBank = fn;
