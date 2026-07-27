@@ -17,10 +17,11 @@ type Props = {
   accent: string;
   skin?: string;
   showWeaponSlot?: React.ReactNode;
+  scale?: number;
 };
 
 export const Character = forwardRef<CharacterRefs, Props>(function Character(
-  { color, accent, skin = "#c99879", showWeaponSlot },
+  { color, accent, skin = "#c99879", showWeaponSlot, scale = 1 },
   ref,
 ) {
   const root = useRef<THREE.Group>(null!);
@@ -44,7 +45,7 @@ export const Character = forwardRef<CharacterRefs, Props>(function Character(
   }));
 
   return (
-    <group ref={root}>
+    <group ref={root} scale={scale}>
       <group ref={body}>
         {/* Torso — gang color */}
         <mesh position={[0, 0.55, 0]}>
@@ -108,10 +109,6 @@ export const Character = forwardRef<CharacterRefs, Props>(function Character(
             <meshStandardMaterial color={skin} />
           </mesh>
           {showWeaponSlot && (
-            // rotation.x = +1.4 exactly cancels the arm's -1.4 aim-pose rotation
-            // (same axis, so they compose to zero), so the gun's own forward
-            // axis stays pointing where the character faces while aiming,
-            // instead of rotating up with the arm bone.
             <group position={[0, -0.95, 0.15]} rotation={[1.4, 0, 0]}>
               {showWeaponSlot}
             </group>
