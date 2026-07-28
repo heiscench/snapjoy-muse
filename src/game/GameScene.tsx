@@ -4,28 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
-import { Guards } from "./Guards";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
-import { Tracers } from "./Tracers";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
+import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
-import { RemotePlayers } from "./RemotePlayers";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
 import { pilotState } from "./vehicleState";
+import { carPilot } from "./carState";
 import { Minimap } from "./Minimap";
-import { WeaponShop } from "./WeaponShop";
-import { SquadPrompt } from "./SquadPrompt";
-import { territoryState, CAPTURE_TIME, ROBBERY_TIME } from "./territoryState";
-import { startPresence, stopPresence } from "./presence";
-import { syncProfileToServer, syncProfileToServerBeacon } from "./profileSync";
 
-const PROFILE_SYNC_MS = 12000;
-
-const TOUCH_LOOK_SENSITIVITY = 0.12;
-const MAX_DRAG_STEP = 40;
+const TOUCH_LOOK_SENSITIVITY = 0.22;
+const MAX_DRAG_STEP = 50;
 const JOYSTICK_RADIUS = 55;
 
 type Zone = "move" | "look" | "aim" | "jump" | "run" | "fire" | null;
@@ -37,11 +29,12 @@ function hitTest(el: HTMLElement | null, x: number, y: number) {
 }
 
 type HudState = {
-  health: number; piloting: boolean; nearHeli: boolean; error: string | null;
-  money: number; reputation: number;
-  capturePct: number; captureName: string | null;
-  robberyPct: number;
-  message: string | null;
+  health: number;
+  piloting: boolean;
+  nearHeli: boolean;
+  carDriving: boolean;
+  nearCar: boolean;
+  error: string | null;
 };
 
 function useHud(): HudState {
@@ -49,39 +42,30 @@ function useHud(): HudState {
     health: playerState.health,
     piloting: pilotState.piloting,
     nearHeli: pilotState.nearOwnHeli,
+    carDriving: carPilot.driving,
+    nearCar: carPilot.nearIndex >= 0,
     error: pilotState.lastError,
-    money: playerState.money,
-    reputation: playerState.reputation,
-    capturePct: 0, captureName: null,
-    robberyPct: 0,
-    message: null,
   });
   const last = useRef(state);
   useEffect(() => {
     let raf: number;
     const tick = () => {
-      const captureName = territoryState.captureDistrict;
-      const capturePct = captureName ? (territoryState.captureProgress / CAPTURE_TIME) * 100 : 0;
-      const robberyPct = territoryState.robberyBankId !== null
-        ? (territoryState.robberyProgress / ROBBERY_TIME) * 100 : 0;
       const next: HudState = {
-        health: Math.round(playerState.health),
+        health: playerState.health,
         piloting: pilotState.piloting,
         nearHeli: pilotState.nearOwnHeli,
+        carDriving: carPilot.driving,
+        nearCar: carPilot.nearIndex >= 0,
         error: pilotState.lastError,
-        money: Math.floor(playerState.money),
-        reputation: Math.floor(playerState.reputation),
-        capturePct: Math.round(capturePct),
-        captureName,
-        robberyPct: Math.round(robberyPct),
-        message: territoryState.captureMessage,
       };
       const l = last.current;
       if (
-        next.health !== l.health || next.piloting !== l.piloting || next.nearHeli !== l.nearHeli ||
-        next.error !== l.error || next.money !== l.money || next.reputation !== l.reputation ||
-        next.capturePct !== l.capturePct || next.captureName !== l.captureName ||
-        next.robberyPct !== l.robberyPct || next.message !== l.message
+        next.health !== l.health ||
+        next.piloting !== l.piloting ||
+        next.nearHeli !== l.nearHeli ||
+        next.carDriving !== l.carDriving ||
+        next.nearCar !== l.nearCar ||
+        next.error !== l.error
       ) {
         last.current = next;
         setState(next);
@@ -99,24 +83,8 @@ export function GameScene() {
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
-  const { health, piloting, nearHeli, error, money, reputation, capturePct, captureName, robberyPct, message } = useHud();
-
-  useEffect(() => {
-    startPresence();
-    const t = setInterval(() => { void syncProfileToServer(); }, PROFILE_SYNC_MS);
-    const onUnload = () => syncProfileToServerBeacon();
-    window.addEventListener("beforeunload", onUnload);
-    window.addEventListener("pagehide", onUnload);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener("beforeunload", onUnload);
-      window.removeEventListener("pagehide", onUnload);
-      void syncProfileToServer();
-      stopPresence();
-    };
-  }, []);
-
-  const inVehicleMode = piloting || nearHeli;
+  const { health, piloting, nearHeli, carDriving, nearCar, error } = useHud();
+  const inVehicleMode = piloting || nearHeli || carDriving || nearCar;
   const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
   const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
 
@@ -150,7 +118,7 @@ export function GameScene() {
         lastY: e.clientY,
       });
       if (zone === "aim") {
-        if (pilotState.piloting || pilotState.nearOwnHeli) {
+        if (pilotState.piloting || pilotState.nearOwnHeli || carPilot.driving || carPilot.nearIndex >= 0) {
           pilotState.interactPressed = true;
         } else {
           input.aim = true;
@@ -162,7 +130,7 @@ export function GameScene() {
         input.run = !input.run;
         setRunning(input.run);
       } else if (zone === "fire") {
-        if (!pilotState.piloting) input.fire = true;
+        if (!pilotState.piloting && !carPilot.driving) input.fire = true;
       } else if (zone === "move") {
         setMoveKnob({ x: 0, y: 0 });
       }
@@ -200,7 +168,7 @@ export function GameScene() {
     if (!t) return;
     touches.current.delete(e.pointerId);
     if (t.zone === "aim") {
-      if (!pilotState.piloting && !pilotState.nearOwnHeli) {
+      if (!pilotState.piloting && !pilotState.nearOwnHeli && !carPilot.driving && carPilot.nearIndex < 0) {
         input.aim = false;
         setAiming(false);
       }
@@ -216,15 +184,13 @@ export function GameScene() {
   }, []);
 
   const requestLock = () => {
-    // Pointer Lock is a desktop-mouse concept; on touch devices it does
-    // nothing useful and just triggers Chrome's "how to get your cursor
-    // back" banner every tap. Skip it entirely on touch devices.
     if ("ontouchstart" in window) return;
     const el = document.querySelector("canvas");
     if (el && !document.pointerLockElement) (el as HTMLCanvasElement).requestPointerLock?.();
   };
 
-  const aimLabel = piloting ? "EXIT" : nearHeli ? "ENTER" : "AIM";
+  const inVehicleNow = piloting || carDriving;
+  const aimLabel = inVehicleNow ? "EXIT" : nearHeli || nearCar ? "ENTER" : "AIM";
 
   return (
     <div
@@ -249,9 +215,7 @@ export function GameScene() {
         <Helicopters />
         <WeaponShopKiosks />
         <NPCs />
-        <Guards />
         <Player />
-        <RemotePlayers />
         <Tracers />
       </Canvas>
 
@@ -267,57 +231,31 @@ export function GameScene() {
             District: Downtown
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="rounded bg-black/60 px-3 py-1 text-xs font-bold text-green-300 backdrop-blur">
-            ${money}
-          </div>
-          <div className="rounded bg-black/60 px-3 py-1 text-xs font-bold text-yellow-300 backdrop-blur">
-            REP {reputation}
-          </div>
-        </div>
         <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
             <div className="h-full rounded-full" style={{ width: `${healthPct}%`, backgroundColor: healthColor }} />
           </div>
         </div>
-        {captureName && (
-          <div className="w-44 rounded bg-black/60 p-1 backdrop-blur">
-            <div className="mb-0.5 text-[9px] uppercase tracking-widest text-cyan-300">Capturing {captureName}</div>
-            <div className="h-2 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-cyan-400" style={{ width: `${capturePct}%` }} />
-            </div>
-          </div>
-        )}
-        {robberyPct > 0 && (
-          <div className="w-44 rounded bg-black/60 p-1 backdrop-blur">
-            <div className="mb-0.5 text-[9px] uppercase tracking-widest text-green-300">Robbing vault</div>
-            <div className="h-2 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-green-400" style={{ width: `${robberyPct}%` }} />
-            </div>
-          </div>
-        )}
-        {message && (
-          <div className="rounded bg-black/70 px-3 py-1 text-[10px] uppercase tracking-widest text-yellow-200 backdrop-blur">
-            {message}
-          </div>
-        )}
         {piloting && (
           <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
             Piloting — Jump: climb · Run: descend
           </div>
         )}
+        {carDriving && (
+          <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
+            Driving — Move stick: steer + throttle
+          </div>
+        )}
       </div>
 
       <Minimap />
-      <WeaponShop />
-      <SquadPrompt />
 
       {error && (
         <button
           onClick={() => { pilotState.lastError = null; }}
           className="fixed left-1/2 top-24 z-30 max-w-[80vw] -translate-x-1/2 rounded bg-red-900/90 px-3 py-2 text-xs text-white shadow-lg"
         >
-          Flight error (tap to dismiss): {error}
+          Vehicle error (tap to dismiss): {error}
         </button>
       )}
 
@@ -372,9 +310,9 @@ export function GameScene() {
         </button>
         <button
           ref={fireRef}
-          disabled={piloting}
+          disabled={inVehicleNow}
           className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
-            piloting ? "border-white/10 bg-black/20 opacity-40" : "border-red-400/60 bg-red-600/40 active:bg-red-500/60"
+            inVehicleNow ? "border-white/10 bg-black/20 opacity-40" : "border-red-400/60 bg-red-600/40 active:bg-red-500/60"
           }`}
         >
           Fire
