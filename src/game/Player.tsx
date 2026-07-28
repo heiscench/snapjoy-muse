@@ -64,7 +64,7 @@ export function Player() {
     if (!r || !r.root) return;
 
     if (!hasSpawned.current) {
-      r.root.position.set(24, 0, 24);
+      r.root.position.set(playerState.pos.x, 0, playerState.pos.z);
       hasSpawned.current = true;
     }
 
