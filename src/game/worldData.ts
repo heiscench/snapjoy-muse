@@ -9,7 +9,11 @@ export type BuildingType =
   | "harbor"
   | "crane"
   | "hospital"
-  | "house";
+  | "house"
+  | "plaza"
+  | "silo"
+  | "mall"
+  | "hq";
 
 export type District =
   | "downtown"
@@ -40,15 +44,15 @@ function rng(seed: number) {
 
 export const BLOCK_SIZE = 64;
 export const ROAD_WIDTH = 20;
-export const GRID = 4;
+export const GRID = 6; // wider land — 13x13 blocks (was 9x9)
 
 export function districtFor(gx: number, gz: number): District {
-  if (gz <= -3) return "harbor";
-  if (gx <= -3) return "industrial";
-  if (gx >= 3 && gz >= 3) return "stadium";
-  if (gx >= 2 && gz <= -2) return "bank";
-  if (gz >= 2) return "shopping";
-  if (gx <= -1 && gx >= -2 && gz >= 0 && gz <= 1) return "residential";
+  if (gz <= -4) return "harbor";
+  if (gx <= -4) return "industrial";
+  if (gx >= 4 && gz >= 4) return "stadium";
+  if (gx >= 3 && gz <= -2) return "bank";
+  if (gz >= 3) return "shopping";
+  if (gx <= -1 && gx >= -3 && gz >= 0 && gz <= 2) return "residential";
   return "downtown";
 }
 
@@ -64,34 +68,57 @@ export function districtAt(x: number, z: number): District {
 function buildingForDistrict(d: District, r: () => number): { type: BuildingType; w: number; depth: number; h: number } {
   switch (d) {
     case "downtown":
+      if (r() < 0.12) return { type: "plaza", w: 20, depth: 20, h: 1 };
       return { type: "tower", w: 12 + r() * 6, depth: 12 + r() * 6, h: 32 + r() * 40 };
     case "industrial":
+      if (r() < 0.25) return { type: "silo", w: 10, depth: 10, h: 14 + r() * 6 };
       return { type: "warehouse", w: 22 + r() * 10, depth: 18 + r() * 8, h: 8 + r() * 4 };
     case "stadium":
       return { type: "stadium", w: 34, depth: 34, h: 14 };
     case "bank":
       return { type: "bank", w: 20 + r() * 4, depth: 20 + r() * 4, h: 42 + r() * 20 };
     case "shopping":
+      if (r() < 0.3) return { type: "mall", w: 30 + r() * 8, depth: 20 + r() * 4, h: 9 + r() * 2 };
       return { type: "lowrise", w: 22 + r() * 6, depth: 16 + r() * 4, h: 6 + r() * 4 };
     case "harbor":
       return { type: "harbor", w: 20 + r() * 6, depth: 14 + r() * 4, h: 5 + r() * 3 };
     case "residential":
-      // Not used directly — residential blocks get several small houses instead
-      // of one big building (see the generation loop below).
       return { type: "house", w: 9, depth: 9, h: 6 };
   }
 }
 
-const HOSPITAL_BLOCKS: Array<[number, number]> = [
-  [0, 0],
-  [-3, 0],
-  [4, 4],
-  [3, -2],
-  [0, 2],
-  [0, -3],
-];
+// One dedicated headquarters plaza per district, centered in that district's
+// own area — this is also the district's capture zone (see territoryState.ts,
+// which reads DISTRICT_LABELS positions) and the point walked to for both
+// owning gang districts and neutral-district domination.
+const HQ_BLOCKS: Record<District, [number, number]> = {
+  downtown: [1, -1],
+  industrial: [-5, 1],
+  stadium: [5, 5],
+  bank: [4, -2],
+  shopping: [0, 4],
+  harbor: [0, -5],
+  residential: [-2, 1],
+};
+function hqBlockFor(gx: number, gz: number): District | null {
+  for (const d of Object.keys(HQ_BLOCKS) as District[]) {
+    const [hx, hz] = HQ_BLOCKS[d];
+    if (hx === gx && hz === gz) return d;
+  }
+  return null;
+}
+
+const HOSPITAL_BLOCKS: Record<District, [number, number]> = {
+  downtown: [2, -2],
+  industrial: [-5, -1],
+  stadium: [6, 6],
+  bank: [5, -3],
+  shopping: [1, 5],
+  harbor: [1, -5],
+  residential: [-1, 2],
+};
 function isHospitalBlock(gx: number, gz: number) {
-  return HOSPITAL_BLOCKS.some(([hx, hz]) => hx === gx && hz === gz);
+  return (Object.values(HOSPITAL_BLOCKS) as [number, number][]).some(([hx, hz]) => hx === gx && hz === gz);
 }
 
 export const BUILDINGS: BuildingBox[] = (() => {
@@ -102,6 +129,12 @@ export const BUILDINGS: BuildingBox[] = (() => {
       const cx = gx * BLOCK_SIZE;
       const cz = gz * BLOCK_SIZE;
       const d = districtFor(gx, gz);
+
+      const hqDistrict = hqBlockFor(gx, gz);
+      if (hqDistrict) {
+        list.push({ x: cx, z: cz, w: 16, d: 16, h: 11, type: "hq", district: d });
+        continue;
+      }
 
       if (isHospitalBlock(gx, gz)) {
         list.push({ x: cx, z: cz, w: 26, d: 20, h: 16, type: "hospital", district: d });
@@ -154,41 +187,51 @@ export const BUILDINGS: BuildingBox[] = (() => {
   return list;
 })();
 
-export const HOSPITALS: { x: number; z: number; district: District }[] = HOSPITAL_BLOCKS.map(
-  ([gx, gz]) => ({ x: gx * BLOCK_SIZE, z: gz * BLOCK_SIZE, district: districtFor(gx, gz) }),
-);
+export const HOSPITALS: { x: number; z: number; district: District }[] = (
+  Object.keys(HOSPITAL_BLOCKS) as District[]
+).map((d) => {
+  const [gx, gz] = HOSPITAL_BLOCKS[d];
+  return { x: gx * BLOCK_SIZE, z: gz * BLOCK_SIZE, district: d };
+});
 
 export function nearestHospitalDistance(x: number, z: number): number {
   let best = Infinity;
   for (const h of HOSPITALS) {
-    const dx = x - h.x;
-    const dz = z - h.z;
-    const dist = Math.hypot(dx, dz);
+    const dist = Math.hypot(x - h.x, z - h.z);
     if (dist < best) best = dist;
   }
   return best;
 }
 
+function hqWorld(d: District): { x: number; z: number } {
+  const [gx, gz] = HQ_BLOCKS[d];
+  return { x: gx * BLOCK_SIZE, z: gz * BLOCK_SIZE };
+}
+
+// Player-gang home HQs (helicopter pad / weapon shop / respawn anchor).
 export const GANG_HQ: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
-  0: { x: 24, z: -24 },
-  1: { x: -168, z: 24 },
-  2: { x: 24, z: 152 },
-  3: { x: 24, z: -168 },
+  0: hqWorld("downtown"),
+  1: hqWorld("industrial"),
+  2: hqWorld("shopping"),
+  3: hqWorld("harbor"),
 };
 
+// Same headquarters point doubles as the capture-zone center AND the label
+// position — walking up to the HQ building is what triggers capture, and
+// its name floats directly above it.
 export const DISTRICT_LABELS: { name: string; district: District; x: number; z: number }[] = [
-  { name: "DOWNTOWN", district: "downtown", x: 0, z: 40 },
-  { name: "INDUSTRIAL AREA", district: "industrial", x: -192, z: 60 },
-  { name: "STADIUM", district: "stadium", x: 256, z: 300 },
-  { name: "BANK DISTRICT", district: "bank", x: 192, z: -170 },
-  { name: "SHOPPING DISTRICT", district: "shopping", x: 0, z: 170 },
-  { name: "HARBOR", district: "harbor", x: 0, z: -230 },
-  { name: "RESIDENTIAL AREA", district: "residential", x: -96, z: 32 },
+  { name: "DOWNTOWN", district: "downtown", ...hqWorld("downtown") },
+  { name: "INDUSTRIAL AREA", district: "industrial", ...hqWorld("industrial") },
+  { name: "STADIUM", district: "stadium", ...hqWorld("stadium") },
+  { name: "BANK DISTRICT", district: "bank", ...hqWorld("bank") },
+  { name: "SHOPPING DISTRICT", district: "shopping", ...hqWorld("shopping") },
+  { name: "HARBOR", district: "harbor", ...hqWorld("harbor") },
+  { name: "RESIDENTIAL AREA", district: "residential", ...hqWorld("residential") },
 ];
 
 export const NEUTRAL_HQS: { district: District; x: number; z: number }[] = [
-  { district: "stadium", x: 256, z: 300 },
-  { district: "bank", x: 192, z: -170 },
+  { district: "stadium", ...hqWorld("stadium") },
+  { district: "bank", ...hqWorld("bank") },
 ];
 
 export const ROBBABLE_BANKS: { id: number; x: number; z: number }[] = BUILDINGS
@@ -197,10 +240,18 @@ export const ROBBABLE_BANKS: { id: number; x: number; z: number }[] = BUILDINGS
   .slice(0, 3)
   .map(({ b, i }) => ({ id: i, x: b.x, z: b.z }));
 
-export const CAPTURE_RADIUS = 15;
+export const CAPTURE_RADIUS = 16;
 export const VAULT_RADIUS = 8;
 
 export const HARBOR_Z = -GRID * BLOCK_SIZE - BLOCK_SIZE / 2;
+
+export const WEAPON_SHOPS: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
+  0: { x: GANG_HQ[0].x + 16, z: GANG_HQ[0].z },
+  1: { x: GANG_HQ[1].x + 16, z: GANG_HQ[1].z },
+  2: { x: GANG_HQ[2].x + 16, z: GANG_HQ[2].z },
+  3: { x: GANG_HQ[3].x + 16, z: GANG_HQ[3].z },
+};
+export const SHOP_RADIUS = 7;
 
 export function resolveCollision(
   prevX: number,
@@ -212,7 +263,7 @@ export function resolveCollision(
   let x = nextX;
   let z = nextZ;
   for (const b of BUILDINGS) {
-    if (b.type === "crane") continue;
+    if (b.type === "crane" || b.type === "plaza") continue;
     const minX = b.x - b.w / 2 - radius;
     const maxX = b.x + b.w / 2 + radius;
     const minZ = b.z - b.d / 2 - radius;
@@ -242,7 +293,7 @@ export function resolveHeliCollision(
   let x = nextX;
   let z = nextZ;
   for (const b of BUILDINGS) {
-    if (b.type === "crane") continue;
+    if (b.type === "crane" || b.type === "plaza") continue;
     if (y >= b.h) continue;
     const minX = b.x - b.w / 2 - radius;
     const maxX = b.x + b.w / 2 + radius;
@@ -261,11 +312,17 @@ export function resolveHeliCollision(
   }
   return { x, z };
 }
-// Weapon shop kiosk per gang — a short walk from that gang's HQ.
-export const WEAPON_SHOPS: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
-  0: { x: 40, z: -24 },
-  1: { x: -148, z: 24 },
-  2: { x: 40, z: 152 },
-  3: { x: 40, z: -168 },
-};
-export const SHOP_RADIUS = 7;
+
+// Rooftop landing: returns the highest building-roof height directly under
+// (x,z), or 0 if none — lets a helicopter settle on top of a building
+// instead of only ever landing at ground level.
+export function rooftopHeightAt(x: number, z: number): number {
+  let best = 0;
+  for (const b of BUILDINGS) {
+    if (b.type === "crane" || b.type === "plaza" || b.type === "house" || b.type === "hq") continue;
+    if (x > b.x - b.w / 2 && x < b.x + b.w / 2 && z > b.z - b.d / 2 && z < b.z + b.d / 2) {
+      if (b.h > best) best = b.h;
+    }
+  }
+  return best;
+}
