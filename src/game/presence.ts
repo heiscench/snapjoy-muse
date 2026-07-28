@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { authState } from "./authState";
 import { PLAYER_GANG } from "./gangs";
 import { playerState } from "./playerState";
-import { remotePlayers } from "./remotePlayerState";
+import { remotePlayers, type RemotePlayer } from "./remotePlayerState";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const CHANNEL_NAME = "gang-wars-presence";
