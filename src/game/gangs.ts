@@ -7,4 +7,10 @@ export const GANGS = [
   { id: 3, name: "Violet Kings",   color: "#2a103a", accent: "#4a1f5f", emissive: "#180820" },
 ] as const;
 
-export const PLAYER_GANG: GangId = 0;
+// Mutated once at login-time from the persisted profile. Existing files import
+// this as a live binding, so updating it before the game mounts is safe.
+export let PLAYER_GANG: GangId = 0;
+
+export function setPlayerGang(id: GangId) {
+  PLAYER_GANG = id;
+}
