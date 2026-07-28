@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { BLOCK_SIZE, GRID } from "./worldData";
 import { initCarHealth, carDestroyed, carRespawn, CAR_MAX_HP } from "./vehicleState";
+import { CAR_LIVE, initCarLive } from "./carState";
 import { useFrame } from "@react-three/fiber";
 
 type CarType = "sedan" | "suv" | "sport";
@@ -13,6 +15,8 @@ type Car = {
   rotY: number;
   color: string;
 };
+
+const CAR_SCALE = 1.6;
 
 function rng(seed: number) {
   let s = seed;
@@ -33,7 +37,6 @@ function Sedan({ color }: { color: string }) {
         <boxGeometry args={[1.45, 0.5, 1.9]} />
         <meshStandardMaterial color="#0a0a0e" metalness={0.4} roughness={0.2} />
       </mesh>
-      {/* Wheels */}
       {[[-0.75, 0.15, 1.1], [0.75, 0.15, 1.1], [-0.75, 0.15, -1.1], [0.75, 0.15, -1.1]].map((p, i) => (
         <mesh key={i} position={p as [number, number, number]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.32, 0.32, 0.25, 12]} />
@@ -65,7 +68,6 @@ function SUV({ color }: { color: string }) {
       ))}
       <mesh position={[-0.55, 0.6, 2.12]}><boxGeometry args={[0.4, 0.2, 0.05]} /><meshBasicMaterial color="#fff5c9" /></mesh>
       <mesh position={[0.55, 0.6, 2.12]}><boxGeometry args={[0.4, 0.2, 0.05]} /><meshBasicMaterial color="#fff5c9" /></mesh>
-      {/* Roof rack */}
       <mesh position={[0, 1.55, -0.2]}><boxGeometry args={[1.7, 0.06, 2.2]} /><meshStandardMaterial color="#1a1a1a" /></mesh>
     </group>
   );
@@ -78,12 +80,10 @@ function Sport({ color }: { color: string }) {
         <boxGeometry args={[1.9, 0.36, 4.0]} />
         <meshStandardMaterial color={color} metalness={0.75} roughness={0.2} />
       </mesh>
-      {/* Low cabin */}
       <mesh position={[0, 0.6, -0.1]}>
         <boxGeometry args={[1.6, 0.4, 1.2]} />
         <meshStandardMaterial color="#0a0a0e" metalness={0.6} roughness={0.15} />
       </mesh>
-      {/* Rear spoiler */}
       <mesh position={[0, 0.55, -1.85]}>
         <boxGeometry args={[1.9, 0.06, 0.3]} />
         <meshStandardMaterial color="#0a0a0e" />
@@ -101,6 +101,24 @@ function Sport({ color }: { color: string }) {
 }
 
 const CIVILIAN_COLORS = ["#7a7a80", "#3b3b40", "#8a4a2a", "#2a4a6a", "#c9c9cf"];
+
+function CarUnit({ index, car }: { index: number; car: Car }) {
+  const group = useRef<THREE.Group>(null!);
+  useFrame(() => {
+    const live = CAR_LIVE[index];
+    if (!group.current || !live) return;
+    group.current.position.set(live.x, 0, live.z);
+    group.current.rotation.y = live.rotY;
+    group.current.visible = !carDestroyed[index];
+  });
+  return (
+    <group ref={group} scale={CAR_SCALE}>
+      {car.type === "sedan" && <Sedan color={car.color} />}
+      {car.type === "suv" && <SUV color={car.color} />}
+      {car.type === "sport" && <Sport color={car.color} />}
+    </group>
+  );
+}
 
 export function Vehicles({ count = 22 }: { count?: number }) {
   const cars = useMemo<Car[]>(() => {
@@ -125,7 +143,10 @@ export function Vehicles({ count = 22 }: { count?: number }) {
     return list;
   }, [count]);
 
-  useEffect(() => { initCarHealth(cars.length); }, [cars.length]);
+  useEffect(() => {
+    initCarHealth(cars.length);
+    initCarLive(cars);
+  }, [cars]);
 
   const [, force] = useState(0);
   useFrame((_, dt) => {
@@ -144,21 +165,9 @@ export function Vehicles({ count = 22 }: { count?: number }) {
 
   return (
     <group>
-      {cars.map((c, i) => (
-        <group
-          key={i}
-          position={[c.x, 0, c.z]}
-          rotation={[0, c.rotY, 0]}
-          visible={!carDestroyed[i]}
-        >
-          {c.type === "sedan" && <Sedan color={c.color} />}
-          {c.type === "suv" && <SUV color={c.color} />}
-          {c.type === "sport" && <Sport color={c.color} />}
-        </group>
-      ))}
+      {cars.map((c, i) => <CarUnit key={i} index={i} car={c} />)}
     </group>
   );
 }
 
-// Expose CAR_MAX_HP for callers reasoning about damage scaling (unused directly here).
 void CAR_MAX_HP;
