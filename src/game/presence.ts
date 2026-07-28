@@ -84,6 +84,3 @@ export function stopPresence() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   remotePlayers.clear();
 }
-
-// Import type for RemotePlayer without circular runtime dep
-import type { RemotePlayer } from "./remotePlayerState";
