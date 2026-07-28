@@ -1,3 +1,4 @@
+
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -18,14 +19,16 @@ import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 
-const HEAL_RADIUS = 22; // must clear the hospital building's own footprint (~16 units)
+const HEAL_RADIUS = 22;
 const HEAL_RATE = 22;
 const ENEMY_CONTACT_RANGE = 9;
 const ENEMY_HIT_CHANCE_PER_SEC = 0.35;
 const ENEMY_HIT_DAMAGE = 6;
 const HELI_ENTER_RADIUS = 6;
 const HELI_BODY_RADIUS = 4.5;
-const HELI_EXIT_OFFSET = HELI_BODY_RADIUS + 4; // clearly outside HELI_ENTER_RADIUS
+const HELI_EXIT_OFFSET = HELI_BODY_RADIUS + 4;
+const RECOIL_DECAY = 6.5;
+const RECOIL_PER_SHOT = 0.75;
 
 function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
   pilotState.piloting = false;
@@ -45,6 +48,7 @@ export function Player() {
   const walkPhase = useRef(0);
   const camOffset = useRef(new THREE.Vector3());
   const fireCd = useRef(0);
+  const recoil = useRef(0);
   const hasSpawned = useRef(false);
   const pilotCooldown = useRef(0);
   const { camera } = useThree();
@@ -139,10 +143,8 @@ export function Player() {
         camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
         return;
       } catch (err) {
-        // Never let a flight-logic bug freeze the game — eject and surface the error.
         pilotState.lastError = err instanceof Error ? err.message : String(err);
         ejectToOnFoot(r, vel.current);
-        // fall through to on-foot logic below for this frame
       }
     }
 
@@ -152,8 +154,11 @@ export function Player() {
 
     const running = input.run || input.keys.has("ShiftLeft");
     const aiming = input.aim;
+    const holding = aiming || input.fire; // arms lock into weapon-ready pose either way
     const speedBase = aiming ? 3.5 : running ? 9 : 5;
     const speed = speedBase * mag;
+
+    recoil.current = Math.max(0, recoil.current - dtc * RECOIL_DECAY);
 
     const forward = new THREE.Vector3(-Math.sin(yaw.current), 0, -Math.cos(yaw.current));
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
@@ -205,8 +210,8 @@ export function Player() {
 
     pilotState.nearOwnHeli =
       Math.hypot(p.x - HELICOPTERS[PLAYER_GANG].pos.x, p.z - HELICOPTERS[PLAYER_GANG].pos.z) < HELI_ENTER_RADIUS;
-const shop = WEAPON_SHOPS[PLAYER_GANG];
-shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
+    const shop = WEAPON_SHOPS[PLAYER_GANG];
+    shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
 
     if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
       healPlayer(HEAL_RATE * dtc);
@@ -228,7 +233,6 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
       spendMoney(DEATH_COST);
     }
 
-    // Territory / robbery channels
     tickTerritory(dtc, p.x, p.z);
 
     if (aiming) {
@@ -238,16 +242,18 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
       r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, targetRot, Math.min(1, dtc * 14));
     }
 
+    // Walk cycle — suppressed on the arms whenever the weapon is readied,
+    // so hands stop swinging like there's nothing in them while firing.
     const step = running ? 13 : 8;
-    walkPhase.current += dtc * step * (mag > 0.05 ? 1 : 0);
+    walkPhase.current += dtc * step * (mag > 0.05 && !holding ? 1 : 0);
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
     if (r.legL && r.legR && r.armL && r.armR && r.body) {
       r.legL.rotation.x = swing;
       r.legR.rotation.x = -swing;
-      const armSwing = aiming ? 0 : swing * 0.8;
+      const armSwing = holding ? 0 : swing * 0.8;
       r.armL.rotation.x = -armSwing;
-      r.armR.rotation.x = aiming ? -1.4 : armSwing;
-      r.armL.rotation.z = aiming ? 0.15 : 0;
+      r.armR.rotation.x = holding ? -1.4 - recoil.current * 0.1 : armSwing;
+      r.armL.rotation.z = holding ? 0.15 : 0;
       r.body.position.y = 1.05 + Math.abs(Math.sin(walkPhase.current)) * 0.06 * mag;
     }
     if (r.head) r.head.rotation.x = THREE.MathUtils.lerp(r.head.rotation.x, pitch.current * 0.4, 0.2);
@@ -259,17 +265,22 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
     const sideV = new THREE.Vector3(-back.z, 0, back.x);
     const targetOffset = new THREE.Vector3(
       back.x * targetDist + sideV.x * shoulderX,
-      camHeight,
+      camHeight + recoil.current * 0.12,
       back.z * targetDist + sideV.z * shoulderX,
     );
     camOffset.current.lerp(targetOffset, Math.min(1, dtc * 8));
     camera.position.set(p.x + camOffset.current.x, p.y + camOffset.current.y, p.z + camOffset.current.z);
-    camera.lookAt(p.x + sideV.x * shoulderX * 0.6, p.y + 1.5, p.z + sideV.z * shoulderX * 0.6);
+    camera.lookAt(
+      p.x + sideV.x * shoulderX * 0.6,
+      p.y + 1.5 + recoil.current * 0.35,
+      p.z + sideV.z * shoulderX * 0.6,
+    );
 
     fireCd.current = Math.max(0, fireCd.current - dtc);
-   if (input.fire && fireCd.current === 0) {
+    if (input.fire && fireCd.current === 0) {
       const w = currentWeapon();
       fireCd.current = w.fireRate;
+      recoil.current = Math.min(1.4, recoil.current + RECOIL_PER_SHOT);
       const origin = camera.position.clone();
       const forwardV = new THREE.Vector3();
       camera.getWorldDirection(forwardV);
@@ -284,7 +295,6 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
         }
         spawnTracer(origin, dir);
 
-        // Hit NPCs
         let bestN: { d: number; npc: (typeof NPCS)[number] } | null = null;
         for (const n of NPCS) {
           if (n.dead) continue;
@@ -296,7 +306,6 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
           if (dot < w.spread) continue;
           if (!bestN || dist < bestN.d) bestN = { d: dist, npc: n };
         }
-        // Hit guards
         let bestG: { d: number; g: (typeof GUARDS)[number] } | null = null;
         for (const g of GUARDS) {
           if (g.dead) continue;
@@ -308,7 +317,6 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
           if (dot < w.spread) continue;
           if (!bestG || dist < bestG.d) bestG = { d: dist, g };
         }
-        // Hit helicopters (occupied one damages player if destroyed)
         for (const gid of [0, 1, 2, 3] as const) {
           const h = HELICOPTERS[gid];
           if (h.destroyed) continue;
@@ -323,7 +331,6 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
           if (res.occupantDamage > 0) damagePlayer(res.occupantDamage);
         }
 
-        // Prefer closer target
         if (bestN && bestG) {
           if (bestN.d <= bestG.d) { damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); } }
           else damageGuard(bestG.g, w.damage);
@@ -337,12 +344,12 @@ shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
   });
 
   return (
-  <Character
-    ref={refs}
-    color={gang.color}
-    accent={gang.accent}
-    showWeaponSlot={weaponNode}
-    scale={1.15}
+    <Character
+      ref={refs}
+      color={gang.color}
+      accent={gang.accent}
+      showWeaponSlot={weaponNode}
+      scale={1.15}
     />
   );
 }
