@@ -10,6 +10,7 @@ import { Helicopters } from "./Helicopter";
 import { Tracers } from "./Tracers";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { DayNight } from "./DayNight";
+import { RemotePlayers } from "./RemotePlayers";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
@@ -18,6 +19,10 @@ import { Minimap } from "./Minimap";
 import { WeaponShop } from "./WeaponShop";
 import { SquadPrompt } from "./SquadPrompt";
 import { territoryState, CAPTURE_TIME, ROBBERY_TIME } from "./territoryState";
+import { startPresence, stopPresence } from "./presence";
+import { syncProfileToServer, syncProfileToServerBeacon } from "./profileSync";
+
+const PROFILE_SYNC_MS = 12000;
 
 const TOUCH_LOOK_SENSITIVITY = 0.12;
 const MAX_DRAG_STEP = 40;
@@ -230,6 +235,7 @@ export function GameScene() {
         <NPCs />
         <Guards />
         <Player />
+        <RemotePlayers />
         <Tracers />
       </Canvas>
 
