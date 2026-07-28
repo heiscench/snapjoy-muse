@@ -9,6 +9,7 @@ import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
+import { WeaponShop } from "./WeaponShop";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
