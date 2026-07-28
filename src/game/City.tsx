@@ -1,7 +1,10 @@
 import { Text } from "@react-three/drei";
-import { useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { BUILDINGS, BLOCK_SIZE, GRID, HARBOR_Z, DISTRICT_LABELS, type BuildingBox } from "./worldData";
+import { GANGS } from "./gangs";
+import { territoryState } from "./territoryState";
 
 const DISTRICT_ACCENT: Record<string, string> = {
   downtown: "#6ab0ff",
@@ -50,6 +53,25 @@ function Warehouse({ b }: { b: BuildingBox }) {
   );
 }
 
+function Silo({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]}>
+        <cylinderGeometry args={[b.w / 2, b.w / 2, b.h, 16]} />
+        <meshStandardMaterial color="#3a3530" metalness={0.4} roughness={0.6} />
+      </mesh>
+      <mesh position={[0, b.h + 0.6, 0]}>
+        <coneGeometry args={[b.w / 2 + 0.4, 1.2, 16]} />
+        <meshStandardMaterial color="#2a2620" />
+      </mesh>
+      <mesh position={[0, b.h * 0.6, b.w / 2 + 0.02]}>
+        <planeGeometry args={[0.4, b.h * 0.5]} />
+        <meshBasicMaterial color="#e8a24a" />
+      </mesh>
+    </group>
+  );
+}
+
 function Bank({ b }: { b: BuildingBox }) {
   return (
     <group position={[b.x, 0, b.z]}>
@@ -81,6 +103,25 @@ function LowRise({ b }: { b: BuildingBox }) {
       <mesh position={[0, 1.5, b.d / 2 + 0.02]}>
         <planeGeometry args={[b.w * 0.9, 2.4]} />
         <meshBasicMaterial color="#ffe4a3" />
+      </mesh>
+    </group>
+  );
+}
+
+function Mall({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial color="#241c2c" emissive="#ff9ad6" emissiveIntensity={0.2} roughness={0.8} />
+      </mesh>
+      <mesh position={[0, b.h + 0.6, 0]}>
+        <boxGeometry args={[b.w * 0.6, 1.2, 1]} />
+        <meshBasicMaterial color="#ffd66a" />
+      </mesh>
+      <mesh position={[0, b.h * 0.45, b.d / 2 + 0.02]}>
+        <planeGeometry args={[b.w * 0.85, b.h * 0.6]} />
+        <meshBasicMaterial color="#c9f0ff" transparent opacity={0.5} />
       </mesh>
     </group>
   );
@@ -143,14 +184,8 @@ function Hospital({ b }: { b: BuildingBox }) {
       </mesh>
       {[b.d / 2 + 0.03, -(b.d / 2 + 0.03)].map((zOff, i) => (
         <group key={i} position={[0, b.h * 0.55, zOff]}>
-          <mesh>
-            <boxGeometry args={[1.6, 0.5, 0.05]} />
-            <meshBasicMaterial color="#ff3b3b" />
-          </mesh>
-          <mesh>
-            <boxGeometry args={[0.5, 1.6, 0.05]} />
-            <meshBasicMaterial color="#ff3b3b" />
-          </mesh>
+          <mesh><boxGeometry args={[1.6, 0.5, 0.05]} /><meshBasicMaterial color="#ff3b3b" /></mesh>
+          <mesh><boxGeometry args={[0.5, 1.6, 0.05]} /><meshBasicMaterial color="#ff3b3b" /></mesh>
         </group>
       ))}
       <Text position={[0, b.h + 1.6, 0]} fontSize={2.2} color="#ff5a5a" anchorX="center" anchorY="middle">
@@ -163,26 +198,89 @@ function Hospital({ b }: { b: BuildingBox }) {
 function House({ b }: { b: BuildingBox }) {
   return (
     <group position={[b.x, 0, b.z]}>
-      {/* Body */}
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#5a4838" roughness={0.9} />
       </mesh>
-      {/* Peaked roof */}
       <mesh position={[0, b.h + 0.9, 0]} rotation={[0, Math.PI / 4, 0]}>
         <coneGeometry args={[b.w * 0.75, 1.8, 4]} />
         <meshStandardMaterial color="#2a1f18" roughness={0.85} />
       </mesh>
-      {/* Warm window glow */}
       <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
         <planeGeometry args={[b.w * 0.35, b.h * 0.3]} />
         <meshBasicMaterial color="#ffcf7a" />
       </mesh>
-      {/* Door */}
       <mesh position={[0, b.h * 0.22, b.d / 2 + 0.03]}>
         <planeGeometry args={[b.w * 0.22, b.h * 0.44]} />
         <meshBasicMaterial color="#2a1810" />
       </mesh>
+    </group>
+  );
+}
+
+function Plaza({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[b.w / 2, 20]} />
+        <meshStandardMaterial color="#14361f" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 1.5, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 3, 8]} />
+        <meshStandardMaterial color="#2a2a30" />
+      </mesh>
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const a = (i / 6) * Math.PI * 2;
+        const r = b.w / 2 - 1.5;
+        return (
+          <mesh key={i} position={[Math.cos(a) * r, 1, Math.sin(a) * r]}>
+            <sphereGeometry args={[0.8, 8, 8]} />
+            <meshStandardMaterial color="#0f3a1a" />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+function Headquarters({ b }: { b: BuildingBox }) {
+  const bodyMat = useRef<THREE.MeshStandardMaterial>(null!);
+  const flagMat = useRef<THREE.MeshBasicMaterial>(null!);
+
+  useFrame(() => {
+    const owner = territoryState.owners[b.district];
+    const hasOwner = owner !== null && owner !== undefined;
+    const bodyColor = hasOwner ? GANGS[owner].color : "#7a7a82";
+    const flagColor = hasOwner ? GANGS[owner].accent : "#c9c9d0";
+    if (bodyMat.current) bodyMat.current.color.set(bodyColor);
+    if (flagMat.current) flagMat.current.color.set(flagColor);
+  });
+
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, 0.4, 0]}>
+        <boxGeometry args={[b.w, 0.8, b.d]} />
+        <meshStandardMaterial color="#232328" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, b.h * 0.45, 0]}>
+        <boxGeometry args={[b.w * 0.4, b.h * 0.8, b.d * 0.4]} />
+        <meshStandardMaterial ref={bodyMat} color="#7a7a82" roughness={0.55} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, b.h + 0.6, 0]}>
+        <coneGeometry args={[b.w * 0.3, 2, 4]} />
+        <meshStandardMaterial color="#181820" />
+      </mesh>
+      <mesh position={[b.w * 0.28, b.h * 0.55, 0]}>
+        <cylinderGeometry args={[0.12, 0.12, b.h * 1.1, 6]} />
+        <meshStandardMaterial color="#0f0f12" />
+      </mesh>
+      <mesh position={[b.w * 0.28 + 0.9, b.h * 0.9, 0]}>
+        <planeGeometry args={[1.8, 1.1]} />
+        <meshBasicMaterial ref={flagMat} color="#c9c9d0" side={THREE.DoubleSide} />
+      </mesh>
+      <Text position={[0, b.h + 3.2, 0]} fontSize={2} color="#ffffff" anchorX="center" anchorY="middle">
+        HEADQUARTERS
+      </Text>
     </group>
   );
 }
@@ -195,13 +293,17 @@ export function City() {
       switch (b.type) {
         case "tower": return <Tower key={i} b={b} />;
         case "warehouse": return <Warehouse key={i} b={b} />;
+        case "silo": return <Silo key={i} b={b} />;
         case "bank": return <Bank key={i} b={b} />;
         case "lowrise": return <LowRise key={i} b={b} />;
+        case "mall": return <Mall key={i} b={b} />;
         case "harbor": return <Harbor key={i} b={b} />;
         case "crane": return <Crane key={i} b={b} />;
         case "stadium": return <Stadium key={i} b={b} />;
         case "hospital": return <Hospital key={i} b={b} />;
         case "house": return <House key={i} b={b} />;
+        case "plaza": return <Plaza key={i} b={b} />;
+        case "hq": return <Headquarters key={i} b={b} />;
       }
     });
   }, []);
