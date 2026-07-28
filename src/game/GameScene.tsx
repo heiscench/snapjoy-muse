@@ -231,6 +231,9 @@ export function GameScene() {
           <div className="rounded bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur">
             District: Downtown
           </div>
+          <div className="rounded bg-black/50 px-3 py-1 text-xs font-bold text-green-300 backdrop-blur">
+  ${Math.floor(playerState.money)}
+</div>
         </div>
         <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
