@@ -78,7 +78,7 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     }
 
     if (aggro) {
-      guard.aggroT = Math.max(guard.aggroT - dtc, 3);
+      guard.aggroT = Math.max(guard.aggroT - dtc, 0);
       // Move toward player
       const dx = pp.x - guard.pos.x, dz = pp.z - guard.pos.z;
       const d = Math.hypot(dx, dz) || 1;
