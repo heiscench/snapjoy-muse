@@ -16,6 +16,8 @@ import {
 } from "./playerState";
 import { spawnTracer } from "./tracerState";
 import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
+import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
+import { carDestroyed } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 
