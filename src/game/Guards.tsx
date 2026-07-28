@@ -14,6 +14,8 @@ import {
 import { playerState, damagePlayer } from "./playerState";
 import { territoryState } from "./territoryState";
 import { resolveCollision } from "./worldData";
+import { pilotState } from "./vehicleState";
+import { carPilot } from "./carState";
 import { spawnTracer } from "./tracerState";
 
 const SECURITY_UNIFORM = "#1a1d26";
