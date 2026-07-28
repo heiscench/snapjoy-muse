@@ -95,7 +95,7 @@ function GuardUnit({ guard }: { guard: GuardState }) {
         const from = new THREE.Vector3(guard.pos.x, 1.4, guard.pos.z);
         const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
         spawnTracer(from, to);
-        if (distToPlayer < 36) damagePlayer(GUARD_DAMAGE);
+        if (distToPlayer < 36 && !pilotState.piloting && !carPilot.driving) damagePlayer(GUARD_DAMAGE);
       }
     } else {
       // Idle patrol near home
