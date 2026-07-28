@@ -100,6 +100,22 @@ export function GameScene() {
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
   const { health, piloting, nearHeli, error, money, reputation, capturePct, captureName, robberyPct, message } = useHud();
+
+  useEffect(() => {
+    startPresence();
+    const t = setInterval(() => { void syncProfileToServer(); }, PROFILE_SYNC_MS);
+    const onUnload = () => syncProfileToServerBeacon();
+    window.addEventListener("beforeunload", onUnload);
+    window.addEventListener("pagehide", onUnload);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("beforeunload", onUnload);
+      window.removeEventListener("pagehide", onUnload);
+      void syncProfileToServer();
+      stopPresence();
+    };
+  }, []);
+
   const inVehicleMode = piloting || nearHeli;
   const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
   const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
