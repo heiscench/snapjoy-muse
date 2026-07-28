@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      player_profiles: {
+        Row: {
+          created_at: string
+          equipped_weapon: string
+          gang: number
+          last_position_x: number
+          last_position_z: number
+          money: number
+          owned_weapons: string[]
+          reputation: number
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          equipped_weapon?: string
+          gang?: number
+          last_position_x?: number
+          last_position_z?: number
+          money?: number
+          owned_weapons?: string[]
+          reputation?: number
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          equipped_weapon?: string
+          gang?: number
+          last_position_x?: number
+          last_position_z?: number
+          money?: number
+          owned_weapons?: string[]
+          reputation?: number
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
