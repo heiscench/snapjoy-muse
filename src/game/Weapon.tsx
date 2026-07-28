@@ -23,13 +23,15 @@ const PROPS: Record<WeaponId, Proportions> = {
 
 export function Weapon() {
   const group = useRef<THREE.Group>(null!);
-  const muzzle = useRef<THREE.Mesh>(null!);
+  const muzzleCore = useRef<THREE.Mesh>(null!);
+  const muzzleCone = useRef<THREE.Mesh>(null!);
+  const flashLight = useRef<THREE.PointLight>(null!);
   const [flash, setFlash] = useState(0);
   const [wid, setWid] = useState<WeaponId>(weaponState.current);
   const cooldown = useRef(0);
+  const kick = useRef(0);
 
   useFrame((_, dt) => {
-    // React to weapon swap without hammering setState every frame.
     if (weaponState.current !== wid) setWid(weaponState.current);
 
     cooldown.current = Math.max(0, cooldown.current - dt);
@@ -37,18 +39,26 @@ export function Weapon() {
     if (input.fire && cooldown.current === 0) {
       cooldown.current = w.fireRate;
       setFlash(1);
-      setTimeout(() => setFlash(0), 40);
+      kick.current = 1;
+      setTimeout(() => setFlash(0), 55);
     }
+
+    kick.current = Math.max(0, kick.current - dt * 9);
     if (group.current) {
       group.current.rotation.x = THREE.MathUtils.lerp(
         group.current.rotation.x,
-        flash > 0 ? -0.25 : 0,
-        Math.min(1, dt * 20),
+        -0.4 * kick.current,
+        Math.min(1, dt * 25),
       );
+      group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, -0.06 * kick.current, Math.min(1, dt * 25));
     }
-    if (muzzle.current) {
-      (muzzle.current.material as THREE.MeshBasicMaterial).opacity = flash ? 1 : 0;
-      muzzle.current.scale.setScalar(flash ? 1 : 0.001);
+    if (muzzleCore.current && muzzleCone.current && flashLight.current) {
+      const on = flash ? 1 : 0;
+      (muzzleCore.current.material as THREE.MeshBasicMaterial).opacity = on;
+      (muzzleCone.current.material as THREE.MeshBasicMaterial).opacity = on * 0.85;
+      muzzleCore.current.scale.setScalar(on ? 1 + Math.random() * 0.3 : 0.001);
+      muzzleCone.current.scale.set(on ? 1 : 0.001, on ? 1 : 0.001, on ? 1 + Math.random() * 0.4 : 0.001);
+      flashLight.current.intensity = on * 6;
     }
   });
 
@@ -77,11 +87,17 @@ export function Weapon() {
           <meshStandardMaterial color="#050505" />
         </mesh>
       )}
-      {/* Muzzle flash */}
-      <mesh ref={muzzle} position={[0, 0.14, p.muzzleZ]}>
-        <sphereGeometry args={[0.14, 8, 8]} />
+
+      {/* Muzzle flash: bright core + forward-stretched burst cone + a flickering light */}
+      <mesh ref={muzzleCore} position={[0, 0.14, p.muzzleZ]}>
+        <sphereGeometry args={[0.16, 8, 8]} />
+        <meshBasicMaterial color="#fff2c2" transparent opacity={0} />
+      </mesh>
+      <mesh ref={muzzleCone} position={[0, 0.14, p.muzzleZ + 0.16]} rotation={[Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[0.13, 0.4, 6]} />
         <meshBasicMaterial color="#ffd66a" transparent opacity={0} />
       </mesh>
+      <pointLight ref={flashLight} position={[0, 0.14, p.muzzleZ]} distance={4} intensity={0} color="#ffd66a" />
     </group>
   );
 }
