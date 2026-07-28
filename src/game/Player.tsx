@@ -62,10 +62,11 @@ export function Player() {
     const r = refs.current;
     if (!r || !r.root) return;
 
-    if (!hasSpawned.current) {
-      r.root.position.set(24, 0, 24);
-      hasSpawned.current = true;
-    }
+   if (!hasSpawned.current) {
+  const hq = GANG_HQ[PLAYER_GANG];
+  r.root.position.set(hq.x + 9, 0, hq.z);
+  hasSpawned.current = true;
+}
 
     const lookX =
       input.look.x +
