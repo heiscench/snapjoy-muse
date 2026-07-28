@@ -1,4 +1,3 @@
-
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -16,10 +15,10 @@ import {
 } from "./playerState";
 import { spawnTracer } from "./tracerState";
 import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
-import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
-import { carDestroyed } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
+import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
+import { carDestroyed } from "./vehicleState";
 
 const HEAL_RADIUS = 22;
 const HEAL_RATE = 22;
@@ -64,7 +63,7 @@ export function Player() {
     if (!r || !r.root) return;
 
     if (!hasSpawned.current) {
-      r.root.position.set(playerState.pos.x, 0, playerState.pos.z);
+      r.root.position.set(24, 0, 24);
       hasSpawned.current = true;
     }
 
@@ -84,12 +83,25 @@ export function Player() {
     const my = input.move.y + kb.y;
     const mag = Math.min(1, Math.hypot(mx, my));
 
+    // ---- Enter / exit interact (shared by helicopter and cars) ----
     pilotCooldown.current = Math.max(0, pilotCooldown.current - dtc);
     if (pilotState.interactPressed && pilotCooldown.current === 0) {
       pilotState.interactPressed = false;
       pilotCooldown.current = 0.5;
-      if (pilotState.piloting) {
+      if (carPilot.driving) {
+        const idx = carPilot.drivingIndex;
+        const c = CAR_LIVE[idx];
+        carPilot.driving = false;
+        carPilot.drivingIndex = -1;
+        r.root.position.set(c.x + Math.sin(c.rotY) * CAR_EXIT_OFFSET, 0, c.z + Math.cos(c.rotY) * CAR_EXIT_OFFSET);
+        r.root.visible = true;
+        vel.current.set(0, 0, 0);
+      } else if (pilotState.piloting) {
         ejectToOnFoot(r, vel.current);
+      } else if (carPilot.nearIndex >= 0) {
+        carPilot.driving = true;
+        carPilot.drivingIndex = carPilot.nearIndex;
+        r.root.visible = false;
       } else if (pilotState.nearOwnHeli) {
         pilotState.piloting = true;
         r.root.visible = false;
@@ -98,6 +110,44 @@ export function Player() {
       pilotState.interactPressed = false;
     }
 
+    // ---- Driving a car ----
+    if (carPilot.driving) {
+      try {
+        const c = CAR_LIVE[carPilot.drivingIndex];
+        if (carDestroyed[carPilot.drivingIndex]) {
+          carPilot.driving = false;
+          r.root.visible = true;
+        } else {
+          if (Math.abs(c.speed) > 0.5) c.rotY -= mx * 1.6 * dtc;
+          const targetSpeed = -my * CAR_TOP_SPEED;
+          c.speed = THREE.MathUtils.lerp(c.speed, targetSpeed, Math.min(1, dtc * 2.2));
+
+          const fwd = new THREE.Vector3(Math.sin(c.rotY), 0, Math.cos(c.rotY));
+          const nx = c.x + fwd.x * c.speed * dtc;
+          const nz = c.z + fwd.z * c.speed * dtc;
+          const resolved = resolveCollision(c.x, c.z, nx, nz, CAR_COLLIDE_RADIUS);
+          if (resolved.x === c.x && resolved.z === c.z) c.speed *= 0.3;
+          c.x = resolved.x;
+          c.z = resolved.z;
+
+          playerState.pos.x = c.x;
+          playerState.pos.z = c.z;
+          playerState.yaw = c.rotY;
+
+          const back = new THREE.Vector3(Math.sin(c.rotY), 0, Math.cos(c.rotY));
+          const camTarget = new THREE.Vector3(c.x - back.x * 7, 3.4, c.z - back.z * 7);
+          camera.position.lerp(camTarget, Math.min(1, dtc * 6));
+          camera.lookAt(c.x, 1, c.z);
+        }
+        return;
+      } catch (err) {
+        pilotState.lastError = err instanceof Error ? err.message : String(err);
+        carPilot.driving = false;
+        r.root.visible = true;
+      }
+    }
+
+    // ---- Piloting a helicopter ----
     if (pilotState.piloting) {
       try {
         const heli = HELICOPTERS[PLAYER_GANG];
@@ -156,7 +206,7 @@ export function Player() {
 
     const running = input.run || input.keys.has("ShiftLeft");
     const aiming = input.aim;
-    const holding = aiming || input.fire; // arms lock into weapon-ready pose either way
+    const holding = aiming || input.fire;
     const speedBase = aiming ? 3.5 : running ? 9 : 5;
     const speed = speedBase * mag;
 
@@ -215,6 +265,15 @@ export function Player() {
     const shop = WEAPON_SHOPS[PLAYER_GANG];
     shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
 
+    let bestCarD = Infinity;
+    let bestCarI = -1;
+    for (let i = 0; i < CAR_LIVE.length; i++) {
+      if (carDestroyed[i]) continue;
+      const d = Math.hypot(p.x - CAR_LIVE[i].x, p.z - CAR_LIVE[i].z);
+      if (d < CAR_ENTER_RADIUS && d < bestCarD) { bestCarD = d; bestCarI = i; }
+    }
+    carPilot.nearIndex = bestCarI;
+
     if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
       healPlayer(HEAL_RATE * dtc);
     }
@@ -244,8 +303,6 @@ export function Player() {
       r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, targetRot, Math.min(1, dtc * 14));
     }
 
-    // Walk cycle — suppressed on the arms whenever the weapon is readied,
-    // so hands stop swinging like there's nothing in them while firing.
     const step = running ? 13 : 8;
     walkPhase.current += dtc * step * (mag > 0.05 && !holding ? 1 : 0);
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
