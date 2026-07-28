@@ -8,7 +8,10 @@ import { NPCS, damageNPC } from "./npcState";
 import { GUARDS, damageGuard } from "./guardState";
 import { shopState } from "./shopState";
 import { Weapon } from "./Weapon";
-import { resolveCollision, resolveHeliCollision, nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS } from "./worldData";
+import {
+  resolveCollision, resolveHeliCollision, rooftopHeightAt,
+  nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS,
+} from "./worldData";
 import {
   playerState, damagePlayer, healPlayer, revivePlayer,
   earnMoney, spendMoney, DEATH_COST, KILL_BOUNTY,
@@ -22,14 +25,12 @@ import { carDestroyed } from "./vehicleState";
 
 const HEAL_RADIUS = 22;
 const HEAL_RATE = 22;
-const ENEMY_CONTACT_RANGE = 9;
-const ENEMY_HIT_CHANCE_PER_SEC = 0.35;
-const ENEMY_HIT_DAMAGE = 6;
 const HELI_ENTER_RADIUS = 6;
 const HELI_BODY_RADIUS = 4.5;
 const HELI_EXIT_OFFSET = HELI_BODY_RADIUS + 4;
 const RECOIL_DECAY = 6.5;
 const RECOIL_PER_SHOT = 0.75;
+const OTHER_OBJECT_RADIUS = 1.3;
 
 function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
   pilotState.piloting = false;
@@ -37,6 +38,15 @@ function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
   r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, 0, heli.pos.z);
   r.root!.visible = true;
   vel.set(0, 0, 0);
+}
+
+function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: number) => void) {
+  if (playerState.health > 0) return false;
+  const hq = GANG_HQ[PLAYER_GANG];
+  set(hq.x, 0, hq.z);
+  revivePlayer();
+  spendMoney(DEATH_COST);
+  return true;
 }
 
 export function Player() {
@@ -62,11 +72,11 @@ export function Player() {
     const r = refs.current;
     if (!r || !r.root) return;
 
-   if (!hasSpawned.current) {
-  const hq = GANG_HQ[PLAYER_GANG];
-  r.root.position.set(hq.x + 9, 0, hq.z);
-  hasSpawned.current = true;
-}
+    if (!hasSpawned.current) {
+      const hq = GANG_HQ[PLAYER_GANG];
+      r.root.position.set(hq.x + 9, 0, hq.z);
+      hasSpawned.current = true;
+    }
 
     const lookX =
       input.look.x +
@@ -124,12 +134,48 @@ export function Player() {
           c.speed = THREE.MathUtils.lerp(c.speed, targetSpeed, Math.min(1, dtc * 2.2));
 
           const fwd = new THREE.Vector3(Math.sin(c.rotY), 0, Math.cos(c.rotY));
-          const nx = c.x + fwd.x * c.speed * dtc;
-          const nz = c.z + fwd.z * c.speed * dtc;
+          let nx = c.x + fwd.x * c.speed * dtc;
+          let nz = c.z + fwd.z * c.speed * dtc;
           const resolved = resolveCollision(c.x, c.z, nx, nz, CAR_COLLIDE_RADIUS);
           if (resolved.x === c.x && resolved.z === c.z) c.speed *= 0.3;
-          c.x = resolved.x;
-          c.z = resolved.z;
+          nx = resolved.x; nz = resolved.z;
+
+          // Collide with other cars (parked or driven) and with NPCs/guards.
+          for (let i = 0; i < CAR_LIVE.length; i++) {
+            if (i === carPilot.drivingIndex || carDestroyed[i]) continue;
+            const other = CAR_LIVE[i];
+            const dx = nx - other.x, dz = nz - other.z;
+            const d = Math.hypot(dx, dz);
+            const minD = OTHER_OBJECT_RADIUS + 2.6;
+            if (d < minD && d > 0.0001) {
+              nx = other.x + (dx / d) * minD;
+              nz = other.z + (dz / d) * minD;
+              c.speed *= 0.4;
+            }
+          }
+          for (const n of NPCS) {
+            if (n.dead) continue;
+            const dx = nx - n.pos.x, dz = nz - n.pos.z;
+            const d = Math.hypot(dx, dz);
+            if (d < OTHER_OBJECT_RADIUS && d > 0.0001) {
+              nx = n.pos.x + (dx / d) * OTHER_OBJECT_RADIUS;
+              nz = n.pos.z + (dz / d) * OTHER_OBJECT_RADIUS;
+              c.speed *= 0.4;
+            }
+          }
+          for (const g of GUARDS) {
+            if (g.dead) continue;
+            const dx = nx - g.pos.x, dz = nz - g.pos.z;
+            const d = Math.hypot(dx, dz);
+            if (d < OTHER_OBJECT_RADIUS && d > 0.0001) {
+              nx = g.pos.x + (dx / d) * OTHER_OBJECT_RADIUS;
+              nz = g.pos.z + (dz / d) * OTHER_OBJECT_RADIUS;
+              c.speed *= 0.4;
+            }
+          }
+
+          c.x = nx;
+          c.z = nz;
 
           playerState.pos.x = c.x;
           playerState.pos.z = c.z;
@@ -139,6 +185,13 @@ export function Player() {
           const camTarget = new THREE.Vector3(c.x - back.x * 7, 3.4, c.z - back.z * 7);
           camera.position.lerp(camTarget, Math.min(1, dtc * 6));
           camera.lookAt(c.x, 1, c.z);
+
+          if (handleDeathAt(c.x, c.z, (x, y, z) => {
+            carPilot.driving = false;
+            r.root.position.set(x, y, z);
+            r.root.visible = true;
+            vel.current.set(0, 0, 0);
+          })) return;
         }
         return;
       } catch (err) {
@@ -176,9 +229,13 @@ export function Player() {
         const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, heli.pos.y, 4.5);
         heli.pos.x = resolved.x;
         heli.pos.z = resolved.z;
-        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, 0, 70);
-        if (heli.pos.y <= 0) {
-          heli.pos.y = 0;
+
+        // Floor is either the ground (0) or the roof of whatever building is
+        // directly beneath — lets you land on top of buildings.
+        const floor = rooftopHeightAt(heli.pos.x, heli.pos.z);
+        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, floor, 90);
+        if (heli.pos.y <= floor) {
+          heli.pos.y = floor;
           heli.vy = Math.max(0, heli.vy);
         }
 
@@ -194,6 +251,15 @@ export function Player() {
         );
         camera.position.lerp(camTarget, Math.min(1, dtc * 6));
         camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
+
+        if (handleDeathAt(heli.pos.x, heli.pos.z, (x, y, z) => {
+          pilotState.piloting = false;
+          heli.pos.set(GANG_HQ[PLAYER_GANG].x, 0, GANG_HQ[PLAYER_GANG].z);
+          r.root.position.set(x, 0, z);
+          r.root.visible = true;
+          vel.current.set(0, 0, 0);
+        })) return;
+
         return;
       } catch (err) {
         pilotState.lastError = err instanceof Error ? err.message : String(err);
@@ -279,20 +345,13 @@ export function Player() {
       healPlayer(HEAL_RATE * dtc);
     }
 
-    for (const n of NPCS) {
-      if (n.dead || n.gang === PLAYER_GANG) continue;
-      const d = Math.hypot(n.pos.x - p.x, n.pos.z - p.z);
-      if (d < ENEMY_CONTACT_RANGE && Math.random() < ENEMY_HIT_CHANCE_PER_SEC * dtc) {
-        damagePlayer(ENEMY_HIT_DAMAGE);
-      }
-    }
+    // NOTE: the old passive "chance per second to get hit by any nearby
+    // enemy" loop that used to live here has been removed — NPCs.tsx and
+    // Guards.tsx now handle all player damage via their own active gunfire,
+    // so this was doubling up damage from the same enemies.
 
-    if (playerState.health <= 0) {
-      const hq = GANG_HQ[PLAYER_GANG];
-      p.set(hq.x, 0, hq.z);
-      vel.current.set(0, 0, 0);
-      revivePlayer();
-      spendMoney(DEATH_COST);
+    if (handleDeathAt(p.x, p.z, (x, y, z) => { p.set(x, y, z); vel.current.set(0, 0, 0); })) {
+      // handled
     }
 
     tickTerritory(dtc, p.x, p.z);
@@ -380,15 +439,15 @@ export function Player() {
         for (const gid of [0, 1, 2, 3] as const) {
           const h = HELICOPTERS[gid];
           if (h.destroyed) continue;
+          const occupied = pilotState.piloting && gid === PLAYER_GANG;
+          if (occupied) continue; // airborne/occupied helicopters are immune
           const toH = new THREE.Vector3(h.pos.x, h.pos.y + 1.4, h.pos.z).sub(origin);
           const dist = toH.length();
           if (dist > w.range) continue;
           toH.normalize();
           const dot = toH.dot(dir);
           if (dot < w.spread - 0.005) continue;
-          const occupied = pilotState.piloting && gid === PLAYER_GANG;
-          const res = damageHeli(gid, w.damage, occupied);
-          if (res.occupantDamage > 0) damagePlayer(res.occupantDamage);
+          damageHeli(gid, w.damage, false);
         }
 
         if (bestN && bestG) {
