@@ -9,12 +9,13 @@ import { playerState, damagePlayer } from "./playerState";
 import { territoryState } from "./territoryState";
 import { spawnTracer } from "./tracerState";
 import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED, squadState } from "./squadState";
+import { pilotState } from "./vehicleState";
+import { carPilot } from "./carState";
 
 const DETECT_RANGE = 22;
 const NPC_FIRE_RATE = 0.9;
 const NPC_DAMAGE = 5;
 const NPC_MOVE_COMBAT = 3.2;
-const AGGRO_TIME = 6;
 
 export function NPCs({ count = 12 }: { count?: number }) {
   useEffect(() => {
@@ -70,6 +71,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     const pp = playerState.pos;
     const distToPlayer = Math.hypot(npc.pos.x - pp.x, npc.pos.z - pp.z);
     const isEnemyOfPlayer = npc.gang !== PLAYER_GANG;
+    const playerInVehicle = pilotState.piloting || carPilot.driving;
 
     let wantsCombat = false;
     let following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
@@ -105,7 +107,9 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         const from = new THREE.Vector3(npc.pos.x, 1.4, npc.pos.z);
         const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
         spawnTracer(from, to);
-        if (distToPlayer < 36) damagePlayer(NPC_DAMAGE);
+        // Vehicles are immune to enemy gunfire while occupied and moving —
+        // only shootable once you're back on foot.
+        if (distToPlayer < 36 && !playerInVehicle) damagePlayer(NPC_DAMAGE);
       }
     } else if (following) {
       const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
@@ -180,7 +184,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         <coneGeometry args={[0.18, 0.35, 4]} />
         <meshBasicMaterial color={isFollowing(npc.id) ? "#5cff8a" : GANGS[PLAYER_GANG].accent} />
       </mesh>
-      {squadState.followers.has(npc.id) && null}
     </group>
   );
 }
