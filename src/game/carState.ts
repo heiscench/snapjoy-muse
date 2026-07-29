@@ -12,6 +12,10 @@ export const carPilot = {
   nearIndex: -1,
 };
 
+// Cars currently driven by a remote player (index -> owner). Populated by the
+// multiplayer channel so we don't let a local player hop into an occupied car.
+export const carRemote = new Map<number, { userId: string; lastSeen: number }>();
+
 export const CAR_ENTER_RADIUS = 4.5;
 export const CAR_EXIT_OFFSET = 3.2;
 export const CAR_TOP_SPEED = 20;
