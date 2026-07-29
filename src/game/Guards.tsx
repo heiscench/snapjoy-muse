@@ -12,6 +12,7 @@ import {
   type GuardState,
 } from "./guardState";
 import { playerState, damagePlayer } from "./playerState";
+import { nearestHostile } from "./targets";
 import { territoryState } from "./territoryState";
 import { resolveCollision } from "./worldData";
 import { pilotState } from "./vehicleState";
