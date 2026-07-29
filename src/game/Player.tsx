@@ -188,8 +188,8 @@ export function Player() {
 
           if (handleDeathAt(c.x, c.z, (x, y, z) => {
             carPilot.driving = false;
-            r.root.position.set(x, y, z);
-            r.root.visible = true;
+            r.root!.position.set(x, y, z);
+            r.root!.visible = true;
             vel.current.set(0, 0, 0);
           })) return;
         }
@@ -197,7 +197,7 @@ export function Player() {
       } catch (err) {
         pilotState.lastError = err instanceof Error ? err.message : String(err);
         carPilot.driving = false;
-        r.root.visible = true;
+        r.root!.visible = true;
       }
     }
 
@@ -255,8 +255,8 @@ export function Player() {
         if (handleDeathAt(heli.pos.x, heli.pos.z, (x, y, z) => {
           pilotState.piloting = false;
           heli.pos.set(GANG_HQ[PLAYER_GANG].x, 0, GANG_HQ[PLAYER_GANG].z);
-          r.root.position.set(x, 0, z);
-          r.root.visible = true;
+          r.root!.position.set(x, 0, z);
+          r.root!.visible = true;
           vel.current.set(0, 0, 0);
         })) return;
 
