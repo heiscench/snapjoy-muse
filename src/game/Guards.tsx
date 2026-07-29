@@ -66,23 +66,32 @@ function GuardUnit({ guard }: { guard: GuardState }) {
 
     const pp = playerState.pos;
     const distToPlayer = Math.hypot(guard.pos.x - pp.x, guard.pos.z - pp.z);
+    // Guards are hostile to every gang, so the target list is unfiltered.
+    const hostile = nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DETECT_RANGE, true);
+    const nearestDist = hostile ? hostile.dist : Infinity;
 
     // Aggro rules per kind:
     //  - Bank guards: aggro any player within GUARD_DETECT_RANGE.
     //  - Neutral guards: aggro only when a capture is being channeled at
     //    their HQ, OR player is already within combat range.
     let aggro = guard.aggroT > 0;
-    if (guard.kind === "bank" && distToPlayer < GUARD_DETECT_RANGE) aggro = true;
+    if (guard.kind === "bank" && nearestDist < GUARD_DETECT_RANGE) aggro = true;
     if (guard.kind === "neutral") {
       const capturingHere = territoryState.captureDistrict === guard.district && territoryState.captureProgress > 0;
       if (capturingHere) aggro = true;
-      if (distToPlayer < GUARD_DETECT_RANGE * 0.6) aggro = true;
+      if (nearestDist < GUARD_DETECT_RANGE * 0.6) aggro = true;
     }
 
     if (aggro) {
       guard.aggroT = Math.max(guard.aggroT - dtc, 0);
-      // Move toward player
-      const dx = pp.x - guard.pos.x, dz = pp.z - guard.pos.z;
+      const tx = hostile ? hostile.target.x : pp.x;
+      const tz = hostile ? hostile.target.z : pp.z;
+      const targetIsLocal = hostile ? hostile.target.isLocal : true;
+      const targetInVehicle = hostile
+        ? hostile.target.inVehicle
+        : pilotState.piloting || carPilot.driving;
+
+      const dx = tx - guard.pos.x, dz = tz - guard.pos.z;
       const d = Math.hypot(dx, dz) || 1;
       const speed = guard.kind === "bank" ? 3.4 : 3.8;
       const nx = guard.pos.x + (dx / d) * speed * dtc;
@@ -92,25 +101,16 @@ function GuardUnit({ guard }: { guard: GuardState }) {
       guard.dir.set(dx / d, 0, dz / d);
 
       guard.fireCd = Math.max(0, guard.fireCd - dtc);
-      if (distToPlayer < 40 && guard.fireCd === 0) {
+      if (d < 40 && guard.fireCd === 0) {
         guard.fireCd = GUARD_FIRE_RATE;
         const from = new THREE.Vector3(guard.pos.x, 1.4, guard.pos.z);
-        const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
+        const to = new THREE.Vector3(tx, 1.4, tz).sub(from).normalize();
         spawnTracer(from, to);
-        if (distToPlayer < 36 && !pilotState.piloting && !carPilot.driving) damagePlayer(GUARD_DAMAGE);
+        // Only the local player is damaged here — remote clients apply their
+        // own guard damage, so nobody gets hit twice for one bullet.
+        if (d < 36 && targetIsLocal && !targetInVehicle) damagePlayer(GUARD_DAMAGE);
       }
     } else {
-      // Idle patrol near home
-      const dx = guard.home.x - guard.pos.x, dz = guard.home.z - guard.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d > 6) {
-        const nx = guard.pos.x + (dx / d) * 1.4 * dtc;
-        const nz = guard.pos.z + (dz / d) * 1.4 * dtc;
-        const resolved = resolveCollision(guard.pos.x, guard.pos.z, nx, nz, 0.5);
-        guard.pos.x = resolved.x; guard.pos.z = resolved.z;
-        guard.dir.set(dx / d, 0, dz / d);
-      }
-    }
 
     const yaw = Math.atan2(guard.dir.x, guard.dir.z);
     r.root.position.set(guard.pos.x, 0, guard.pos.z);
