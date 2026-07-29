@@ -1,5 +1,9 @@
 // District ownership + capture channel state. Also drives passive income and
 // weapon-cost discounts via the economy system.
+//
+// Multiplayer note: ownership + lock timers are now SHARED state. Locks are
+// stored as absolute epoch-ms so they mean the same thing on every client.
+// Capture/robbery *progress* stays local to whoever is channeling.
 import { PLAYER_GANG, type GangId } from "./gangs";
 import {
   CAPTURE_RADIUS,
@@ -14,6 +18,7 @@ import {
   addReputation,
   STADIUM_REP_PER_KILL,
 } from "./playerState";
+import { pushAlert } from "./alertState";
 
 export const CAPTURE_TIME = 30;
 export const CAPTURE_LOCK = 5 * 60;
@@ -27,6 +32,10 @@ export const ROBBERY_COOLDOWN = 10 * 60;
 export const GUARD_RESPAWN = 5 * 60;
 export const ROBBERY_MIN_PAYOUT = 2000;
 export const ROBBERY_MAX_PAYOUT = 4000;
+
+// How often (seconds) a capture-in-progress re-announces itself to the
+// defending gang, so late joiners still get warned.
+export const ATTACK_ALERT_INTERVAL = 20;
 
 export type Owner = GangId | null;
 
@@ -46,13 +55,54 @@ export const territoryState = {
   captureProgress: 0,
   captureMessage: null as string | null,
   captureMessageT: 0,
+  // epoch-ms values, shared across clients
   lockUntil: {} as Partial<Record<District, number>>,
   robberyBankId: null as number | null,
   robberyProgress: 0,
   robberyLockUntil: {} as Record<number, number>,
   _lastHealth: playerState.health,
   _tSecs: 0,
+  _attackAlertT: 0,
 };
+
+// ---- Multiplayer hooks (registered by worldSync.ts) -----------------------
+type CaptureHook = (district: District, owner: GangId, lockUntilMs: number) => void;
+type RobberyHook = (bankId: number, lockUntilMs: number) => void;
+type AttackHook = (district: District, defendingGang: GangId) => void;
+
+let _onCaptured: CaptureHook = () => {};
+let _onRobbed: RobberyHook = () => {};
+let _onAttackStarted: AttackHook = () => {};
+
+export function registerTerritoryHooks(hooks: {
+  onCaptured?: CaptureHook;
+  onRobbed?: RobberyHook;
+  onAttackStarted?: AttackHook;
+}) {
+  if (hooks.onCaptured) _onCaptured = hooks.onCaptured;
+  if (hooks.onRobbed) _onRobbed = hooks.onRobbed;
+  if (hooks.onAttackStarted) _onAttackStarted = hooks.onAttackStarted;
+}
+
+/** Applied when the shared world state says a district changed hands. */
+export function applyRemoteOwner(district: District, owner: Owner, lockUntilMs: number | null) {
+  const prev = territoryState.owners[district];
+  territoryState.owners[district] = owner;
+  if (lockUntilMs) territoryState.lockUntil[district] = lockUntilMs;
+  if (prev !== owner && territoryState.captureDistrict === district) {
+    // Someone else finished first — our channel resets.
+    territoryState.captureDistrict = null;
+    territoryState.captureProgress = 0;
+  }
+}
+
+export function applyRemoteBankLock(bankId: number, lockUntilMs: number | null) {
+  if (lockUntilMs) territoryState.robberyLockUntil[bankId] = lockUntilMs;
+  if (territoryState.robberyBankId === bankId) {
+    territoryState.robberyBankId = null;
+    territoryState.robberyProgress = 0;
+  }
+}
 
 export function districtOwner(d: District): Owner {
   return territoryState.owners[d];
@@ -83,6 +133,7 @@ function setMessage(msg: string) {
 export function tickTerritory(dt: number, playerX: number, playerZ: number) {
   const s = territoryState;
   s._tSecs += dt;
+  const nowMs = Date.now();
 
   if (s.captureMessageT > 0) {
     s.captureMessageT = Math.max(0, s.captureMessageT - dt);
@@ -110,7 +161,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
     if (owner === PLAYER_GANG) {
       s.captureDistrict = null;
       s.captureProgress = 0;
-    } else if (s._tSecs < lockedUntil) {
+    } else if (nowMs < lockedUntil) {
       if (s.captureDistrict !== inZone) setMessage("District locked");
       s.captureDistrict = null;
       s.captureProgress = 0;
@@ -118,13 +169,26 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
       if (s.captureDistrict !== inZone) {
         s.captureDistrict = inZone;
         s.captureProgress = 0;
+        s._attackAlertT = 0;
       }
       if (damaged) s.captureProgress = 0;
       else s.captureProgress = Math.min(CAPTURE_TIME, s.captureProgress + dt);
+
+      // Warn the defending gang that their turf is being taken.
+      if (owner !== null && owner !== PLAYER_GANG) {
+        s._attackAlertT -= dt;
+        if (s._attackAlertT <= 0) {
+          s._attackAlertT = ATTACK_ALERT_INTERVAL;
+          _onAttackStarted(inZone, owner);
+        }
+      }
+
       if (s.captureProgress >= CAPTURE_TIME) {
+        const lockUntilMs = nowMs + CAPTURE_LOCK * 1000;
         s.owners[inZone] = PLAYER_GANG;
-        s.lockUntil[inZone] = s._tSecs + CAPTURE_LOCK;
+        s.lockUntil[inZone] = lockUntilMs;
         setMessage(`${labelFor(inZone)?.name ?? inZone.toUpperCase()} captured`);
+        _onCaptured(inZone, PLAYER_GANG, lockUntilMs);
         s.captureDistrict = null;
         s.captureProgress = 0;
       }
@@ -142,7 +206,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
   if (inVault) {
     const lockUntil = s.robberyLockUntil[inVault.id] ?? 0;
     const guardsAlive = anyGuardAliveForBank(inVault.id);
-    if (s._tSecs < lockUntil || guardsAlive) {
+    if (nowMs < lockUntil || guardsAlive) {
       if (s.robberyBankId !== inVault.id) {
         setMessage(guardsAlive ? "Clear the guards first" : "Vault sealed");
       }
@@ -160,8 +224,11 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
           ROBBERY_MIN_PAYOUT + Math.random() * (ROBBERY_MAX_PAYOUT - ROBBERY_MIN_PAYOUT),
         );
         earnMoney(payout);
-        s.robberyLockUntil[inVault.id] = s._tSecs + ROBBERY_COOLDOWN;
+        const lockUntilMs = nowMs + ROBBERY_COOLDOWN * 1000;
+        s.robberyLockUntil[inVault.id] = lockUntilMs;
         setMessage(`Robbery success: +$${payout}`);
+        pushAlert(`Vault cracked — +$${payout}`);
+        _onRobbed(inVault.id, lockUntilMs);
         s.robberyBankId = null;
         s.robberyProgress = 0;
       }
