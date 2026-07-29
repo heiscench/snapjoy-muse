@@ -253,6 +253,7 @@ export function GameScene() {
       </div>
 
       <Minimap />
+     <WeaponShop />
 
       {error && (
         <button
