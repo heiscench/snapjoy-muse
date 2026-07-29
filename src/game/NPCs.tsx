@@ -71,7 +71,12 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     const pp = playerState.pos;
     const distToPlayer = Math.hypot(npc.pos.x - pp.x, npc.pos.z - pp.z);
     const isEnemyOfPlayer = npc.gang !== PLAYER_GANG;
-    const playerInVehicle = pilotState.piloting || carPilot.driving;
+
+    // Pick a victim among ALL real players (local + remote), not just this
+    // client's player, so bots react to everyone in the world.
+    const hostile = isEnemyOfPlayer
+      ? nearestHostile(npc.pos.x, npc.pos.z, npc.gang, DETECT_RANGE)
+      : null;
 
     let wantsCombat = false;
     let following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
@@ -80,7 +85,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       const playerDistrict = districtAt(pp.x, pp.z);
       const ownsThis = territoryState.owners[npcDistrict] === npc.gang;
       if (ownsThis && playerDistrict === npcDistrict) wantsCombat = true;
-      if (distToPlayer < DETECT_RANGE) wantsCombat = true;
+      if (hostile) wantsCombat = true;
     }
     if (following && playerState.health > 0) {
       const anyThreatNearPlayer = NPCS.some(
@@ -93,7 +98,14 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     else if (npc.mode === "combat" && distToPlayer > DETECT_RANGE * 1.5) npc.mode = "patrol";
 
     if (npc.mode === "combat" && isEnemyOfPlayer) {
-      const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
+      // Fall back to the local player when nobody is in detection range so
+      // territory-defence aggro still charges at you.
+      const tx = hostile ? hostile.target.x : pp.x;
+      const tz = hostile ? hostile.target.z : pp.z;
+      const targetIsLocal = hostile ? hostile.target.isLocal : true;
+      const targetInVehicle = hostile ? hostile.target.inVehicle : (pilotState.piloting || carPilot.driving);
+
+      const dx = tx - npc.pos.x, dz = tz - npc.pos.z;
       const d = Math.hypot(dx, dz) || 1;
       const nx = npc.pos.x + (dx / d) * NPC_MOVE_COMBAT * dtc;
       const nz = npc.pos.z + (dz / d) * NPC_MOVE_COMBAT * dtc;
@@ -102,44 +114,16 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       npc.dir.set(dx / d, 0, dz / d);
 
       npc.fireCd = Math.max(0, npc.fireCd - dtc);
-      if (distToPlayer < 40 && npc.fireCd === 0) {
+      if (d < 40 && npc.fireCd === 0) {
         npc.fireCd = NPC_FIRE_RATE;
         const from = new THREE.Vector3(npc.pos.x, 1.4, npc.pos.z);
-        const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
+        const to = new THREE.Vector3(tx, 1.4, tz).sub(from).normalize();
         spawnTracer(from, to);
-        // Vehicles are immune to enemy gunfire while occupied and moving —
-        // only shootable once you're back on foot.
-        if (distToPlayer < 36 && !playerInVehicle) damagePlayer(NPC_DAMAGE);
+        // Damage authority is local-only: a remote player's own client runs
+        // this same bot and applies their damage there.
+        if (d < 36 && targetIsLocal && !targetInVehicle) damagePlayer(NPC_DAMAGE);
       }
     } else if (following) {
-      const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d > FOLLOW_RADIUS) {
-        const s = Math.min(FOLLOW_MAX_SPEED, d);
-        const nx = npc.pos.x + (dx / d) * s * dtc;
-        const nz = npc.pos.z + (dz / d) * s * dtc;
-        const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
-        npc.pos.x = resolved.x; npc.pos.z = resolved.z;
-        npc.dir.set(dx / d, 0, dz / d);
-      }
-    } else {
-      npc.phase += dtc;
-      if (npc.phase > 3) {
-        npc.phase = 0;
-        npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
-      }
-      const nx = npc.pos.x + npc.dir.x * npc.speed * dtc;
-      const nz = npc.pos.z + npc.dir.z * npc.speed * dtc;
-      const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
-      if (resolved.x === npc.pos.x && resolved.z === npc.pos.z) npc.dir.multiplyScalar(-1);
-      npc.pos.x = resolved.x; npc.pos.z = resolved.z;
-
-      const distHome = Math.hypot(npc.pos.x - npc.home.x, npc.pos.z - npc.home.z);
-      if (distHome > npc.wanderRadius) {
-        const towardHome = new THREE.Vector3(npc.home.x - npc.pos.x, 0, npc.home.z - npc.pos.z).normalize();
-        npc.dir.copy(towardHome);
-      }
-    }
 
     const yaw = Math.atan2(npc.dir.x, npc.dir.z);
     r.root.position.set(npc.pos.x, 0, npc.pos.z);
