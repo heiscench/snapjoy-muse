@@ -41,42 +41,64 @@ function hitTest(el: HTMLElement | null, x: number, y: number) {
 
 type HudState = {
   health: number;
+  money: number;
+  reputation: number;
   piloting: boolean;
   nearHeli: boolean;
   carDriving: boolean;
   nearCar: boolean;
   error: string | null;
+  captureLabel: string | null;
+  capturePct: number;
+  alerts: Alert[];
 };
 
-function useHud(): HudState {
-  const [state, setState] = useState<HudState>({
+function snapshot(): HudState {
+  const capturing = territoryState.captureDistrict !== null;
+  const robbing = territoryState.robberyBankId !== null;
+  return {
     health: playerState.health,
+    money: Math.floor(playerState.money),
+    reputation: Math.floor(playerState.reputation),
     piloting: pilotState.piloting,
     nearHeli: pilotState.nearOwnHeli,
     carDriving: carPilot.driving,
     nearCar: carPilot.nearIndex >= 0,
     error: pilotState.lastError,
-  });
+    captureLabel: capturing ? "Capturing district" : robbing ? "Robbing vault" : territoryState.captureMessage,
+    capturePct: capturing
+      ? (territoryState.captureProgress / CAPTURE_TIME) * 100
+      : robbing
+      ? (territoryState.robberyProgress / ROBBERY_TIME) * 100
+      : 0,
+    alerts: alertState.alerts,
+  };
+}
+
+function useHud(): HudState {
+  const [state, setState] = useState<HudState>(snapshot);
   const last = useRef(state);
   useEffect(() => {
     let raf: number;
+    let prev = performance.now();
     const tick = () => {
-      const next: HudState = {
-        health: playerState.health,
-        piloting: pilotState.piloting,
-        nearHeli: pilotState.nearOwnHeli,
-        carDriving: carPilot.driving,
-        nearCar: carPilot.nearIndex >= 0,
-        error: pilotState.lastError,
-      };
+      const now = performance.now();
+      tickAlerts(Math.min(0.05, (now - prev) / 1000));
+      prev = now;
+      const next = snapshot();
       const l = last.current;
       if (
         next.health !== l.health ||
+        next.money !== l.money ||
+        next.reputation !== l.reputation ||
         next.piloting !== l.piloting ||
         next.nearHeli !== l.nearHeli ||
         next.carDriving !== l.carDriving ||
         next.nearCar !== l.nearCar ||
-        next.error !== l.error
+        next.error !== l.error ||
+        next.captureLabel !== l.captureLabel ||
+        Math.abs(next.capturePct - l.capturePct) > 0.5 ||
+        next.alerts.length !== l.alerts.length
       ) {
         last.current = next;
         setState(next);
@@ -87,6 +109,28 @@ function useHud(): HudState {
     return () => cancelAnimationFrame(raf);
   }, []);
   return state;
+}
+
+/** Boots the multiplayer channel, shared world state, and profile autosave. */
+function useMultiplayerSession() {
+  useEffect(() => {
+    startPresence();
+    void startWorldSync();
+    registerVehicleDestroyHook((kind, id) => broadcastVehicleDestroyed(kind, id));
+
+    const save = setInterval(() => { void syncProfileToServer(); }, AUTOSAVE_MS);
+    const onHide = () => syncProfileToServerBeacon();
+    window.addEventListener("pagehide", onHide);
+
+    return () => {
+      clearInterval(save);
+      window.removeEventListener("pagehide", onHide);
+      registerVehicleDestroyHook(() => {});
+      stopPresence();
+      stopWorldSync();
+      syncProfileToServerBeacon();
+    };
+  }, []);
 }
 
 export function GameScene() {
