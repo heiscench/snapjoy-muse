@@ -138,7 +138,11 @@ export function GameScene() {
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
-  const { health, piloting, nearHeli, carDriving, nearCar, error } = useHud();
+  const {
+    health, money, reputation, piloting, nearHeli, carDriving, nearCar, error,
+    captureLabel, capturePct, alerts,
+  } = useHud();
+  useMultiplayerSession();
   const inVehicleMode = piloting || nearHeli || carDriving || nearCar;
   const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
   const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
