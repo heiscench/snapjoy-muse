@@ -2,6 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
+import { playGunshot, playFootstep, startEngine, updateEngine, stopEngine } from "./audio";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
