@@ -111,6 +111,18 @@ function GuardUnit({ guard }: { guard: GuardState }) {
         if (d < 36 && targetIsLocal && !targetInVehicle) damagePlayer(GUARD_DAMAGE);
       }
     } else {
+      // Idle patrol near home
+      const dx = guard.home.x - guard.pos.x, dz = guard.home.z - guard.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 6) {
+        const nx = guard.pos.x + (dx / d) * 1.4 * dtc;
+        const nz = guard.pos.z + (dz / d) * 1.4 * dtc;
+        const resolved = resolveCollision(guard.pos.x, guard.pos.z, nx, nz, 0.5);
+        guard.pos.x = resolved.x; guard.pos.z = resolved.z;
+        guard.dir.set(dx / d, 0, dz / d);
+      }
+    }
+
 
     const yaw = Math.atan2(guard.dir.x, guard.dir.z);
     r.root.position.set(guard.pos.x, 0, guard.pos.z);
