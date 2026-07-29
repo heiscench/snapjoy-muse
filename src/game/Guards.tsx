@@ -66,7 +66,6 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     r.root.visible = true;
 
     const pp = playerState.pos;
-    const distToPlayer = Math.hypot(guard.pos.x - pp.x, guard.pos.z - pp.z);
     // Guards are hostile to every gang, so the target list is unfiltered.
     const hostile = nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DETECT_RANGE, true);
     const nearestDist = hostile ? hostile.dist : Infinity;
