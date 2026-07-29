@@ -414,6 +414,7 @@ export function Player() {
     if (input.fire && fireCd.current === 0) {
       const w = currentWeapon();
       fireCd.current = w.fireRate;
+      playGunshot(w.id);
       recoil.current = Math.min(1.4, recoil.current + RECOIL_PER_SHOT);
       const origin = camera.position.clone();
       const forwardV = new THREE.Vector3();
