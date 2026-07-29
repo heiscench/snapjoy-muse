@@ -3,7 +3,7 @@ import { useRef } from "react";
 import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { HELICOPTERS } from "./vehicleState";
-import { GANG_HQ } from "./worldData";
+import { HELI_PADS } from "./worldData";
 
 function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   const group = useRef<THREE.Group>(null!);
@@ -15,13 +15,12 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
     const h = HELICOPTERS[gangId];
     if (!group.current || !rotor.current) return;
 
-    // Destroyed → hide + respawn at HQ after a delay.
     if (h.destroyed) {
       group.current.visible = false;
       h.respawn -= dt;
       if (h.respawn <= 0) {
-        const hq = GANG_HQ[gangId];
-        h.pos.set(hq.x, 0, hq.z);
+        const pad = HELI_PADS[gangId];
+        h.pos.set(pad.x, 0, pad.z);
         h.yaw = 0; h.vy = 0;
         h.hp = 300;
         h.destroyed = false;
@@ -48,7 +47,7 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   });
 
   return (
-    <group ref={group} position={[GANG_HQ[gangId].x, 0, GANG_HQ[gangId].z]}>
+    <group ref={group} position={[HELI_PADS[gangId].x, 0, HELI_PADS[gangId].z]}>
       <mesh position={[0, 1.4, 0]}>
         <capsuleGeometry args={[0.9, 2.4, 4, 8]} />
         <meshStandardMaterial color={gang.color} metalness={0.5} roughness={0.4} />
@@ -87,7 +86,7 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
 
 function LandingPad({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   const gang = GANGS[gangId];
-  const pos = GANG_HQ[gangId];
+  const pos = HELI_PADS[gangId];
   return (
     <group position={[pos.x, 0, pos.z]}>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
