@@ -158,6 +158,8 @@ export function GameScene() {
     new Map<number, { zone: Zone; startX: number; startY: number; lastX: number; lastY: number }>(),
   );
 
+unlockAudio();
+
   const zoneOf = useCallback((x: number, y: number): Zone => {
     if (hitTest(moveRef.current, x, y)) return "move";
     if (hitTest(aimRef.current, x, y)) return "aim";
