@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GANG_HQ } from "./worldData";
+import { HELI_PADS } from "./worldData";
 
 export const HELI_MAX_HP = 300;
 export const HELI_RESPAWN_SECS = 60;
@@ -14,9 +14,9 @@ export type HeliState = {
 };
 
 function makeHeli(gangId: 0 | 1 | 2 | 3): HeliState {
-  const hq = GANG_HQ[gangId];
+  const pad = HELI_PADS[gangId];
   return {
-    pos: new THREE.Vector3(hq.x, 0, hq.z),
+    pos: new THREE.Vector3(pad.x, 0, pad.z),
     yaw: 0,
     vy: 0,
     hp: HELI_MAX_HP,
@@ -39,8 +39,6 @@ export const pilotState = {
   lastError: null as string | null,
 };
 
-// Car destruction: since cars are decorative parked instances, we track health
-// keyed by index and hide destroyed ones. Vehicles.tsx registers its count.
 export const CAR_MAX_HP = 120;
 export const CAR_RESPAWN_SECS = 60;
 export const carHp: number[] = [];
@@ -56,15 +54,12 @@ export function initCarHealth(count: number) {
   }
 }
 
-// Multiplayer hook: fired locally when a vehicle is destroyed here so the
-// channel can tell everyone else. Registered by GameScene at startup.
 type DestroyHook = (kind: "car" | "heli", id: number) => void;
 let _onDestroyed: DestroyHook = () => {};
 export function registerVehicleDestroyHook(fn: DestroyHook) {
   _onDestroyed = fn;
 }
 
-/** A remote client destroyed this vehicle — mirror it locally, same timer. */
 export function applyRemoteVehicleDestroyed(kind: "car" | "heli", id: number) {
   if (kind === "car") {
     if (carDestroyed[id]) return;
@@ -98,7 +93,6 @@ export function damageHeli(gangId: 0 | 1 | 2 | 3, amount: number, occupiedByPlay
     h.destroyed = true;
     h.respawn = HELI_RESPAWN_SECS;
     _onDestroyed("heli", gangId);
-    // If occupied on death, the occupant takes the death penalty.
     return { occupantDamage: occupiedByPlayer ? 9999 : 0 };
   }
   return { occupantDamage: 0 };
