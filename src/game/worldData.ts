@@ -1,3 +1,4 @@
+
 // Shared world layout: districts, building AABBs used for rendering + collision.
 
 export type BuildingType =
@@ -44,7 +45,7 @@ function rng(seed: number) {
 
 export const BLOCK_SIZE = 64;
 export const ROAD_WIDTH = 20;
-export const GRID = 6; // wider land — 13x13 blocks (was 9x9)
+export const GRID = 6;
 
 export function districtFor(gx: number, gz: number): District {
   if (gz <= -4) return "harbor";
@@ -87,10 +88,6 @@ function buildingForDistrict(d: District, r: () => number): { type: BuildingType
   }
 }
 
-// One dedicated headquarters plaza per district, centered in that district's
-// own area — this is also the district's capture zone (see territoryState.ts,
-// which reads DISTRICT_LABELS positions) and the point walked to for both
-// owning gang districts and neutral-district domination.
 const HQ_BLOCKS: Record<District, [number, number]> = {
   downtown: [1, -1],
   industrial: [-5, 1],
@@ -208,7 +205,6 @@ function hqWorld(d: District): { x: number; z: number } {
   return { x: gx * BLOCK_SIZE, z: gz * BLOCK_SIZE };
 }
 
-// Player-gang home HQs (helicopter pad / weapon shop / respawn anchor).
 export const GANG_HQ: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
   0: hqWorld("downtown"),
   1: hqWorld("industrial"),
@@ -216,9 +212,16 @@ export const GANG_HQ: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
   3: hqWorld("harbor"),
 };
 
-// Same headquarters point doubles as the capture-zone center AND the label
-// position — walking up to the HQ building is what triggers capture, and
-// its name floats directly above it.
+// Dedicated helicopter pad, offset away from the HQ building itself so the
+// two don't overlap (they used to share a spot, which buried the helicopter
+// inside the HQ building — that was the "missing helicopter" bug).
+export const HELI_PADS: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
+  0: { x: GANG_HQ[0].x, z: GANG_HQ[0].z - 20 },
+  1: { x: GANG_HQ[1].x, z: GANG_HQ[1].z - 20 },
+  2: { x: GANG_HQ[2].x, z: GANG_HQ[2].z - 20 },
+  3: { x: GANG_HQ[3].x, z: GANG_HQ[3].z - 20 },
+};
+
 export const DISTRICT_LABELS: { name: string; district: District; x: number; z: number }[] = [
   { name: "DOWNTOWN", district: "downtown", ...hqWorld("downtown") },
   { name: "INDUSTRIAL AREA", district: "industrial", ...hqWorld("industrial") },
@@ -313,9 +316,6 @@ export function resolveHeliCollision(
   return { x, z };
 }
 
-// Rooftop landing: returns the highest building-roof height directly under
-// (x,z), or 0 if none — lets a helicopter settle on top of a building
-// instead of only ever landing at ground level.
 export function rooftopHeightAt(x: number, z: number): number {
   let best = 0;
   for (const b of BUILDINGS) {
