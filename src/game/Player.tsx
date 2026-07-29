@@ -22,6 +22,13 @@ import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
 import { carDestroyed } from "./vehicleState";
+import { remotePlayers } from "./remotePlayerState";
+import {
+  broadcastDeath,
+  broadcastHit,
+  lastAttacker,
+  LAST_ATTACKER_WINDOW_MS,
+} from "./presence";
 
 const HEAL_RADIUS = 22;
 const HEAL_RATE = 22;
