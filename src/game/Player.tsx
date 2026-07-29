@@ -119,6 +119,7 @@ export function Player() {
         const c = CAR_LIVE[idx];
         carPilot.driving = false;
         carPilot.drivingIndex = -1;
+        stopEngine();
         r.root.position.set(c.x + Math.sin(c.rotY) * CAR_EXIT_OFFSET, 0, c.z + Math.cos(c.rotY) * CAR_EXIT_OFFSET);
         r.root.visible = true;
         vel.current.set(0, 0, 0);
@@ -128,6 +129,7 @@ export function Player() {
         carPilot.driving = true;
         carPilot.drivingIndex = carPilot.nearIndex;
         r.root.visible = false;
+        startEngine();
       } else if (pilotState.nearOwnHeli) {
         pilotState.piloting = true;
         r.root.visible = false;
@@ -142,11 +144,13 @@ export function Player() {
         const c = CAR_LIVE[carPilot.drivingIndex];
         if (carDestroyed[carPilot.drivingIndex]) {
           carPilot.driving = false;
+          stopEngine();
           r.root.visible = true;
         } else {
           if (Math.abs(c.speed) > 0.5) c.rotY -= mx * 1.6 * dtc;
           const targetSpeed = -my * CAR_TOP_SPEED;
           c.speed = THREE.MathUtils.lerp(c.speed, targetSpeed, Math.min(1, dtc * 2.2));
+          updateEngine(Math.abs(c.speed) / CAR_TOP_SPEED);
 
           const fwd = new THREE.Vector3(Math.sin(c.rotY), 0, Math.cos(c.rotY));
           let nx = c.x + fwd.x * c.speed * dtc;
@@ -203,6 +207,7 @@ export function Player() {
 
           if (handleDeathAt(c.x, c.z, (x, y, z) => {
             carPilot.driving = false;
+            stopEngine();
             r.root!.position.set(x, y, z);
             r.root!.visible = true;
             vel.current.set(0, 0, 0);
@@ -212,6 +217,7 @@ export function Player() {
       } catch (err) {
         pilotState.lastError = err instanceof Error ? err.message : String(err);
         carPilot.driving = false;
+        stopEngine();
         r.root!.visible = true;
       }
     }
@@ -379,11 +385,11 @@ export function Player() {
     }
 
     const step = running ? 13 : 8;
+    const prevPhase = walkPhase.current;
     walkPhase.current += dtc * step * (mag > 0.05 && !holding ? 1 : 0);
-    const prevPhase = walkPhase.current - dtc * step * (mag > 0.05 && !holding ? 1 : 0);
-if (mag > 0.05 && !holding && Math.floor(walkPhase.current / Math.PI) !== Math.floor(prevPhase / Math.PI)) {
-  playFootstep(running);
-}
+    if (mag > 0.05 && !holding && Math.floor(walkPhase.current / Math.PI) !== Math.floor(prevPhase / Math.PI)) {
+      playFootstep(running);
+    }
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
     if (r.legL && r.legR && r.armL && r.armR && r.body) {
       r.legL.rotation.x = swing;
