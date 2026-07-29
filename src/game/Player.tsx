@@ -44,6 +44,13 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
   if (playerState.health > 0) return false;
   const hq = GANG_HQ[PLAYER_GANG];
   set(hq.x, 0, hq.z);
+  // Credit the kill to whoever shot us last (if it was recent enough).
+  const recent =
+    lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
+      ? lastAttacker.userId
+      : null;
+  broadcastDeath(recent);
+  lastAttacker.userId = null;
   revivePlayer();
   spendMoney(DEATH_COST);
   return true;
