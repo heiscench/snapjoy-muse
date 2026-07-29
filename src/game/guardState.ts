@@ -72,6 +72,34 @@ export function initGuards() {
   }
 }
 
+// Multiplayer: fired when the LAST living guard of a bank goes down, so the
+// shared world state can mark that bank's security as cleared for everyone.
+type BankGuardsClearedHook = (bankId: number) => void;
+let _onBankGuardsCleared: BankGuardsClearedHook = () => {};
+export function registerBankGuardsClearedHook(fn: BankGuardsClearedHook) {
+  _onBankGuardsCleared = fn;
+}
+
+export function bankGuardsAlive(bankId: number): boolean {
+  for (const g of GUARDS) {
+    if (g.kind === "bank" && g.bankId === bankId && !g.dead) return true;
+  }
+  return false;
+}
+
+/** Mirror another client's guard wipe: everyone sees the same dead guards. */
+export function applyRemoteBankGuards(bankId: number, respawnAtMs: number | null) {
+  if (!respawnAtMs) return;
+  const remaining = (respawnAtMs - Date.now()) / 1000;
+  if (remaining <= 0) return;
+  for (const g of GUARDS) {
+    if (g.kind !== "bank" || g.bankId !== bankId) continue;
+    g.dead = true;
+    g.hp = 0;
+    g.respawn = remaining;
+  }
+}
+
 export function damageGuard(g: GuardState, amount: number) {
   if (g.dead) return;
   g.hp -= amount;
@@ -80,6 +108,9 @@ export function damageGuard(g: GuardState, amount: number) {
   if (g.hp <= 0) {
     g.dead = true;
     g.respawn = GUARD_RESPAWN;
+    if (g.kind === "bank" && g.bankId !== undefined && !bankGuardsAlive(g.bankId)) {
+      _onBankGuardsCleared(g.bankId);
+    }
   }
 }
 
