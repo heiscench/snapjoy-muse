@@ -380,6 +380,10 @@ export function Player() {
 
     const step = running ? 13 : 8;
     walkPhase.current += dtc * step * (mag > 0.05 && !holding ? 1 : 0);
+    const prevPhase = walkPhase.current - dtc * step * (mag > 0.05 && !holding ? 1 : 0);
+if (mag > 0.05 && !holding && Math.floor(walkPhase.current / Math.PI) !== Math.floor(prevPhase / Math.PI)) {
+  playFootstep(running);
+}
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
     if (r.legL && r.legR && r.armL && r.armR && r.body) {
       r.legL.rotation.x = swing;
