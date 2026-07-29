@@ -464,11 +464,31 @@ export function Player() {
           damageHeli(gid, w.damage, false);
         }
 
-        if (bestN && bestG) {
-          if (bestN.d <= bestG.d) { damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); } }
-          else damageGuard(bestG.g, w.damage);
-        } else if (bestN) {
-          damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+        // Rival human players. No friendly fire, and players inside a vehicle
+        // are hit through the vehicle instead (handled by vehicle damage).
+        let bestR: { d: number; userId: string } | null = null;
+        for (const rp of remotePlayers.values()) {
+          if (rp.health <= 0 || rp.inVehicle || rp.gang === PLAYER_GANG) continue;
+          const toR = new THREE.Vector3(rp.x, 1, rp.z).sub(origin);
+          const dist = toR.length();
+          if (dist > w.range) continue;
+          toR.normalize();
+          if (toR.dot(dir) < w.spread) continue;
+          if (!bestR || dist < bestR.d) bestR = { d: dist, userId: rp.userId };
+        }
+
+        // Only the single closest thing along the ray takes the shot.
+        const dN = bestN?.d ?? Infinity;
+        const dG = bestG?.d ?? Infinity;
+        const dR = bestR?.d ?? Infinity;
+        const closest = Math.min(dN, dG, dR);
+        if (closest === Infinity) {
+          // nothing hit
+        } else if (closest === dR && bestR) {
+          broadcastHit(bestR.userId, w.damage);
+        } else if (closest === dN && bestN) {
+          damageNPC(bestN.npc, w.damage);
+          if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
         } else if (bestG) {
           damageGuard(bestG.g, w.damage);
         }
