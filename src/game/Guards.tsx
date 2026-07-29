@@ -66,14 +66,9 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     r.root.visible = true;
 
     const pp = playerState.pos;
-    // Guards are hostile to every gang, so the target list is unfiltered.
     const hostile = nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DETECT_RANGE, true);
     const nearestDist = hostile ? hostile.dist : Infinity;
 
-    // Aggro rules per kind:
-    //  - Bank guards: aggro any player within GUARD_DETECT_RANGE.
-    //  - Neutral guards: aggro only when a capture is being channeled at
-    //    their HQ, OR player is already within combat range.
     let aggro = guard.aggroT > 0;
     if (guard.kind === "bank" && nearestDist < GUARD_DETECT_RANGE) aggro = true;
     if (guard.kind === "neutral") {
@@ -106,12 +101,9 @@ function GuardUnit({ guard }: { guard: GuardState }) {
         const from = new THREE.Vector3(guard.pos.x, 1.4, guard.pos.z);
         const to = new THREE.Vector3(tx, 1.4, tz).sub(from).normalize();
         spawnTracer(from, to);
-        // Only the local player is damaged here — remote clients apply their
-        // own guard damage, so nobody gets hit twice for one bullet.
         if (d < 36 && targetIsLocal && !targetInVehicle) damagePlayer(GUARD_DAMAGE);
       }
     } else {
-      // Idle patrol near home
       const dx = guard.home.x - guard.pos.x, dz = guard.home.z - guard.pos.z;
       const d = Math.hypot(dx, dz);
       if (d > 6) {
@@ -122,7 +114,6 @@ function GuardUnit({ guard }: { guard: GuardState }) {
         guard.dir.set(dx / d, 0, dz / d);
       }
     }
-
 
     const yaw = Math.atan2(guard.dir.x, guard.dir.z);
     r.root.position.set(guard.pos.x, 0, guard.pos.z);
@@ -141,5 +132,5 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     }
   });
 
-  return <Character ref={refs} color={uniformColor} accent={accentColor} />;
+  return <Character ref={refs} color={uniformColor} accent={accentColor} scale={1.15} />;
 }
