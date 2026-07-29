@@ -124,6 +124,31 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         if (d < 36 && targetIsLocal && !targetInVehicle) damagePlayer(NPC_DAMAGE);
       }
     } else if (following) {
+      const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > FOLLOW_RADIUS) {
+        const s = Math.min(FOLLOW_MAX_SPEED, d);
+        const nx = npc.pos.x + (dx / d) * s * dtc;
+        const nz = npc.pos.z + (dz / d) * s * dtc;
+        const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+        npc.pos.x = resolved.x; npc.pos.z = resolved.z;
+        npc.dir.set(dx / d, 0, dz / d);
+      }
+    } else {
+      npc.phase += dtc;
+      if (npc.phase > 3) {
+        npc.phase = 0;
+        npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
+      }
+      const nx = npc.pos.x + npc.dir.x * npc.speed * dtc;
+      const nz = npc.pos.z + npc.dir.z * npc.speed * dtc;
+      const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+      if (resolved.x === npc.pos.x && resolved.z === npc.pos.z) {
+        npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
+      }
+      npc.pos.x = resolved.x; npc.pos.z = resolved.z;
+    }
+
 
     const yaw = Math.atan2(npc.dir.x, npc.dir.z);
     r.root.position.set(npc.pos.x, 0, npc.pos.z);
