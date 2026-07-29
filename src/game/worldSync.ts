@@ -1,0 +1,154 @@
+// Shared world state (district ownership + bank robbery/guard locks) backed
+// by the `territory` and `bank_state` tables and kept live with Postgres
+// change subscriptions. Everything here mutates the same plain state objects
+// the single-player systems already read.
+import { supabase } from "@/integrations/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { authState } from "./authState";
+import { PLAYER_GANG, GANGS, type GangId } from "./gangs";
+import type { District } from "./worldData";
+import { DISTRICT_LABELS } from "./worldData";
+import {
+  applyRemoteBankLock,
+  applyRemoteOwner,
+  registerTerritoryHooks,
+  territoryState,
+  GUARD_RESPAWN,
+} from "./territoryState";
+import { applyRemoteBankGuards, registerBankGuardsClearedHook } from "./guardState";
+import { broadcastAlert } from "./presence";
+import { pushAlert } from "./alertState";
+
+const TERRITORY_CHANNEL = "gang-wars-world";
+
+let channel: RealtimeChannel | null = null;
+
+type TerritoryRow = {
+  district: string;
+  owner: number | null;
+  lock_until: string | null;
+  captured_by: string | null;
+};
+type BankRow = {
+  bank_id: number;
+  robbery_lock_until: string | null;
+  guards_respawn_at: string | null;
+};
+
+function toMs(iso: string | null): number | null {
+  return iso ? new Date(iso).getTime() : null;
+}
+
+function districtName(d: District) {
+  return DISTRICT_LABELS.find((l) => l.district === d)?.name ?? d.toUpperCase();
+}
+
+function applyTerritoryRow(row: TerritoryRow) {
+  const d = row.district as District;
+  if (!(d in territoryState.owners)) return;
+  const prevOwner = territoryState.owners[d];
+  const owner = (row.owner === null ? null : (row.owner as GangId));
+  applyRemoteOwner(d, owner, toMs(row.lock_until));
+  if (prevOwner !== owner && row.captured_by && row.captured_by !== authState.userId) {
+    if (prevOwner === PLAYER_GANG) {
+      pushAlert(`${districtName(d)} was taken from your gang!`, "warn");
+    } else if (owner === PLAYER_GANG) {
+      pushAlert(`${districtName(d)} claimed for ${GANGS[PLAYER_GANG].name}`);
+    }
+  }
+}
+
+function applyBankRow(row: BankRow) {
+  applyRemoteBankLock(row.bank_id, toMs(row.robbery_lock_until));
+  applyRemoteBankGuards(row.bank_id, toMs(row.guards_respawn_at));
+}
+
+export async function startWorldSync() {
+  if (channel) return;
+
+  const [{ data: terr }, { data: banks }] = await Promise.all([
+    supabase.from("territory").select("district, owner, lock_until, captured_by"),
+    supabase.from("bank_state").select("bank_id, robbery_lock_until, guards_respawn_at"),
+  ]);
+  for (const row of (terr ?? []) as TerritoryRow[]) applyTerritoryRow(row);
+  for (const row of (banks ?? []) as BankRow[]) applyBankRow(row);
+
+  channel = supabase
+    .channel(TERRITORY_CHANNEL)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "territory" },
+      (payload) => {
+        const row = payload.new as TerritoryRow | null;
+        if (row?.district) applyTerritoryRow(row);
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "bank_state" },
+      (payload) => {
+        const row = payload.new as BankRow | null;
+        if (row && typeof row.bank_id === "number") applyBankRow(row);
+      },
+    )
+    .subscribe();
+
+  // ---- Push local outcomes to the shared world ---------------------------
+  registerTerritoryHooks({
+    onCaptured: (district, owner, lockUntilMs) => {
+      void supabase
+        .from("territory")
+        .upsert(
+          {
+            district,
+            owner,
+            lock_until: new Date(lockUntilMs).toISOString(),
+            captured_by: authState.userId,
+          },
+          { onConflict: "district" },
+        )
+        .then(({ error }) => {
+          if (error) console.error("[worldSync] capture push failed", error);
+        });
+      broadcastAlert(owner, `${districtName(district)} captured by ${authState.username}`, "info");
+    },
+    onRobbed: (bankId, lockUntilMs) => {
+      void supabase
+        .from("bank_state")
+        .upsert(
+          { bank_id: bankId, robbery_lock_until: new Date(lockUntilMs).toISOString() },
+          { onConflict: "bank_id" },
+        )
+        .then(({ error }) => {
+          if (error) console.error("[worldSync] robbery push failed", error);
+        });
+    },
+    onAttackStarted: (district, defendingGang) => {
+      broadcastAlert(
+        defendingGang,
+        `${districtName(district)} is under attack!`,
+        "warn",
+      );
+    },
+  });
+
+  registerBankGuardsClearedHook((bankId) => {
+    const respawnAt = Date.now() + GUARD_RESPAWN * 1000;
+    void supabase
+      .from("bank_state")
+      .upsert(
+        { bank_id: bankId, guards_respawn_at: new Date(respawnAt).toISOString() },
+        { onConflict: "bank_id" },
+      )
+      .then(({ error }) => {
+        if (error) console.error("[worldSync] guard push failed", error);
+      });
+  });
+}
+
+export function stopWorldSync() {
+  if (channel) {
+    supabase.removeChannel(channel);
+    channel = null;
+  }
+}

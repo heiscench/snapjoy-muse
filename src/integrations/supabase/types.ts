@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_state: {
+        Row: {
+          bank_id: number
+          created_at: string
+          guards_respawn_at: string | null
+          robbery_lock_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          bank_id: number
+          created_at?: string
+          guards_respawn_at?: string | null
+          robbery_lock_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bank_id?: number
+          created_at?: string
+          guards_respawn_at?: string | null
+          robbery_lock_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       player_profiles: {
         Row: {
           created_at: string
@@ -53,6 +77,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string
+        }
+        Relationships: []
+      }
+      territory: {
+        Row: {
+          captured_by: string | null
+          created_at: string
+          district: string
+          lock_until: string | null
+          owner: number | null
+          updated_at: string
+        }
+        Insert: {
+          captured_by?: string | null
+          created_at?: string
+          district: string
+          lock_until?: string | null
+          owner?: number | null
+          updated_at?: string
+        }
+        Update: {
+          captured_by?: string | null
+          created_at?: string
+          district?: string
+          lock_until?: string | null
+          owner?: number | null
+          updated_at?: string
         }
         Relationships: []
       }

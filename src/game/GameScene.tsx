@@ -4,22 +4,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
+import { Guards } from "./Guards";
+import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
 import { WeaponShop } from "./WeaponShop";
+import { SquadPrompt } from "./SquadPrompt";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
 import { pilotState } from "./vehicleState";
 import { carPilot } from "./carState";
 import { Minimap } from "./Minimap";
+import { alertState, tickAlerts, type Alert } from "./alertState";
+import { territoryState, CAPTURE_TIME, ROBBERY_TIME } from "./territoryState";
+import { registerVehicleDestroyHook } from "./vehicleState";
+import { broadcastVehicleDestroyed, startPresence, stopPresence } from "./presence";
+import { startWorldSync, stopWorldSync } from "./worldSync";
+import { syncProfileToServer, syncProfileToServerBeacon } from "./profileSync";
 
 const TOUCH_LOOK_SENSITIVITY = 0.22;
 const MAX_DRAG_STEP = 50;
 const JOYSTICK_RADIUS = 55;
+const AUTOSAVE_MS = 12000;
 
 type Zone = "move" | "look" | "aim" | "jump" | "run" | "fire" | null;
 
@@ -31,42 +41,64 @@ function hitTest(el: HTMLElement | null, x: number, y: number) {
 
 type HudState = {
   health: number;
+  money: number;
+  reputation: number;
   piloting: boolean;
   nearHeli: boolean;
   carDriving: boolean;
   nearCar: boolean;
   error: string | null;
+  captureLabel: string | null;
+  capturePct: number;
+  alerts: Alert[];
 };
 
-function useHud(): HudState {
-  const [state, setState] = useState<HudState>({
+function snapshot(): HudState {
+  const capturing = territoryState.captureDistrict !== null;
+  const robbing = territoryState.robberyBankId !== null;
+  return {
     health: playerState.health,
+    money: Math.floor(playerState.money),
+    reputation: Math.floor(playerState.reputation),
     piloting: pilotState.piloting,
     nearHeli: pilotState.nearOwnHeli,
     carDriving: carPilot.driving,
     nearCar: carPilot.nearIndex >= 0,
     error: pilotState.lastError,
-  });
+    captureLabel: capturing ? "Capturing district" : robbing ? "Robbing vault" : territoryState.captureMessage,
+    capturePct: capturing
+      ? (territoryState.captureProgress / CAPTURE_TIME) * 100
+      : robbing
+      ? (territoryState.robberyProgress / ROBBERY_TIME) * 100
+      : 0,
+    alerts: alertState.alerts,
+  };
+}
+
+function useHud(): HudState {
+  const [state, setState] = useState<HudState>(snapshot);
   const last = useRef(state);
   useEffect(() => {
     let raf: number;
+    let prev = performance.now();
     const tick = () => {
-      const next: HudState = {
-        health: playerState.health,
-        piloting: pilotState.piloting,
-        nearHeli: pilotState.nearOwnHeli,
-        carDriving: carPilot.driving,
-        nearCar: carPilot.nearIndex >= 0,
-        error: pilotState.lastError,
-      };
+      const now = performance.now();
+      tickAlerts(Math.min(0.05, (now - prev) / 1000));
+      prev = now;
+      const next = snapshot();
       const l = last.current;
       if (
         next.health !== l.health ||
+        next.money !== l.money ||
+        next.reputation !== l.reputation ||
         next.piloting !== l.piloting ||
         next.nearHeli !== l.nearHeli ||
         next.carDriving !== l.carDriving ||
         next.nearCar !== l.nearCar ||
-        next.error !== l.error
+        next.error !== l.error ||
+        next.captureLabel !== l.captureLabel ||
+        Math.abs(next.capturePct - l.capturePct) > 0.5 ||
+        next.alerts.length !== l.alerts.length
       ) {
         last.current = next;
         setState(next);
@@ -79,12 +111,38 @@ function useHud(): HudState {
   return state;
 }
 
+/** Boots the multiplayer channel, shared world state, and profile autosave. */
+function useMultiplayerSession() {
+  useEffect(() => {
+    startPresence();
+    void startWorldSync();
+    registerVehicleDestroyHook((kind, id) => broadcastVehicleDestroyed(kind, id));
+
+    const save = setInterval(() => { void syncProfileToServer(); }, AUTOSAVE_MS);
+    const onHide = () => syncProfileToServerBeacon();
+    window.addEventListener("pagehide", onHide);
+
+    return () => {
+      clearInterval(save);
+      window.removeEventListener("pagehide", onHide);
+      registerVehicleDestroyHook(() => {});
+      stopPresence();
+      stopWorldSync();
+      syncProfileToServerBeacon();
+    };
+  }, []);
+}
+
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
-  const { health, piloting, nearHeli, carDriving, nearCar, error } = useHud();
+  const {
+    health, money, reputation, piloting, nearHeli, carDriving, nearCar, error,
+    captureLabel, capturePct, alerts,
+  } = useHud();
+  useMultiplayerSession();
   const inVehicleMode = piloting || nearHeli || carDriving || nearCar;
   const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
   const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
@@ -216,6 +274,8 @@ export function GameScene() {
         <Helicopters />
         <WeaponShopKiosks />
         <NPCs />
+        <Guards />
+        <RemotePlayers />
         <Player />
         <Tracers />
       </Canvas>
@@ -228,12 +288,12 @@ export function GameScene() {
           >
             {gang.name}
           </div>
-          <div className="rounded bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur">
-            District: Downtown
-          </div>
           <div className="rounded bg-black/50 px-3 py-1 text-xs font-bold text-green-300 backdrop-blur">
-  ${Math.floor(playerState.money)}
-</div>
+            ${money}
+          </div>
+          <div className="rounded bg-black/50 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur">
+            REP {reputation}
+          </div>
         </div>
         <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -252,8 +312,34 @@ export function GameScene() {
         )}
       </div>
 
+      {captureLabel && (
+        <div className="pointer-events-none fixed left-1/2 top-16 z-20 w-56 -translate-x-1/2 rounded bg-black/70 p-2 text-center backdrop-blur">
+          <div className="text-[10px] uppercase tracking-widest text-white/80">{captureLabel}</div>
+          {capturePct > 0 && (
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-cyan-400" style={{ width: `${capturePct}%` }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="pointer-events-none fixed right-4 top-14 z-20 flex flex-col items-end gap-1">
+        {alerts.map((a) => (
+          <div
+            key={a.id}
+            className={`rounded px-3 py-1 text-[11px] backdrop-blur ${
+              a.tone === "warn" ? "bg-red-900/80 text-white" : "bg-black/70 text-cyan-200"
+            }`}
+          >
+            {a.text}
+          </div>
+        ))}
+      </div>
+
       <Minimap />
-     <WeaponShop />
+      <WeaponShop />
+      <SquadPrompt />
+
 
       {error && (
         <button

@@ -22,6 +22,13 @@ import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
 import { carDestroyed } from "./vehicleState";
+import { remotePlayers } from "./remotePlayerState";
+import {
+  broadcastDeath,
+  broadcastHit,
+  lastAttacker,
+  LAST_ATTACKER_WINDOW_MS,
+} from "./presence";
 
 const HEAL_RADIUS = 22;
 const HEAL_RATE = 22;
@@ -44,6 +51,13 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
   if (playerState.health > 0) return false;
   const hq = GANG_HQ[PLAYER_GANG];
   set(hq.x, 0, hq.z);
+  // Credit the kill to whoever shot us last (if it was recent enough).
+  const recent =
+    lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
+      ? lastAttacker.userId
+      : null;
+  broadcastDeath(recent);
+  lastAttacker.userId = null;
   revivePlayer();
   spendMoney(DEATH_COST);
   return true;
@@ -188,8 +202,8 @@ export function Player() {
 
           if (handleDeathAt(c.x, c.z, (x, y, z) => {
             carPilot.driving = false;
-            r.root.position.set(x, y, z);
-            r.root.visible = true;
+            r.root!.position.set(x, y, z);
+            r.root!.visible = true;
             vel.current.set(0, 0, 0);
           })) return;
         }
@@ -197,7 +211,7 @@ export function Player() {
       } catch (err) {
         pilotState.lastError = err instanceof Error ? err.message : String(err);
         carPilot.driving = false;
-        r.root.visible = true;
+        r.root!.visible = true;
       }
     }
 
@@ -255,8 +269,8 @@ export function Player() {
         if (handleDeathAt(heli.pos.x, heli.pos.z, (x, y, z) => {
           pilotState.piloting = false;
           heli.pos.set(GANG_HQ[PLAYER_GANG].x, 0, GANG_HQ[PLAYER_GANG].z);
-          r.root.position.set(x, 0, z);
-          r.root.visible = true;
+          r.root!.position.set(x, 0, z);
+          r.root!.visible = true;
           vel.current.set(0, 0, 0);
         })) return;
 
@@ -450,11 +464,31 @@ export function Player() {
           damageHeli(gid, w.damage, false);
         }
 
-        if (bestN && bestG) {
-          if (bestN.d <= bestG.d) { damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); } }
-          else damageGuard(bestG.g, w.damage);
-        } else if (bestN) {
-          damageNPC(bestN.npc, w.damage); if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+        // Rival human players. No friendly fire, and players inside a vehicle
+        // are hit through the vehicle instead (handled by vehicle damage).
+        let bestR: { d: number; userId: string } | null = null;
+        for (const rp of remotePlayers.values()) {
+          if (rp.health <= 0 || rp.inVehicle || rp.gang === PLAYER_GANG) continue;
+          const toR = new THREE.Vector3(rp.x, 1, rp.z).sub(origin);
+          const dist = toR.length();
+          if (dist > w.range) continue;
+          toR.normalize();
+          if (toR.dot(dir) < w.spread) continue;
+          if (!bestR || dist < bestR.d) bestR = { d: dist, userId: rp.userId };
+        }
+
+        // Only the single closest thing along the ray takes the shot.
+        const dN = bestN?.d ?? Infinity;
+        const dG = bestG?.d ?? Infinity;
+        const dR = bestR?.d ?? Infinity;
+        const closest = Math.min(dN, dG, dR);
+        if (closest === Infinity) {
+          // nothing hit
+        } else if (closest === dR && bestR) {
+          broadcastHit(bestR.userId, w.damage);
+        } else if (closest === dN && bestN) {
+          damageNPC(bestN.npc, w.damage);
+          if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
         } else if (bestG) {
           damageGuard(bestG.g, w.damage);
         }
