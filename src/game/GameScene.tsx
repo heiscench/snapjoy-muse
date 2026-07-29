@@ -4,22 +4,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
+import { Guards } from "./Guards";
+import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
 import { WeaponShop } from "./WeaponShop";
+import { SquadPrompt } from "./SquadPrompt";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
 import { pilotState } from "./vehicleState";
 import { carPilot } from "./carState";
 import { Minimap } from "./Minimap";
+import { alertState, tickAlerts, type Alert } from "./alertState";
+import { territoryState, CAPTURE_TIME, ROBBERY_TIME } from "./territoryState";
+import { registerVehicleDestroyHook } from "./vehicleState";
+import { broadcastVehicleDestroyed, startPresence, stopPresence } from "./presence";
+import { startWorldSync, stopWorldSync } from "./worldSync";
+import { syncProfileToServer, syncProfileToServerBeacon } from "./profileSync";
 
 const TOUCH_LOOK_SENSITIVITY = 0.22;
 const MAX_DRAG_STEP = 50;
 const JOYSTICK_RADIUS = 55;
+const AUTOSAVE_MS = 12000;
 
 type Zone = "move" | "look" | "aim" | "jump" | "run" | "fire" | null;
 
