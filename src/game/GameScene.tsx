@@ -214,8 +214,6 @@ export function GameScene() {
         <City />
         <Vehicles />
         <Helicopters />
-        <Minimap />
-<WeaponShop />
         <WeaponShopKiosks />
         <NPCs />
         <Player />
