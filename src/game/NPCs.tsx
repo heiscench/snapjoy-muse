@@ -6,6 +6,7 @@ import { GANGS, PLAYER_GANG, type GangId } from "./gangs";
 import { NPCS, damageNPC, spawnNPC, type NPCState } from "./npcState";
 import { resolveCollision, districtAt } from "./worldData";
 import { playerState, damagePlayer } from "./playerState";
+import { nearestHostile } from "./targets";
 import { territoryState } from "./territoryState";
 import { spawnTracer } from "./tracerState";
 import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED, squadState } from "./squadState";
