@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
+import { unlockAudio } from "./audio";
 import { Guards } from "./Guards";
 import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
