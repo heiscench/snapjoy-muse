@@ -56,12 +56,37 @@ export function initCarHealth(count: number) {
   }
 }
 
+// Multiplayer hook: fired locally when a vehicle is destroyed here so the
+// channel can tell everyone else. Registered by GameScene at startup.
+type DestroyHook = (kind: "car" | "heli", id: number) => void;
+let _onDestroyed: DestroyHook = () => {};
+export function registerVehicleDestroyHook(fn: DestroyHook) {
+  _onDestroyed = fn;
+}
+
+/** A remote client destroyed this vehicle — mirror it locally, same timer. */
+export function applyRemoteVehicleDestroyed(kind: "car" | "heli", id: number) {
+  if (kind === "car") {
+    if (carDestroyed[id]) return;
+    carHp[id] = 0;
+    carDestroyed[id] = true;
+    carRespawn[id] = CAR_RESPAWN_SECS;
+  } else {
+    const h = HELICOPTERS[id as 0 | 1 | 2 | 3];
+    if (!h || h.destroyed) return;
+    h.hp = 0;
+    h.destroyed = true;
+    h.respawn = HELI_RESPAWN_SECS;
+  }
+}
+
 export function damageCar(i: number, amount: number) {
   if (carDestroyed[i]) return;
   carHp[i] = Math.max(0, carHp[i] - amount);
   if (carHp[i] <= 0) {
     carDestroyed[i] = true;
     carRespawn[i] = CAR_RESPAWN_SECS;
+    _onDestroyed("car", i);
   }
 }
 
@@ -72,6 +97,7 @@ export function damageHeli(gangId: 0 | 1 | 2 | 3, amount: number, occupiedByPlay
   if (h.hp <= 0) {
     h.destroyed = true;
     h.respawn = HELI_RESPAWN_SECS;
+    _onDestroyed("heli", gangId);
     // If occupied on death, the occupant takes the death penalty.
     return { occupantDamage: occupiedByPlayer ? 9999 : 0 };
   }
