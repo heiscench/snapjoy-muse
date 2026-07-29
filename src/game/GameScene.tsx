@@ -312,8 +312,34 @@ export function GameScene() {
         )}
       </div>
 
+      {captureLabel && (
+        <div className="pointer-events-none fixed left-1/2 top-16 z-20 w-56 -translate-x-1/2 rounded bg-black/70 p-2 text-center backdrop-blur">
+          <div className="text-[10px] uppercase tracking-widest text-white/80">{captureLabel}</div>
+          {capturePct > 0 && (
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-cyan-400" style={{ width: `${capturePct}%` }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="pointer-events-none fixed right-4 top-14 z-20 flex flex-col items-end gap-1">
+        {alerts.map((a) => (
+          <div
+            key={a.id}
+            className={`rounded px-3 py-1 text-[11px] backdrop-blur ${
+              a.tone === "warn" ? "bg-red-900/80 text-white" : "bg-black/70 text-cyan-200"
+            }`}
+          >
+            {a.text}
+          </div>
+        ))}
+      </div>
+
       <Minimap />
-     <WeaponShop />
+      <WeaponShop />
+      <SquadPrompt />
+
 
       {error && (
         <button
