@@ -31,8 +31,6 @@ export function NPCs({ count = 12 }: { count?: number }) {
     npcRoster.version++;
   }, [count]);
 
-  // The roster changes when a district is captured (defenders spawn/despawn),
-  // so poll the version counter and re-mount slots when it moves.
   const [version, setVersion] = useState(npcRoster.version);
   useEffect(() => {
     const id = setInterval(() => {
@@ -77,13 +75,16 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         npc.mode = "patrol";
       }
       return;
-      }
-     if (npc.boarded) {
+    }
+
+    // Boarded followers are "inside" a vehicle the player entered — hidden
+    // and paused until the player exits and they're placed back in the world.
+    if (npc.boarded) {
       r.root.visible = false;
       npc.screenVisible = false;
       return;
     }
-    
+
     r.root.visible = true;
 
     const pp = playerState.pos;
@@ -98,7 +99,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       const playerDistrict = districtAt(pp.x, pp.z);
       const ownsThis = territoryState.owners[npcDistrict] === npc.gang;
       if (ownsThis && playerDistrict === npcDistrict) wantsCombat = true;
-      // District garrisons defend their own turf aggressively.
       if (npc.kind === "defender" && npc.district === playerDistrict) wantsCombat = true;
       if (distToPlayer < DETECT_RANGE) wantsCombat = true;
     }
@@ -128,7 +128,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
         spawnTracer(from, to);
         if (distToPlayer < NPC_HIT_RANGE) {
-          // Vehicles soak the damage for their occupant.
           if (playerInVehicle) {
             if (pilotState.piloting) damageHeli(PLAYER_GANG, NPC_DAMAGE, true);
             else if (carPilot.driving) damageCar(carPilot.drivingIndex, NPC_DAMAGE);
@@ -138,8 +137,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         }
       }
     } else if (following) {
-      // Spread followers into their own slot around the player instead of
-      // all converging on the exact same point.
       const slot = npc.id % 6;
       const angle = (slot / 6) * Math.PI * 2;
       const targetX = pp.x + Math.cos(angle) * 3;
