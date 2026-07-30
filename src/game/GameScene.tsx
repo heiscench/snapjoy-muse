@@ -358,11 +358,7 @@ unlockAudio();
         </button>
       )}
 
-      {aiming && !inVehicleMode && (
-        <div className="pointer-events-none fixed left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
-          <div className="h-3 w-3 rounded-full border-2 border-white/80" />
-        </div>
-      )}
+{!inVehicleMode && <Crosshair />}
 
       <div ref={moveRef} className="fixed bottom-6 left-6 z-20 h-32 w-32 select-none">
         <div className="absolute inset-0 rounded-full border border-white/25 bg-white/5" />
