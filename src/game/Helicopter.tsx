@@ -37,7 +37,7 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
     lastPos.current.set(h.pos.x, h.pos.y, h.pos.z);
 
     group.current.position.set(h.pos.x, h.pos.y, h.pos.z);
-    group.current.rotation.y = h.yaw;
+    group.current.rotation.y = h.yaw + Math.PI;
     const localX = Math.cos(-h.yaw) * vx - Math.sin(-h.yaw) * vz;
     group.current.rotation.z = THREE.MathUtils.lerp(
       group.current.rotation.z,
