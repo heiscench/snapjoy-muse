@@ -423,62 +423,137 @@ export function Player() {
       p.y + 1.5 + recoil.current * 0.35,
       p.z + sideV.z * shoulderX * 0.6,
     );
-
-    fireCd.current = Math.max(0, fireCd.current - dtc);
+fireCd.current = Math.max(0, fireCd.current - dtc);
     if (input.fire && fireCd.current === 0) {
       const w = currentWeapon();
       fireCd.current = w.fireRate;
-      playGunshot(w.id);
-      recoil.current = Math.min(1.4, recoil.current + RECOIL_PER_SHOT);
       const origin = camera.position.clone();
       const forwardV = new THREE.Vector3();
       camera.getWorldDirection(forwardV);
 
-      for (let pellet = 0; pellet < w.pellets; pellet++) {
-        const dir = forwardV.clone();
-        if (w.pellets > 1) {
-          dir.x += (Math.random() - 0.5) * 0.08;
-          dir.y += (Math.random() - 0.5) * 0.08;
-          dir.z += (Math.random() - 0.5) * 0.08;
-          dir.normalize();
-        }
-        spawnTracer(origin, dir);
+      if (w.kind === "grenade") {
+        recoil.current = Math.min(1.4, recoil.current + RECOIL_PER_SHOT * 0.6);
+        throwGrenade(origin, forwardV, w.damage, w.splash ?? 6);
+      } else {
+        playGunshot(w.id);
+        recoil.current = Math.min(1.4, recoil.current + RECOIL_PER_SHOT);
 
-        let bestN: { d: number; npc: (typeof NPCS)[number] } | null = null;
-        for (const n of NPCS) {
-          if (n.dead) continue;
-          const toN = new THREE.Vector3(n.pos.x, 1, n.pos.z).sub(origin);
-          const dist = toN.length();
-          if (dist > w.range) continue;
-          toN.normalize();
-          const dot = toN.dot(dir);
-          if (dot < w.spread) continue;
-          if (!bestN || dist < bestN.d) bestN = { d: dist, npc: n };
+        for (let pellet = 0; pellet < w.pellets; pellet++) {
+          const dir = forwardV.clone();
+          if (w.pellets > 1) {
+            dir.x += (Math.random() - 0.5) * 0.08;
+            dir.y += (Math.random() - 0.5) * 0.08;
+            dir.z += (Math.random() - 0.5) * 0.08;
+            dir.normalize();
+          }
+          spawnTracer(origin, dir);
+
+          let bestN: { d: number; npc: (typeof NPCS)[number] } | null = null;
+          let bestNPos: THREE.Vector3 | null = null;
+          for (const n of NPCS) {
+            if (n.dead) continue;
+            const toN = new THREE.Vector3(n.pos.x, 1, n.pos.z).sub(origin);
+            const dist = toN.length();
+            if (dist > w.range) continue;
+            toN.normalize();
+            const dot = toN.dot(dir);
+            if (dot < w.spread) continue;
+            if (!bestN || dist < bestN.d) { bestN = { d: dist, npc: n }; bestNPos = new THREE.Vector3(n.pos.x, 1, n.pos.z); }
+          }
+          let bestG: { d: number; g: (typeof GUARDS)[number] } | null = null;
+          let bestGPos: THREE.Vector3 | null = null;
+          for (const g of GUARDS) {
+            if (g.dead) continue;
+            const toG = new THREE.Vector3(g.pos.x, 1, g.pos.z).sub(origin);
+            const dist = toG.length();
+            if (dist > w.range) continue;
+            toG.normalize();
+            const dot = toG.dot(dir);
+            if (dot < w.spread) continue;
+            if (!bestG || dist < bestG.d) { bestG = { d: dist, g }; bestGPos = new THREE.Vector3(g.pos.x, 1, g.pos.z); }
+          }
+          for (const gid of [0, 1, 2, 3] as const) {
+            const h = HELICOPTERS[gid];
+            if (h.destroyed) continue;
+            const occupied = pilotState.piloting && gid === PLAYER_GANG;
+            if (occupied) continue;
+            const toH = new THREE.Vector3(h.pos.x, h.pos.y + 1.4, h.pos.z).sub(origin);
+            const dist = toH.length();
+            if (dist > w.range) continue;
+            toH.normalize();
+            const dot = toH.dot(dir);
+            if (dot < w.spread - 0.005) continue;
+            damageHeli(gid, w.damage, false);
+          }
+
+          let bestC: { d: number; i: number } | null = null;
+          let bestCPos: THREE.Vector3 | null = null;
+          for (let ci = 0; ci < CAR_LIVE.length; ci++) {
+            if (carDestroyed[ci]) continue;
+            if (carPilot.driving && ci === carPilot.drivingIndex) continue;
+            const c = CAR_LIVE[ci];
+            const toC = new THREE.Vector3(c.x, CAR_HIT_HEIGHT, c.z).sub(origin);
+            const dist = toC.length();
+            if (dist > w.range) continue;
+            toC.normalize();
+            if (toC.dot(dir) < w.spread - CAR_HIT_TOLERANCE) continue;
+            if (!bestC || dist < bestC.d) { bestC = { d: dist, i: ci }; bestCPos = new THREE.Vector3(c.x, CAR_HIT_HEIGHT, c.z); }
+          }
+
+          let bestR: { d: number; userId: string } | null = null;
+          let bestRPos: THREE.Vector3 | null = null;
+          for (const rp of remotePlayers.values()) {
+            if (rp.health <= 0 || rp.inVehicle || rp.gang === PLAYER_GANG) continue;
+            const toR = new THREE.Vector3(rp.x, 1, rp.z).sub(origin);
+            const dist = toR.length();
+            if (dist > w.range) continue;
+            toR.normalize();
+            if (toR.dot(dir) < w.spread) continue;
+            if (!bestR || dist < bestR.d) { bestR = { d: dist, userId: rp.userId }; bestRPos = new THREE.Vector3(rp.x, 1, rp.z); }
+          }
+
+          const dN = bestN?.d ?? Infinity;
+          const dG = bestG?.d ?? Infinity;
+          const dR = bestR?.d ?? Infinity;
+          const dC = bestC?.d ?? Infinity;
+          const closest = Math.min(dN, dG, dR, dC);
+          let impact: THREE.Vector3 | null = null;
+
+          if (closest === Infinity) {
+            // nothing hit
+          } else if (closest === dR && bestR) {
+            broadcastHit(bestR.userId, w.damage);
+            impact = bestRPos;
+          } else if (closest === dN && bestN) {
+            damageNPC(bestN.npc, w.damage);
+            if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+            impact = bestNPos;
+          } else if (closest === dC && bestC) {
+            damageCar(bestC.i, w.damage);
+            impact = bestCPos;
+          } else if (bestG) {
+            damageGuard(bestG.g, w.damage);
+            impact = bestGPos;
+          }
+
+          // Splash weapons (currently just the tank cannon) hurt anything
+          // else nearby the impact point too, not only the direct target.
+          if (impact && w.splash) {
+            const sp = w.splash;
+            for (const n of NPCS) {
+              if (n.dead || n === bestN?.npc) continue;
+              const d = impact.distanceTo(new THREE.Vector3(n.pos.x, 1, n.pos.z));
+              if (d < sp) { damageNPC(n, w.damage * 0.6 * (1 - d / sp)); if (n.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); } }
+            }
+            for (const g of GUARDS) {
+              if (g.dead || g === bestG?.g) continue;
+              const d = impact.distanceTo(new THREE.Vector3(g.pos.x, 1, g.pos.z));
+              if (d < sp) damageGuard(g, w.damage * 0.6 * (1 - d / sp));
+            }
+          }
         }
-        let bestG: { d: number; g: (typeof GUARDS)[number] } | null = null;
-        for (const g of GUARDS) {
-          if (g.dead) continue;
-          const toG = new THREE.Vector3(g.pos.x, 1, g.pos.z).sub(origin);
-          const dist = toG.length();
-          if (dist > w.range) continue;
-          toG.normalize();
-          const dot = toG.dot(dir);
-          if (dot < w.spread) continue;
-          if (!bestG || dist < bestG.d) bestG = { d: dist, g };
-        }
-        for (const gid of [0, 1, 2, 3] as const) {
-          const h = HELICOPTERS[gid];
-          if (h.destroyed) continue;
-          const occupied = pilotState.piloting && gid === PLAYER_GANG;
-          if (occupied) continue; // airborne/occupied helicopters are immune
-          const toH = new THREE.Vector3(h.pos.x, h.pos.y + 1.4, h.pos.z).sub(origin);
-          const dist = toH.length();
-          if (dist > w.range) continue;
-          toH.normalize();
-          const dot = toH.dot(dir);
-          if (dot < w.spread - 0.005) continue;
-          damageHeli(gid, w.damage, false);
-        }
+      }
+    }
 
         // Parked / driven cars take gunfire the same way helicopters do.
         let bestC: { d: number; i: number } | null = null;
