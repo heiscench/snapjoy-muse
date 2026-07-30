@@ -22,7 +22,7 @@ import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
-import { carDestroyed } from "./vehicleState";
+import { carDestroyed, damageCar } from "./vehicleState";
 import { remotePlayers } from "./remotePlayerState";
 import {
   broadcastDeath,
@@ -39,11 +39,15 @@ const HELI_EXIT_OFFSET = HELI_BODY_RADIUS + 4;
 const RECOIL_DECAY = 6.5;
 const RECOIL_PER_SHOT = 0.75;
 const OTHER_OBJECT_RADIUS = 1.3;
+const CAR_HIT_HEIGHT = 1.0;
+const CAR_HIT_TOLERANCE = 0.008;
 
 function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
   pilotState.piloting = false;
   const heli = HELICOPTERS[PLAYER_GANG];
-  r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, 0, heli.pos.z);
+  // Exit at the helicopter's ACTUAL altitude — stepping out on a rooftop must
+  // leave you on that rooftop, not teleport you to street level.
+  r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, heli.pos.y, heli.pos.z);
   r.root!.visible = true;
   vel.set(0, 0, 0);
 }
@@ -476,6 +480,20 @@ export function Player() {
           damageHeli(gid, w.damage, false);
         }
 
+        // Parked / driven cars take gunfire the same way helicopters do.
+        let bestC: { d: number; i: number } | null = null;
+        for (let ci = 0; ci < CAR_LIVE.length; ci++) {
+          if (carDestroyed[ci]) continue;
+          if (carPilot.driving && ci === carPilot.drivingIndex) continue;
+          const c = CAR_LIVE[ci];
+          const toC = new THREE.Vector3(c.x, CAR_HIT_HEIGHT, c.z).sub(origin);
+          const dist = toC.length();
+          if (dist > w.range) continue;
+          toC.normalize();
+          if (toC.dot(dir) < w.spread - CAR_HIT_TOLERANCE) continue;
+          if (!bestC || dist < bestC.d) bestC = { d: dist, i: ci };
+        }
+
         // Rival human players. No friendly fire, and players inside a vehicle
         // are hit through the vehicle instead (handled by vehicle damage).
         let bestR: { d: number; userId: string } | null = null;
@@ -493,7 +511,8 @@ export function Player() {
         const dN = bestN?.d ?? Infinity;
         const dG = bestG?.d ?? Infinity;
         const dR = bestR?.d ?? Infinity;
-        const closest = Math.min(dN, dG, dR);
+        const dC = bestC?.d ?? Infinity;
+        const closest = Math.min(dN, dG, dR, dC);
         if (closest === Infinity) {
           // nothing hit
         } else if (closest === dR && bestR) {
@@ -501,6 +520,8 @@ export function Player() {
         } else if (closest === dN && bestN) {
           damageNPC(bestN.npc, w.damage);
           if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+        } else if (closest === dC && bestC) {
+          damageCar(bestC.i, w.damage);
         } else if (bestG) {
           damageGuard(bestG.g, w.damage);
         }
@@ -514,7 +535,6 @@ export function Player() {
       color={gang.color}
       accent={gang.accent}
       showWeaponSlot={weaponNode}
-      scale={1.15}
     />
   );
 }
