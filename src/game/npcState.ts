@@ -17,24 +17,23 @@ export type NPCState = {
   dead: boolean;
   respawn: number;
   hitFlash: number;
-  // Combat / territory additions
   mode: NPCMode;
   fireCd: number;
   home: { x: number; z: number };
   wanderRadius: number;
-  isHuman: boolean; // future multiplayer: mark player-controlled allies
-  screenX: number;  // updated each frame for squad tap hit-testing
+  isHuman: boolean;
+  screenX: number;
   screenY: number;
   screenVisible: boolean;
-  // District garrison: defenders belong to a captured district and are lost
-  // with it, rather than being sent from the gang's home HQ.
   kind: NPCKind;
   district: District | null;
+  // True while this ally is "inside" a vehicle the player boarded them into —
+  // hidden and paused until the player exits the vehicle.
+  boarded: boolean;
 };
 
 export const NPCS: NPCState[] = [];
 
-/** Bumped whenever the NPC roster changes so the renderer can re-mount slots. */
 export const npcRoster = { version: 0 };
 
 const WANDER_RADIUS = 45;
@@ -67,6 +66,7 @@ export function spawnNPC(id: number, gang: GangId): NPCState {
     screenX: -1, screenY: -1, screenVisible: false,
     kind: "gang",
     district: null,
+    boarded: false,
   };
 }
 
@@ -93,14 +93,10 @@ function spawnDefender(district: District, gang: GangId): NPCState {
     screenX: -1, screenY: -1, screenVisible: false,
     kind: "defender",
     district,
+    boarded: false,
   };
 }
 
-/**
- * Replace a district's garrison. Called on every ownership change (local or
- * remote) so a rival capture wipes the previous holder's defenders instead of
- * relocating them.
- */
 export function setDistrictDefenders(district: District, owner: Owner) {
   for (let i = NPCS.length - 1; i >= 0; i--) {
     if (NPCS[i].kind === "defender" && NPCS[i].district === district) NPCS.splice(i, 1);
@@ -124,7 +120,6 @@ export function damageNPC(n: NPCState, amount: number) {
   }
 }
 
-/** Respawn position for an NPC — defenders return to their district. */
 export function respawnPosition(n: NPCState): THREE.Vector3 {
   const angle = Math.random() * Math.PI * 2;
   const dist = 8 + Math.random() * (n.wanderRadius - 8);
