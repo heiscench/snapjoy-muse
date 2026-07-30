@@ -57,7 +57,7 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
         <cylinderGeometry args={[0.55, 0.4, 2.4, 10]} />
         <meshStandardMaterial color={gang.color} metalness={0.55} roughness={0.35} />
       </mesh>
-      {/* Cockpit glass, wraps further round than before */}
+      {/* Cockpit glass */}
       <mesh position={[0, 1.48, 1.15]}>
         <sphereGeometry args={[0.62, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.6]} />
         <meshStandardMaterial color="#0c1420" transparent opacity={0.6} roughness={0.05} metalness={0.2} />
@@ -81,7 +81,7 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
         <boxGeometry args={[0.05, 1.1, 0.1]} />
         <meshStandardMaterial color="#111" />
       </mesh>
-      {/* Skids, angled struts instead of plain bars */}
+      {/* Skids, angled struts */}
       {[-0.85, 0.85].map((s) => (
         <group key={s}>
           <mesh position={[s, 0.32, 0]}>
@@ -119,6 +119,8 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
       </group>
     </group>
   );
+}
+
 function LandingPad({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   const gang = GANGS[gangId];
   const pos = HELI_PADS[gangId];
