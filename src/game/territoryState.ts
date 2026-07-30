@@ -83,7 +83,10 @@ type OwnerChangedHook = (district: District, owner: Owner) => void;
 let _onCaptured: CaptureHook = () => {};
 let _onRobbed: RobberyHook = () => {};
 let _onAttackStarted: AttackHook = () => {};
-let _onOwnerChanged: OwnerChangedHook = () => {};
+const _ownerChangedHooks: OwnerChangedHook[] = [];
+const _onOwnerChanged: OwnerChangedHook = (d, o) => {
+  for (const fn of _ownerChangedHooks) fn(d, o);
+};
 
 export function registerTerritoryHooks(hooks: {
   onCaptured?: CaptureHook;
@@ -95,9 +98,9 @@ export function registerTerritoryHooks(hooks: {
   if (hooks.onAttackStarted) _onAttackStarted = hooks.onAttackStarted;
 }
 
-/** Registered by npcState so captured districts get their own defenders. */
+/** Registered by npcState (district defenders) and guardState (guard re-skin). */
 export function registerOwnerChangedHook(fn: OwnerChangedHook) {
-  _onOwnerChanged = fn;
+  _ownerChangedHooks.push(fn);
 }
 
 /** Applied when the shared world state says a district changed hands. */

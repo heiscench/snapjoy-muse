@@ -2,7 +2,7 @@
 // the existing wander/respawn loop.
 import * as THREE from "three";
 import { NEUTRAL_HQS, ROBBABLE_BANKS, type District } from "./worldData";
-import { registerGuardsAliveForBank, GUARD_RESPAWN } from "./territoryState";
+import { registerGuardsAliveForBank, registerOwnerChangedHook, GUARD_RESPAWN } from "./territoryState";
 import type { GangId } from "./gangs";
 
 export type GuardKind = "bank" | "neutral";
@@ -131,8 +131,9 @@ registerGuardsAliveForBank((bankId: number) => {
   return false;
 });
 
-// Called by the territory system when a neutral district's HQ is captured.
-export function reskinNeutralDistrictGuards(district: District, gang: GangId) {
+// When a district changes hands its HQ guards join the new owner. They briefly
+// "die" so the swap reads as the old garrison being replaced.
+export function reskinNeutralDistrictGuards(district: District, gang: GangId | null) {
   for (const g of GUARDS) {
     if (g.kind === "neutral" && g.district === district) {
       g.gang = gang;
@@ -142,3 +143,5 @@ export function reskinNeutralDistrictGuards(district: District, gang: GangId) {
     }
   }
 }
+
+registerOwnerChangedHook((district, owner) => reskinNeutralDistrictGuards(district, owner));
