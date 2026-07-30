@@ -12,6 +12,10 @@ export type CharacterRefs = {
   torsoMat: THREE.MeshStandardMaterial | null;
 };
 
+/** Every humanoid in the game renders at this scale — player, NPCs,
+ * guards, civilians and remote players. Keep it in one place. */
+export const CHARACTER_SCALE = 1.15;
+
 type Props = {
   color: string;
   accent: string;
@@ -21,7 +25,7 @@ type Props = {
 };
 
 export const Character = forwardRef<CharacterRefs, Props>(function Character(
-  { color, accent, skin = "#c99879", showWeaponSlot, scale = 1 },
+  { color, accent, skin = "#c99879", showWeaponSlot, scale = CHARACTER_SCALE },
   ref,
 ) {
   const root = useRef<THREE.Group>(null!);

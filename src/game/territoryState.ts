@@ -4,12 +4,15 @@
 // Multiplayer note: ownership + lock timers are now SHARED state. Locks are
 // stored as absolute epoch-ms so they mean the same thing on every client.
 // Capture/robbery *progress* stays local to whoever is channeling.
-import { PLAYER_GANG, type GangId } from "./gangs";
+import { PLAYER_GANG, type GangId, GANGS } from "./gangs";
 import {
+  ALL_DISTRICTS,
   CAPTURE_RADIUS,
   DISTRICT_LABELS,
   ROBBABLE_BANKS,
   VAULT_RADIUS,
+  districtAt,
+  districtLabel,
   type District,
 } from "./worldData";
 import {
@@ -29,9 +32,13 @@ export const STADIUM_REP_TICK = 0.15;
 
 export const ROBBERY_TIME = 30;
 export const ROBBERY_COOLDOWN = 10 * 60;
-export const GUARD_RESPAWN = 5 * 60;
+/** Bank/neutral guards return quickly so a robbery is hard, not hopeless. */
+export const GUARD_RESPAWN = 30;
 export const ROBBERY_MIN_PAYOUT = 2000;
 export const ROBBERY_MAX_PAYOUT = 4000;
+
+/** Seconds the "you entered X" popup stays on screen. */
+export const DISTRICT_TOAST_SECS = 5;
 
 // How often (seconds) a capture-in-progress re-announces itself to the
 // defending gang, so late joiners still get warned.
@@ -39,15 +46,15 @@ export const ATTACK_ALERT_INTERVAL = 20;
 
 export type Owner = GangId | null;
 
-const INITIAL_OWNERS: Record<District, Owner> = {
-  downtown: 0,
-  industrial: 1,
-  shopping: 2,
-  harbor: 3,
-  stadium: null,
-  bank: null,
-  residential: null,
-};
+const INITIAL_OWNERS: Record<District, Owner> = (() => {
+  const base = {} as Record<District, Owner>;
+  for (const d of ALL_DISTRICTS) base[d] = null;
+  base.downtown = 0;
+  base.industrial = 1;
+  base.shopping = 2;
+  base.harbor = 3;
+  return base;
+})();
 
 export const territoryState = {
   owners: { ...INITIAL_OWNERS } as Record<District, Owner>,
@@ -60,6 +67,7 @@ export const territoryState = {
   robberyBankId: null as number | null,
   robberyProgress: 0,
   robberyLockUntil: {} as Record<number, number>,
+  currentDistrict: null as District | null,
   _lastHealth: playerState.health,
   _tSecs: 0,
   _attackAlertT: 0,
@@ -69,10 +77,13 @@ export const territoryState = {
 type CaptureHook = (district: District, owner: GangId, lockUntilMs: number) => void;
 type RobberyHook = (bankId: number, lockUntilMs: number) => void;
 type AttackHook = (district: District, defendingGang: GangId) => void;
+/** Fired whenever a district's owner changes, locally or remotely. */
+type OwnerChangedHook = (district: District, owner: Owner) => void;
 
 let _onCaptured: CaptureHook = () => {};
 let _onRobbed: RobberyHook = () => {};
 let _onAttackStarted: AttackHook = () => {};
+let _onOwnerChanged: OwnerChangedHook = () => {};
 
 export function registerTerritoryHooks(hooks: {
   onCaptured?: CaptureHook;
@@ -84,11 +95,17 @@ export function registerTerritoryHooks(hooks: {
   if (hooks.onAttackStarted) _onAttackStarted = hooks.onAttackStarted;
 }
 
+/** Registered by npcState so captured districts get their own defenders. */
+export function registerOwnerChangedHook(fn: OwnerChangedHook) {
+  _onOwnerChanged = fn;
+}
+
 /** Applied when the shared world state says a district changed hands. */
 export function applyRemoteOwner(district: District, owner: Owner, lockUntilMs: number | null) {
   const prev = territoryState.owners[district];
   territoryState.owners[district] = owner;
   if (lockUntilMs) territoryState.lockUntil[district] = lockUntilMs;
+  if (prev !== owner) _onOwnerChanged(district, owner);
   if (prev !== owner && territoryState.captureDistrict === district) {
     // Someone else finished first — our channel resets.
     territoryState.captureDistrict = null;
@@ -130,10 +147,29 @@ function setMessage(msg: string) {
   territoryState.captureMessageT = 3;
 }
 
+function announceDistrict(d: District) {
+  const owner = territoryState.owners[d];
+  const name = districtLabel(d);
+  if (owner === null || owner === undefined) {
+    pushAlert(`${name} — uncontrolled`, "info", DISTRICT_TOAST_SECS);
+  } else if (owner === PLAYER_GANG) {
+    pushAlert(`${name} — held by your gang`, "info", DISTRICT_TOAST_SECS);
+  } else {
+    pushAlert(`${name} — controlled by ${GANGS[owner].name}`, "warn", DISTRICT_TOAST_SECS);
+  }
+}
+
 export function tickTerritory(dt: number, playerX: number, playerZ: number) {
   const s = territoryState;
   s._tSecs += dt;
   const nowMs = Date.now();
+
+  // ---- District entry popup ----------------------------------------------
+  const here = districtAt(playerX, playerZ);
+  if (here !== s.currentDistrict) {
+    s.currentDistrict = here;
+    announceDistrict(here);
+  }
 
   if (s.captureMessageT > 0) {
     s.captureMessageT = Math.max(0, s.captureMessageT - dt);
@@ -188,6 +224,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
         s.owners[inZone] = PLAYER_GANG;
         s.lockUntil[inZone] = lockUntilMs;
         setMessage(`${labelFor(inZone)?.name ?? inZone.toUpperCase()} captured`);
+        _onOwnerChanged(inZone, PLAYER_GANG);
         _onCaptured(inZone, PLAYER_GANG, lockUntilMs);
         s.captureDistrict = null;
         s.captureProgress = 0;

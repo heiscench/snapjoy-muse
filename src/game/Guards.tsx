@@ -6,8 +6,10 @@ import { GANGS } from "./gangs";
 import {
   GUARDS,
   GUARD_DAMAGE,
+  GUARD_DEAGGRO_RANGE,
   GUARD_DETECT_RANGE,
   GUARD_FIRE_RATE,
+  GUARD_AGGRO_SECS,
   initGuards,
   type GuardState,
 } from "./guardState";
@@ -15,12 +17,20 @@ import { playerState, damagePlayer } from "./playerState";
 import { nearestHostile } from "./targets";
 import { territoryState } from "./territoryState";
 import { resolveCollision } from "./worldData";
-import { pilotState } from "./vehicleState";
+import { pilotState, damageHeli } from "./vehicleState";
 import { carPilot } from "./carState";
+import { damageCar } from "./vehicleState";
+import { PLAYER_GANG } from "./gangs";
 import { spawnTracer } from "./tracerState";
 
 const SECURITY_UNIFORM = "#1a1d26";
 const SECURITY_ACCENT = "#3a4050";
+const GUARD_BANK_SPEED = 3.4;
+const GUARD_NEUTRAL_SPEED = 3.8;
+const GUARD_RETURN_SPEED = 1.4;
+const GUARD_FIRE_RANGE = 40;
+const GUARD_HIT_RANGE = 36;
+const GUARD_HOME_TOLERANCE = 6;
 
 export function Guards() {
   useEffect(() => {
@@ -39,13 +49,8 @@ export function Guards() {
 function GuardUnit({ guard }: { guard: GuardState }) {
   const refs = useRef<CharacterRefs>(null!);
   const walkPhase = useRef(0);
-  const uniformColor = useMemo(() => {
-    if (guard.gang !== null) return GANGS[guard.gang].color;
-    return SECURITY_UNIFORM;
-  }, [guard.gang]);
-  const accentColor = guard.gang !== null ? GANGS[guard.gang].accent : SECURITY_ACCENT;
-  const baseCol = useMemo(() => new THREE.Color(uniformColor), [uniformColor]);
   const hitCol = useMemo(() => new THREE.Color("#ff5050"), []);
+  const workCol = useMemo(() => new THREE.Color("#ffffff"), []);
 
   useFrame((_, dt) => {
     const dtc = Math.min(dt, 0.05);
@@ -66,19 +71,23 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     r.root.visible = true;
 
     const pp = playerState.pos;
-    const hostile = nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DETECT_RANGE, true);
+    const hostile = nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DEAGGRO_RANGE, true);
     const nearestDist = hostile ? hostile.dist : Infinity;
 
-    let aggro = guard.aggroT > 0;
+    // Aggro timer counts down to zero (it used to be floored at 3, which meant
+    // a triggered guard stayed hostile forever).
+    guard.aggroT = Math.max(0, guard.aggroT - dtc);
+
+    let aggro = guard.aggroT > 0 && nearestDist < GUARD_DEAGGRO_RANGE;
     if (guard.kind === "bank" && nearestDist < GUARD_DETECT_RANGE) aggro = true;
     if (guard.kind === "neutral") {
       const capturingHere = territoryState.captureDistrict === guard.district && territoryState.captureProgress > 0;
       if (capturingHere) aggro = true;
       if (nearestDist < GUARD_DETECT_RANGE * 0.6) aggro = true;
     }
+    if (aggro) guard.aggroT = Math.max(guard.aggroT, GUARD_AGGRO_SECS);
 
     if (aggro) {
-      guard.aggroT = Math.max(guard.aggroT - dtc, 0);
       const tx = hostile ? hostile.target.x : pp.x;
       const tz = hostile ? hostile.target.z : pp.z;
       const targetIsLocal = hostile ? hostile.target.isLocal : true;
@@ -88,7 +97,7 @@ function GuardUnit({ guard }: { guard: GuardState }) {
 
       const dx = tx - guard.pos.x, dz = tz - guard.pos.z;
       const d = Math.hypot(dx, dz) || 1;
-      const speed = guard.kind === "bank" ? 3.4 : 3.8;
+      const speed = guard.kind === "bank" ? GUARD_BANK_SPEED : GUARD_NEUTRAL_SPEED;
       const nx = guard.pos.x + (dx / d) * speed * dtc;
       const nz = guard.pos.z + (dz / d) * speed * dtc;
       const resolved = resolveCollision(guard.pos.x, guard.pos.z, nx, nz, 0.5);
@@ -96,19 +105,27 @@ function GuardUnit({ guard }: { guard: GuardState }) {
       guard.dir.set(dx / d, 0, dz / d);
 
       guard.fireCd = Math.max(0, guard.fireCd - dtc);
-      if (d < 40 && guard.fireCd === 0) {
+      if (d < GUARD_FIRE_RANGE && guard.fireCd === 0) {
         guard.fireCd = GUARD_FIRE_RATE;
         const from = new THREE.Vector3(guard.pos.x, 1.4, guard.pos.z);
         const to = new THREE.Vector3(tx, 1.4, tz).sub(from).normalize();
         spawnTracer(from, to);
-        if (d < 36 && targetIsLocal && !targetInVehicle) damagePlayer(GUARD_DAMAGE);
+        if (d < GUARD_HIT_RANGE && targetIsLocal) {
+          // Shots at a player inside a vehicle chew the vehicle, not the driver.
+          if (targetInVehicle) {
+            if (pilotState.piloting) damageHeli(PLAYER_GANG, GUARD_DAMAGE, true);
+            else if (carPilot.driving) damageCar(carPilot.drivingIndex, GUARD_DAMAGE);
+          } else {
+            damagePlayer(GUARD_DAMAGE);
+          }
+        }
       }
     } else {
       const dx = guard.home.x - guard.pos.x, dz = guard.home.z - guard.pos.z;
       const d = Math.hypot(dx, dz);
-      if (d > 6) {
-        const nx = guard.pos.x + (dx / d) * 1.4 * dtc;
-        const nz = guard.pos.z + (dz / d) * 1.4 * dtc;
+      if (d > GUARD_HOME_TOLERANCE) {
+        const nx = guard.pos.x + (dx / d) * GUARD_RETURN_SPEED * dtc;
+        const nz = guard.pos.z + (dz / d) * GUARD_RETURN_SPEED * dtc;
         const resolved = resolveCollision(guard.pos.x, guard.pos.z, nx, nz, 0.5);
         guard.pos.x = resolved.x; guard.pos.z = resolved.z;
         guard.dir.set(dx / d, 0, dz / d);
@@ -124,13 +141,18 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     if (r.legL) r.legL.rotation.x = swing;
     if (r.legR) r.legR.rotation.x = -swing;
 
-    if (guard.hitFlash > 0) {
-      guard.hitFlash -= dtc;
-      if (r.torsoMat) r.torsoMat.color.copy(hitCol);
-    } else if (r.torsoMat) {
-      r.torsoMat.color.copy(baseCol);
+    // Uniform colour is read per-frame so a district capture re-skins guards
+    // to the new owning gang without needing a React re-render.
+    if (r.torsoMat) {
+      if (guard.hitFlash > 0) {
+        guard.hitFlash -= dtc;
+        r.torsoMat.color.copy(hitCol);
+      } else {
+        const target = guard.gang !== null ? GANGS[guard.gang].color : SECURITY_UNIFORM;
+        r.torsoMat.color.copy(workCol.set(target));
+      }
     }
   });
 
-  return <Character ref={refs} color={uniformColor} accent={accentColor} scale={1.15} />;
+  return <Character ref={refs} color={SECURITY_UNIFORM} accent={SECURITY_ACCENT} />;
 }

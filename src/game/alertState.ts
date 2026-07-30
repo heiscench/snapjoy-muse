@@ -13,8 +13,12 @@ export const alertState = {
   alerts: [] as Alert[],
 };
 
-export function pushAlert(text: string, tone: "info" | "warn" = "info") {
-  alertState.alerts.push({ id: nextId++, text, tone, t: ALERT_DURATION });
+export function pushAlert(
+  text: string,
+  tone: "info" | "warn" = "info",
+  duration = ALERT_DURATION,
+) {
+  alertState.alerts.push({ id: nextId++, text, tone, t: duration });
   while (alertState.alerts.length > ALERT_MAX) alertState.alerts.shift();
 }
 
