@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { BLOCK_SIZE, GRID } from "./worldData";
+import { carPilot } from "./carState";
 import { initCarHealth, carDestroyed, carRespawn, CAR_MAX_HP } from "./vehicleState";
 import { CAR_LIVE, initCarLive } from "./carState";
 import { useFrame } from "@react-three/fiber";
