@@ -8,6 +8,7 @@ import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
 import { GUARDS, damageGuard } from "./guardState";
 import { shopState } from "./shopState";
+import { isFollowing } from "./squadState";
 import { Weapon } from "./Weapon";
 import {
   resolveCollision, resolveHeliCollision, rooftopHeightAt,
@@ -42,10 +43,34 @@ const RECOIL_PER_SHOT = 0.75;
 const OTHER_OBJECT_RADIUS = 1.3;
 const CAR_HIT_HEIGHT = 1.0;
 const CAR_HIT_TOLERANCE = 0.008;
+const BOARD_RADIUS = 8;
+
+/** Any following ally standing near the player when they enter a vehicle
+ * "boards" it — hidden and paused until the player gets out again. */
+function boardNearbyFollowers(x: number, z: number) {
+  for (const n of NPCS) {
+    if (n.dead || n.gang !== PLAYER_GANG || !isFollowing(n.id)) continue;
+    if (Math.hypot(n.pos.x - x, n.pos.z - z) < BOARD_RADIUS) n.boarded = true;
+  }
+}
+
+/** Releases boarded followers back into the world, spread around the exit
+ * point instead of all stacking on the same spot. */
+function unboardFollowers(x: number, z: number) {
+  let slot = 0;
+  for (const n of NPCS) {
+    if (!n.boarded) continue;
+    n.boarded = false;
+    const angle = (slot / 6) * Math.PI * 2;
+    n.pos.set(x + Math.cos(angle) * 4, 0, z + Math.sin(angle) * 4);
+    slot++;
+  }
+}
 
 function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
   pilotState.piloting = false;
   const heli = HELICOPTERS[PLAYER_GANG];
+  unboardFollowers(heli.pos.x, heli.pos.z);
   r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, heli.pos.y, heli.pos.z);
   r.root!.visible = true;
   vel.set(0, 0, 0);
@@ -54,6 +79,7 @@ function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
 function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: number) => void) {
   if (playerState.health > 0) return false;
   const hq = GANG_HQ[PLAYER_GANG];
+  unboardFollowers(hq.x, hq.z);
   set(hq.x, 0, hq.z);
   const recent =
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
@@ -122,6 +148,7 @@ export function Player() {
         carPilot.driving = false;
         carPilot.drivingIndex = -1;
         stopEngine();
+        unboardFollowers(c.x, c.z);
         r.root.position.set(c.x + Math.sin(c.rotY) * CAR_EXIT_OFFSET, 0, c.z + Math.cos(c.rotY) * CAR_EXIT_OFFSET);
         r.root.visible = true;
         vel.current.set(0, 0, 0);
@@ -132,9 +159,11 @@ export function Player() {
         carPilot.drivingIndex = carPilot.nearIndex;
         r.root.visible = false;
         startEngine();
+        boardNearbyFollowers(r.root.position.x, r.root.position.z);
       } else if (pilotState.nearOwnHeli) {
         pilotState.piloting = true;
         r.root.visible = false;
+        boardNearbyFollowers(r.root.position.x, r.root.position.z);
       }
     } else {
       pilotState.interactPressed = false;
@@ -147,6 +176,7 @@ export function Player() {
         if (carDestroyed[carPilot.drivingIndex]) {
           carPilot.driving = false;
           stopEngine();
+          unboardFollowers(c.x, c.z);
           r.root.visible = true;
         } else {
           if (Math.abs(c.speed) > 0.5) c.rotY -= mx * 1.6 * dtc;
@@ -174,7 +204,7 @@ export function Player() {
             }
           }
           for (const n of NPCS) {
-            if (n.dead) continue;
+            if (n.dead || n.boarded) continue;
             const dx = nx - n.pos.x, dz = nz - n.pos.z;
             const d = Math.hypot(dx, dz);
             if (d < OTHER_OBJECT_RADIUS && d > 0.0001) {
@@ -476,7 +506,7 @@ export function Player() {
             if (dot < w.spread - 0.005) continue;
             damageHeli(gid, w.damage, false);
           }
-
+         
           let bestC: { d: number; i: number } | null = null;
           let bestCPos: THREE.Vector3 | null = null;
           for (let ci = 0; ci < CAR_LIVE.length; ci++) {
