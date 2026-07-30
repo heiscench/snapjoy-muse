@@ -6,6 +6,7 @@ import { Player } from "./Player";
 import { NPCs } from "./NPCs";
 import { unlockAudio } from "./audio";
 import { Guards } from "./Guards";
+import { Civilians } from "./Civilians";
 import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
@@ -278,6 +279,7 @@ unlockAudio();
         <WeaponShopKiosks />
         <NPCs />
         <Guards />
+        <Civilians />
         <RemotePlayers />
         <Player />
         <Tracers />

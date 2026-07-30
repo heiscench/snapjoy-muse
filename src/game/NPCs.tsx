@@ -3,35 +3,48 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
 import { GANGS, PLAYER_GANG, type GangId } from "./gangs";
-import { NPCS, damageNPC, spawnNPC, type NPCState } from "./npcState";
+import { NPCS, npcRoster, spawnNPC, respawnPosition, type NPCState } from "./npcState";
 import { resolveCollision, districtAt } from "./worldData";
 import { playerState, damagePlayer } from "./playerState";
 import { territoryState } from "./territoryState";
 import { spawnTracer } from "./tracerState";
-import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED, squadState } from "./squadState";
-import { pilotState } from "./vehicleState";
+import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED } from "./squadState";
+import { pilotState, damageHeli, damageCar } from "./vehicleState";
 import { carPilot } from "./carState";
 
 const DETECT_RANGE = 22;
 const NPC_FIRE_RATE = 0.9;
 const NPC_DAMAGE = 5;
 const NPC_MOVE_COMBAT = 3.2;
+const NPC_FIRE_RANGE = 40;
+const NPC_HIT_RANGE = 36;
+const ROSTER_POLL_MS = 300;
 
 export function NPCs({ count = 12 }: { count?: number }) {
   useEffect(() => {
-    NPCS.length = 0;
+    for (let i = NPCS.length - 1; i >= 0; i--) {
+      if (NPCS[i].kind === "gang") NPCS.splice(i, 1);
+    }
     for (let i = 0; i < count; i++) {
       NPCS.push(spawnNPC(i, (i % 4) as GangId));
     }
+    npcRoster.version++;
   }, [count]);
 
-  const [, force] = useState(0);
-  useEffect(() => { force(1); }, []);
+  // The roster changes when a district is captured (defenders spawn/despawn),
+  // so poll the version counter and re-mount slots when it moves.
+  const [version, setVersion] = useState(npcRoster.version);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (npcRoster.version !== version) setVersion(npcRoster.version);
+    }, ROSTER_POLL_MS);
+    return () => clearInterval(id);
+  }, [version]);
 
   if (NPCS.length === 0) return null;
   return (
     <group>
-      {NPCS.map((n) => <NPCUnit key={n.id} npc={n} />)}
+      {NPCS.map((n) => <NPCUnit key={`${n.id}-${n.kind}`} npc={n} />)}
     </group>
   );
 }
@@ -57,9 +70,8 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       r.root.visible = false;
       npc.screenVisible = false;
       if (npc.respawn <= 0) {
-        const s = spawnNPC(npc.id, npc.gang);
-        npc.pos.copy(s.pos);
-        npc.dir.copy(s.dir);
+        npc.pos.copy(respawnPosition(npc));
+        npc.dir.set(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).normalize();
         npc.hp = 100;
         npc.dead = false;
         npc.mode = "patrol";
@@ -74,12 +86,14 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     const playerInVehicle = pilotState.piloting || carPilot.driving;
 
     let wantsCombat = false;
-    let following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
+    const following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
     if (isEnemyOfPlayer) {
       const npcDistrict = districtAt(npc.pos.x, npc.pos.z);
       const playerDistrict = districtAt(pp.x, pp.z);
       const ownsThis = territoryState.owners[npcDistrict] === npc.gang;
       if (ownsThis && playerDistrict === npcDistrict) wantsCombat = true;
+      // District garrisons defend their own turf aggressively.
+      if (npc.kind === "defender" && npc.district === playerDistrict) wantsCombat = true;
       if (distToPlayer < DETECT_RANGE) wantsCombat = true;
     }
     if (following && playerState.health > 0) {
@@ -102,17 +116,24 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       npc.dir.set(dx / d, 0, dz / d);
 
       npc.fireCd = Math.max(0, npc.fireCd - dtc);
-      if (distToPlayer < 40 && npc.fireCd === 0) {
+      if (distToPlayer < NPC_FIRE_RANGE && npc.fireCd === 0) {
         npc.fireCd = NPC_FIRE_RATE;
         const from = new THREE.Vector3(npc.pos.x, 1.4, npc.pos.z);
         const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
         spawnTracer(from, to);
-        if (distToPlayer < 36 && !playerInVehicle) damagePlayer(NPC_DAMAGE);
+        if (distToPlayer < NPC_HIT_RANGE) {
+          // Vehicles soak the damage for their occupant.
+          if (playerInVehicle) {
+            if (pilotState.piloting) damageHeli(PLAYER_GANG, NPC_DAMAGE, true);
+            else if (carPilot.driving) damageCar(carPilot.drivingIndex, NPC_DAMAGE);
+          } else {
+            damagePlayer(NPC_DAMAGE);
+          }
+        }
       }
     } else if (following) {
       // Spread followers into their own slot around the player instead of
-      // all converging on the exact same point (was causing them to merge
-      // into each other visually).
+      // all converging on the exact same point.
       const slot = npc.id % 6;
       const angle = (slot / 6) * Math.PI * 2;
       const targetX = pp.x + Math.cos(angle) * 3;
@@ -184,7 +205,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
 
   return (
     <group>
-      <Character ref={refs} color={gang.color} accent={gang.accent} scale={1.15} />
+      <Character ref={refs} color={gang.color} accent={gang.accent} />
       <mesh ref={marker} position={[0, 2.4, 0]} visible={false}>
         <coneGeometry args={[0.18, 0.35, 4]} />
         <meshBasicMaterial color={isFollowing(npc.id) ? "#5cff8a" : GANGS[PLAYER_GANG].accent} />

@@ -2,7 +2,7 @@
 // the existing wander/respawn loop.
 import * as THREE from "three";
 import { NEUTRAL_HQS, ROBBABLE_BANKS, type District } from "./worldData";
-import { registerGuardsAliveForBank, GUARD_RESPAWN } from "./territoryState";
+import { registerGuardsAliveForBank, registerOwnerChangedHook, GUARD_RESPAWN } from "./territoryState";
 import type { GangId } from "./gangs";
 
 export type GuardKind = "bank" | "neutral";
@@ -25,12 +25,21 @@ export type GuardState = {
   aggroT: number;       // time remaining in aggro state
 };
 
-export const GUARD_MAX_HP = 220;
-export const GUARD_DAMAGE = 12;
-export const GUARD_FIRE_RATE = 0.6;
+// ---- Balance ---------------------------------------------------------------
+// Bank guards were previously 3x220hp with a 5 minute respawn, which made a
+// robbery effectively impossible. Now: fewer, softer, quicker to come back.
+export const BANK_GUARD_MAX_HP = 90;
+export const NEUTRAL_GUARD_MAX_HP = 120;
+/** Legacy alias kept for callers that just want "a guard's full health". */
+export const GUARD_MAX_HP = NEUTRAL_GUARD_MAX_HP;
+export const GUARD_DAMAGE = 7;
+export const GUARD_FIRE_RATE = 0.75;
 export const GUARD_DETECT_RANGE = 20;
+export const GUARD_DEAGGRO_RANGE = GUARD_DETECT_RANGE * 1.6;
+export const GUARD_AGGRO_SECS = 6;
 export const NEUTRAL_GUARDS_PER_HQ = 2;
-export const BANK_GUARDS_PER_BANK = 3;
+export const BANK_GUARDS_PER_BANK = 2;
+export const GUARD_RESKIN_RESPAWN = 2;
 
 export const GUARDS: GuardState[] = [];
 
@@ -52,12 +61,12 @@ export function initGuards() {
         id: nextId++, kind: "bank", bankId: b.id, gang: null,
         home, pos: home.clone(),
         dir: new THREE.Vector3(0, 0, 1),
-        hp: GUARD_MAX_HP, maxHp: GUARD_MAX_HP,
+        hp: BANK_GUARD_MAX_HP, maxHp: BANK_GUARD_MAX_HP,
         dead: false, respawn: 0, hitFlash: 0, fireCd: 0, aggroT: 0,
       });
     }
   }
-  // Neutral district guards
+  // Neutral district guards (one set per dominatable district)
   for (const n of NEUTRAL_HQS) {
     for (let i = 0; i < NEUTRAL_GUARDS_PER_HQ; i++) {
       const home = spawnAround(n.x, n.z, 6);
@@ -65,7 +74,7 @@ export function initGuards() {
         id: nextId++, kind: "neutral", district: n.district, gang: null,
         home, pos: home.clone(),
         dir: new THREE.Vector3(0, 0, 1),
-        hp: GUARD_MAX_HP, maxHp: GUARD_MAX_HP,
+        hp: NEUTRAL_GUARD_MAX_HP, maxHp: NEUTRAL_GUARD_MAX_HP,
         dead: false, respawn: 0, hitFlash: 0, fireCd: 0, aggroT: 0,
       });
     }
@@ -104,7 +113,7 @@ export function damageGuard(g: GuardState, amount: number) {
   if (g.dead) return;
   g.hp -= amount;
   g.hitFlash = 0.25;
-  g.aggroT = 8;
+  g.aggroT = GUARD_AGGRO_SECS;
   if (g.hp <= 0) {
     g.dead = true;
     g.respawn = GUARD_RESPAWN;
@@ -122,14 +131,17 @@ registerGuardsAliveForBank((bankId: number) => {
   return false;
 });
 
-// Called by the territory system when a neutral district's HQ is captured.
-export function reskinNeutralDistrictGuards(district: District, gang: GangId) {
+// When a district changes hands its HQ guards join the new owner. They briefly
+// "die" so the swap reads as the old garrison being replaced.
+export function reskinNeutralDistrictGuards(district: District, gang: GangId | null) {
   for (const g of GUARDS) {
     if (g.kind === "neutral" && g.district === district) {
       g.gang = gang;
       g.dead = true;
-      g.respawn = 2; // quick respawn re-skinned
-      g.hp = GUARD_MAX_HP;
+      g.respawn = GUARD_RESKIN_RESPAWN;
+      g.hp = g.maxHp;
     }
   }
 }
+
+registerOwnerChangedHook((district, owner) => reskinNeutralDistrictGuards(district, owner));

@@ -1,10 +1,12 @@
 export type GangId = 0 | 1 | 2 | 3;
 
+// Four deliberately distinct hue families — warm red, electric cyan, acid
+// lime and royal violet — so gangs read apart instantly at a distance.
 export const GANGS = [
-  { id: 0, name: "Crimson Vipers", color: "#c81d34", accent: "#ff4d5e", emissive: "#7a0f1c" },
-  { id: 1, name: "Neon Yakuza",    color: "#00c2b2", accent: "#5ffbea", emissive: "#00726a" },
-  { id: 2, name: "Toxic Skulls",   color: "#8fd400", accent: "#c8ff5c", emissive: "#4f7600" },
-  { id: 3, name: "Violet Kings",   color: "#8a2be2", accent: "#c58bff", emissive: "#4a1391" },
+  { id: 0, name: "Crimson Vipers", color: "#e0243f", accent: "#ff7d8f", emissive: "#8c0f22" },
+  { id: 1, name: "Neon Yakuza",    color: "#0fb9d8", accent: "#6ef2ff", emissive: "#046b80" },
+  { id: 2, name: "Toxic Skulls",   color: "#a6e017", accent: "#e2ff70", emissive: "#5b7d00" },
+  { id: 3, name: "Violet Kings",   color: "#8a3ff0", accent: "#c9a0ff", emissive: "#4a1691" },
 ] as const;
 
 // Mutated once at login-time from the persisted profile. Existing files import
