@@ -5,6 +5,7 @@ export const HELI_MAX_HP = 300;
 export const HELI_RESPAWN_SECS = 60;
 
 export type HeliState = {
+  gang: 0 | 1 | 2 | 3;
   pos: THREE.Vector3;
   yaw: number;
   vy: number;
@@ -13,9 +14,10 @@ export type HeliState = {
   respawn: number;
 };
 
-function makeHeli(gangId: 0 | 1 | 2 | 3): HeliState {
-  const pad = HELI_PADS[gangId];
+function makeHeli(gang: 0 | 1 | 2 | 3, slot: 0 | 1): HeliState {
+  const pad = HELI_PADS[gang][slot];
   return {
+    gang,
     pos: new THREE.Vector3(pad.x, 0, pad.z),
     yaw: 0,
     vy: 0,
@@ -25,16 +27,22 @@ function makeHeli(gangId: 0 | 1 | 2 | 3): HeliState {
   };
 }
 
-export const HELICOPTERS: Record<0 | 1 | 2 | 3, HeliState> = {
-  0: makeHeli(0),
-  1: makeHeli(1),
-  2: makeHeli(2),
-  3: makeHeli(3),
-};
+// Flat list — two helicopters per gang. Index = gang * 2 + slot.
+export const HELICOPTERS: HeliState[] = [
+  makeHeli(0, 0), makeHeli(0, 1),
+  makeHeli(1, 0), makeHeli(1, 1),
+  makeHeli(2, 0), makeHeli(2, 1),
+  makeHeli(3, 0), makeHeli(3, 1),
+];
+
+export function gangHeliIndices(gang: 0 | 1 | 2 | 3): number[] {
+  return [gang * 2, gang * 2 + 1];
+}
 
 export const pilotState = {
   piloting: false,
-  nearOwnHeli: false,
+  heliIndex: -1, // which entry in HELICOPTERS the player is currently flying
+  nearHeliIndex: -1, // which one they're close enough to board, -1 if none
   interactPressed: false,
   lastError: null as string | null,
 };
@@ -67,7 +75,7 @@ export function applyRemoteVehicleDestroyed(kind: "car" | "heli", id: number) {
     carDestroyed[id] = true;
     carRespawn[id] = CAR_RESPAWN_SECS;
   } else {
-    const h = HELICOPTERS[id as 0 | 1 | 2 | 3];
+    const h = HELICOPTERS[id];
     if (!h || h.destroyed) return;
     h.hp = 0;
     h.destroyed = true;
@@ -85,14 +93,14 @@ export function damageCar(i: number, amount: number) {
   }
 }
 
-export function damageHeli(gangId: 0 | 1 | 2 | 3, amount: number, occupiedByPlayer: boolean) {
-  const h = HELICOPTERS[gangId];
-  if (h.destroyed) return { occupantDamage: 0 };
+export function damageHeli(index: number, amount: number, occupiedByPlayer: boolean) {
+  const h = HELICOPTERS[index];
+  if (!h || h.destroyed) return { occupantDamage: 0 };
   h.hp = Math.max(0, h.hp - amount);
   if (h.hp <= 0) {
     h.destroyed = true;
     h.respawn = HELI_RESPAWN_SECS;
-    _onDestroyed("heli", gangId);
+    _onDestroyed("heli", index);
     return { occupantDamage: occupiedByPlayer ? 9999 : 0 };
   }
   return { occupantDamage: 0 };
