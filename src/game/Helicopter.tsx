@@ -82,7 +82,6 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
       </group>
     </group>
   );
-}
 
 function LandingPad({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   const gang = GANGS[gangId];
