@@ -299,11 +299,11 @@ export const GANG_HOME_DISTRICT: Record<0 | 1 | 2 | 3, District> = {
 // Dedicated helicopter pad, offset away from the HQ building itself so the
 // two don't overlap (they used to share a spot, which buried the helicopter
 // inside the HQ building — that was the "missing helicopter" bug).
-export const HELI_PADS: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
-  0: { x: GANG_HQ[0].x, z: GANG_HQ[0].z - 20 },
-  1: { x: GANG_HQ[1].x, z: GANG_HQ[1].z - 20 },
-  2: { x: GANG_HQ[2].x, z: GANG_HQ[2].z - 20 },
-  3: { x: GANG_HQ[3].x, z: GANG_HQ[3].z - 20 },
+export const HELI_PADS: Record<0 | 1 | 2 | 3, { x: number; z: number }[]> = {
+  0: [{ x: GANG_HQ[0].x - 14, z: GANG_HQ[0].z - 20 }, { x: GANG_HQ[0].x + 14, z: GANG_HQ[0].z - 20 }],
+  1: [{ x: GANG_HQ[1].x - 14, z: GANG_HQ[1].z - 20 }, { x: GANG_HQ[1].x + 14, z: GANG_HQ[1].z - 20 }],
+  2: [{ x: GANG_HQ[2].x - 14, z: GANG_HQ[2].z - 20 }, { x: GANG_HQ[2].x + 14, z: GANG_HQ[2].z - 20 }],
+  3: [{ x: GANG_HQ[3].x - 14, z: GANG_HQ[3].z - 20 }, { x: GANG_HQ[3].x + 14, z: GANG_HQ[3].z - 20 }],
 };
 
 export const DISTRICT_LABELS: { name: string; district: District; x: number; z: number }[] = [
