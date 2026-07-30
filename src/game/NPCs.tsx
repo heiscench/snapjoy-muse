@@ -77,6 +77,11 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         npc.mode = "patrol";
       }
       return;
+     if (npc.boarded) {
+      r.root.visible = false;
+      npc.screenVisible = false;
+      return;
+    }
     }
     r.root.visible = true;
 
