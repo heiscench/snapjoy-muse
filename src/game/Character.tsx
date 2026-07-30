@@ -14,7 +14,7 @@ export type CharacterRefs = {
 
 /** Every humanoid in the game renders at this scale — player, NPCs,
  * guards, civilians and remote players. Keep it in one place. */
-export const CHARACTER_SCALE = 1.14;
+export const CHARACTER_SCALE = 1.45;
 
 type Props = {
   color: string;
