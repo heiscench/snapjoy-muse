@@ -2,7 +2,6 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
-import { throwGrenade } from "./grenadeState";
 import { playGunshot, playFootstep, startEngine, updateEngine, stopEngine } from "./audio";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
@@ -19,6 +18,7 @@ import {
   earnMoney, spendMoney, DEATH_COST, KILL_BOUNTY,
 } from "./playerState";
 import { spawnTracer } from "./tracerState";
+import { throwGrenade } from "./grenadeState";
 import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
@@ -46,8 +46,6 @@ const CAR_HIT_TOLERANCE = 0.008;
 function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
   pilotState.piloting = false;
   const heli = HELICOPTERS[PLAYER_GANG];
-  // Exit at the helicopter's ACTUAL altitude — stepping out on a rooftop must
-  // leave you on that rooftop, not teleport you to street level.
   r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, heli.pos.y, heli.pos.z);
   r.root!.visible = true;
   vel.set(0, 0, 0);
@@ -57,7 +55,6 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
   if (playerState.health > 0) return false;
   const hq = GANG_HQ[PLAYER_GANG];
   set(hq.x, 0, hq.z);
-  // Credit the kill to whoever shot us last (if it was recent enough).
   const recent =
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
       ? lastAttacker.userId
@@ -164,7 +161,6 @@ export function Player() {
           if (resolved.x === c.x && resolved.z === c.z) c.speed *= 0.3;
           nx = resolved.x; nz = resolved.z;
 
-          // Collide with other cars (parked or driven) and with NPCs/guards.
           for (let i = 0; i < CAR_LIVE.length; i++) {
             if (i === carPilot.drivingIndex || carDestroyed[i]) continue;
             const other = CAR_LIVE[i];
@@ -256,8 +252,6 @@ export function Player() {
         heli.pos.x = resolved.x;
         heli.pos.z = resolved.z;
 
-        // Floor is either the ground (0) or the roof of whatever building is
-        // directly beneath — lets you land on top of buildings.
         const floor = rooftopHeightAt(heli.pos.x, heli.pos.z);
         heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, floor, 90);
         if (heli.pos.y <= floor) {
@@ -371,11 +365,6 @@ export function Player() {
       healPlayer(HEAL_RATE * dtc);
     }
 
-    // NOTE: the old passive "chance per second to get hit by any nearby
-    // enemy" loop that used to live here has been removed — NPCs.tsx and
-    // Guards.tsx now handle all player damage via their own active gunfire,
-    // so this was doubling up damage from the same enemies.
-
     if (handleDeathAt(p.x, p.z, (x, y, z) => { p.set(x, y, z); vel.current.set(0, 0, 0); })) {
       // handled
     }
@@ -424,7 +413,8 @@ export function Player() {
       p.y + 1.5 + recoil.current * 0.35,
       p.z + sideV.z * shoulderX * 0.6,
     );
-fireCd.current = Math.max(0, fireCd.current - dtc);
+
+    fireCd.current = Math.max(0, fireCd.current - dtc);
     if (input.fire && fireCd.current === 0) {
       const w = currentWeapon();
       fireCd.current = w.fireRate;
@@ -537,8 +527,6 @@ fireCd.current = Math.max(0, fireCd.current - dtc);
             impact = bestGPos;
           }
 
-          // Splash weapons (currently just the tank cannon) hurt anything
-          // else nearby the impact point too, not only the direct target.
           if (impact && w.splash) {
             const sp = w.splash;
             for (const n of NPCS) {
@@ -552,54 +540,6 @@ fireCd.current = Math.max(0, fireCd.current - dtc);
               if (d < sp) damageGuard(g, w.damage * 0.6 * (1 - d / sp));
             }
           }
-        }
-      }
-    }
-
-        // Parked / driven cars take gunfire the same way helicopters do.
-        let bestC: { d: number; i: number } | null = null;
-        for (let ci = 0; ci < CAR_LIVE.length; ci++) {
-          if (carDestroyed[ci]) continue;
-          if (carPilot.driving && ci === carPilot.drivingIndex) continue;
-          const c = CAR_LIVE[ci];
-          const toC = new THREE.Vector3(c.x, CAR_HIT_HEIGHT, c.z).sub(origin);
-          const dist = toC.length();
-          if (dist > w.range) continue;
-          toC.normalize();
-          if (toC.dot(dir) < w.spread - CAR_HIT_TOLERANCE) continue;
-          if (!bestC || dist < bestC.d) bestC = { d: dist, i: ci };
-        }
-
-        // Rival human players. No friendly fire, and players inside a vehicle
-        // are hit through the vehicle instead (handled by vehicle damage).
-        let bestR: { d: number; userId: string } | null = null;
-        for (const rp of remotePlayers.values()) {
-          if (rp.health <= 0 || rp.inVehicle || rp.gang === PLAYER_GANG) continue;
-          const toR = new THREE.Vector3(rp.x, 1, rp.z).sub(origin);
-          const dist = toR.length();
-          if (dist > w.range) continue;
-          toR.normalize();
-          if (toR.dot(dir) < w.spread) continue;
-          if (!bestR || dist < bestR.d) bestR = { d: dist, userId: rp.userId };
-        }
-
-        // Only the single closest thing along the ray takes the shot.
-        const dN = bestN?.d ?? Infinity;
-        const dG = bestG?.d ?? Infinity;
-        const dR = bestR?.d ?? Infinity;
-        const dC = bestC?.d ?? Infinity;
-        const closest = Math.min(dN, dG, dR, dC);
-        if (closest === Infinity) {
-          // nothing hit
-        } else if (closest === dR && bestR) {
-          broadcastHit(bestR.userId, w.damage);
-        } else if (closest === dN && bestN) {
-          damageNPC(bestN.npc, w.damage);
-          if (bestN.npc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
-        } else if (closest === dC && bestC) {
-          damageCar(bestC.i, w.damage);
-        } else if (bestG) {
-          damageGuard(bestG.g, w.damage);
         }
       }
     }
