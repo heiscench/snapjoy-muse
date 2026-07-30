@@ -280,6 +280,7 @@ unlockAudio();
         <Helicopters />
         <WeaponShopKiosks />
         <NPCs />
+        <Grenades />
         <Guards />
         <Civilians />
         <RemotePlayers />
