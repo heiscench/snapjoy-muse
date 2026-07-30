@@ -14,6 +14,12 @@ const DISTRICT_ACCENT: Record<string, string> = {
   shopping: "#ff9ad6",
   harbor: "#6adfff",
   residential: "#ffb86a",
+  airport: "#c9d6e8",
+  casino: "#ff5c9e",
+  chinatown: "#ff6a4a",
+  slums: "#c98a4a",
+  park: "#8aff6a",
+  uptown: "#d6b8ff",
 };
 
 function Tower({ b }: { b: BuildingBox }) {
@@ -243,6 +249,111 @@ function Plaza({ b }: { b: BuildingBox }) {
   );
 }
 
+function Hangar({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]} rotation={[0, 0, 0]}>
+        <cylinderGeometry args={[b.h / 2, b.h / 2, b.w, 12, 1, false, 0, Math.PI]} />
+        <meshStandardMaterial color="#3a3f45" metalness={0.3} roughness={0.6} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, b.h * 0.35, b.d / 2 - 0.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[b.h * 0.32, b.h * 0.32, 0.4, 12, 1, false, 0, Math.PI]} />
+        <meshBasicMaterial color="#8ac9ff" transparent opacity={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+function Casino({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial color="#241018" emissive="#ff5c9e" emissiveIntensity={0.4} roughness={0.6} />
+      </mesh>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <mesh key={i} position={[0, b.h * (0.2 + i * 0.2), b.d / 2 + 0.03]}>
+          <planeGeometry args={[b.w * 0.85, 0.3]} />
+          <meshBasicMaterial color="#ffe36a" />
+        </mesh>
+      ))}
+      <mesh position={[0, b.h + 1, 0]}>
+        <cylinderGeometry args={[0.4, 0.4, 2, 8]} />
+        <meshBasicMaterial color="#ff5c9e" />
+      </mesh>
+    </group>
+  );
+}
+
+function Pagoda({ b }: { b: BuildingBox }) {
+  const tiers = 3;
+  return (
+    <group position={[b.x, 0, b.z]}>
+      {Array.from({ length: tiers }).map((_, i) => {
+        const scale = 1 - i * 0.22;
+        const y = (b.h / tiers) * i + (b.h / tiers) * 0.5;
+        return (
+          <group key={i} position={[0, y, 0]}>
+            <mesh>
+              <boxGeometry args={[b.w * scale * 0.7, b.h / tiers * 0.7, b.d * scale * 0.7]} />
+              <meshStandardMaterial color="#5a1e18" roughness={0.7} />
+            </mesh>
+            <mesh position={[0, b.h / tiers * 0.42, 0]}>
+              <coneGeometry args={[b.w * scale * 0.62, 0.9, 4]} />
+              <meshStandardMaterial color="#8a2a1a" />
+            </mesh>
+          </group>
+        );
+      })}
+      <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
+        <planeGeometry args={[b.w * 0.3, b.h * 0.5]} />
+        <meshBasicMaterial color="#ff6a4a" />
+      </mesh>
+    </group>
+  );
+}
+
+function Shanty({ b }: { b: BuildingBox }) {
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial color="#4a3f30" roughness={1} />
+      </mesh>
+      <mesh position={[0, b.h + 0.3, 0]} rotation={[0.08, 0, 0]}>
+        <boxGeometry args={[b.w * 1.1, 0.4, b.d * 1.1]} />
+        <meshStandardMaterial color="#5a5248" metalness={0.5} roughness={0.8} />
+      </mesh>
+      <mesh position={[0, b.h * 0.4, b.d / 2 + 0.02]}>
+        <planeGeometry args={[b.w * 0.3, b.h * 0.35]} />
+        <meshBasicMaterial color="#ffcf7a" />
+      </mesh>
+    </group>
+  );
+}
+
+function Brownstone({ b }: { b: BuildingBox }) {
+  const floors = Math.max(2, Math.floor(b.h / 4));
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <mesh position={[0, b.h / 2, 0]}>
+        <boxGeometry args={[b.w, b.h, b.d]} />
+        <meshStandardMaterial color="#5a3a2a" roughness={0.85} />
+      </mesh>
+      {Array.from({ length: floors }).map((_, i) => (
+        <mesh key={i} position={[0, (i + 0.5) * (b.h / floors), b.d / 2 + 0.02]}>
+          <planeGeometry args={[b.w * 0.8, b.h / floors * 0.55]} />
+          <meshBasicMaterial color="#d6b8ff" transparent opacity={0.55} />
+        </mesh>
+      ))}
+      <mesh position={[0, 1.4, b.d / 2 + 0.4]}>
+        <boxGeometry args={[b.w * 0.3, 2.8, 0.8]} />
+        <meshStandardMaterial color="#3a2418" />
+      </mesh>
+    </group>
+  );
+}
+
 function Headquarters({ b }: { b: BuildingBox }) {
   const bodyMat = useRef<THREE.MeshStandardMaterial>(null!);
   const flagMat = useRef<THREE.MeshBasicMaterial>(null!);
@@ -303,6 +414,11 @@ export function City() {
         case "hospital": return <Hospital key={i} b={b} />;
         case "house": return <House key={i} b={b} />;
         case "plaza": return <Plaza key={i} b={b} />;
+        case "hangar": return <Hangar key={i} b={b} />;
+        case "casino": return <Casino key={i} b={b} />;
+        case "pagoda": return <Pagoda key={i} b={b} />;
+        case "shanty": return <Shanty key={i} b={b} />;
+        case "brownstone": return <Brownstone key={i} b={b} />;
         case "hq": return <Headquarters key={i} b={b} />;
       }
     });
