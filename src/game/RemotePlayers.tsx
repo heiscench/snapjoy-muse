@@ -2,6 +2,7 @@
 // Realtime-broadcast positions. Also projects them to screen space each frame
 // so the squad-tap UI can target real players, and hides anyone currently
 // sitting inside a vehicle (their car/heli is what you see instead).
+import { Text } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
@@ -14,10 +15,15 @@ const LERP_RATE = 8; // higher = snappier interpolation
 const WALK_SPEED_SCALE = 3.5;
 const MARKER_HEIGHT = 2.4;
 const MARKER_SPIN = 3;
+const NAME_HEIGHT = 2.9;
+const NAME_SIZE = 0.34;
+const NAME_MAX_DIST = 90;
 
 type Slot = {
   refs: React.MutableRefObject<CharacterRefs | null>;
   marker: React.MutableRefObject<THREE.Mesh | null>;
+  label: React.MutableRefObject<THREE.Object3D | null>;
+  name: string;
   phase: number;
 };
 
@@ -28,6 +34,8 @@ export function RemotePlayers() {
     Array.from({ length: MAX_REMOTE }, () => ({
       refs: { current: null },
       marker: { current: null },
+      label: { current: null },
+      name: "",
       phase: Math.random() * 10,
     })),
   );
@@ -46,6 +54,7 @@ export function RemotePlayers() {
       if (!p) {
         r.root.visible = false;
         if (slot.marker.current) slot.marker.current.visible = false;
+        if (slot.label.current) slot.label.current.visible = false;
         continue;
       }
 
@@ -71,12 +80,24 @@ export function RemotePlayers() {
       if (r.armL) r.armL.rotation.x = -swing * 0.6;
       if (r.armR) r.armR.rotation.x = swing * 0.6;
 
-      // Ally marker — same rule as NPCs: only your own gang is tagged.
+      // Ally marker + name tag — same rule: only your own gang is tagged, so
+      // rivals still can't tell a human from a bot.
       const isAlly = p.gang === PLAYER_GANG;
       if (slot.marker.current) {
         slot.marker.current.visible = visible && isAlly;
         slot.marker.current.position.set(p.x, MARKER_HEIGHT, p.z);
         if (visible && isAlly) slot.marker.current.rotation.y += dtc * MARKER_SPIN;
+      }
+      if (slot.label.current) {
+        const distToCam = camera.position.distanceTo(
+          _screenV.set(p.x, NAME_HEIGHT, p.z),
+        );
+        const showName = visible && isAlly && distToCam < NAME_MAX_DIST;
+        slot.label.current.visible = showName;
+        if (showName) {
+          slot.label.current.position.set(p.x, NAME_HEIGHT, p.z);
+          slot.label.current.quaternion.copy(camera.quaternion);
+        }
       }
 
       if (visible) {
@@ -101,12 +122,23 @@ export function RemotePlayers() {
               ref={(v) => { slot.refs.current = v; }}
               color={gang.color}
               accent={gang.accent}
-              scale={1.15}
             />
             <mesh ref={(m) => { slot.marker.current = m; }} visible={false}>
               <coneGeometry args={[0.18, 0.35, 4]} />
               <meshBasicMaterial color={GANGS[PLAYER_GANG].accent} />
             </mesh>
+            <Text
+              ref={(o) => { slot.label.current = o as unknown as THREE.Object3D; }}
+              visible={false}
+              fontSize={NAME_SIZE}
+              color={GANGS[PLAYER_GANG].accent}
+              outlineWidth={0.02}
+              outlineColor="#04050a"
+              anchorX="center"
+              anchorY="middle"
+            >
+              {p?.username ?? ""}
+            </Text>
           </group>
         );
       })}
