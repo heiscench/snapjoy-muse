@@ -5,21 +5,23 @@ import { GANGS } from "./gangs";
 import { HELICOPTERS } from "./vehicleState";
 import { HELI_PADS } from "./worldData";
 
-function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
+function ParkedHelicopter({ index }: { index: number }) {
   const group = useRef<THREE.Group>(null!);
   const rotor = useRef<THREE.Group>(null!);
-  const gang = GANGS[gangId];
   const lastPos = useRef(new THREE.Vector3());
+  const h0 = HELICOPTERS[index];
+  const gang = GANGS[h0.gang];
+  const slot = index % 2 as 0 | 1;
 
   useFrame((_, dt) => {
-    const h = HELICOPTERS[gangId];
+    const h = HELICOPTERS[index];
     if (!group.current || !rotor.current) return;
 
     if (h.destroyed) {
       group.current.visible = false;
       h.respawn -= dt;
       if (h.respawn <= 0) {
-        const pad = HELI_PADS[gangId];
+        const pad = HELI_PADS[h.gang][slot];
         h.pos.set(pad.x, 0, pad.z);
         h.yaw = 0; h.vy = 0;
         h.hp = 300;
@@ -46,9 +48,10 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
     );
   });
 
+  const pad = HELI_PADS[h0.gang][slot];
+
   return (
-    <group ref={group} position={[HELI_PADS[gangId].x, 0, HELI_PADS[gangId].z]}>
-      {/* Main fuselage — tapered nose to tail instead of a plain capsule */}
+    <group ref={group} position={[pad.x, 0, pad.z]}>
       <mesh position={[0, 1.4, 0.3]}>
         <coneGeometry args={[0.55, 1.4, 10]} />
         <meshStandardMaterial color={gang.color} metalness={0.55} roughness={0.35} />
@@ -57,22 +60,18 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
         <cylinderGeometry args={[0.55, 0.4, 2.4, 10]} />
         <meshStandardMaterial color={gang.color} metalness={0.55} roughness={0.35} />
       </mesh>
-      {/* Cockpit glass */}
       <mesh position={[0, 1.48, 1.15]}>
         <sphereGeometry args={[0.62, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.6]} />
         <meshStandardMaterial color="#0c1420" transparent opacity={0.6} roughness={0.05} metalness={0.2} />
       </mesh>
-      {/* Belly intake / engine detail */}
       <mesh position={[0, 1.05, -0.6]}>
         <boxGeometry args={[0.7, 0.3, 1.1]} />
         <meshStandardMaterial color="#1a1a1e" metalness={0.6} roughness={0.4} />
       </mesh>
-      {/* Tail boom, tapered */}
       <mesh position={[0, 1.45, -2.6]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.16, 0.28, 3, 8]} />
         <meshStandardMaterial color={gang.color} metalness={0.5} roughness={0.4} />
       </mesh>
-      {/* Tail fin */}
       <mesh position={[0, 1.85, -4]}>
         <boxGeometry args={[0.06, 0.8, 0.9]} />
         <meshStandardMaterial color={gang.color} />
@@ -81,7 +80,6 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
         <boxGeometry args={[0.05, 1.1, 0.1]} />
         <meshStandardMaterial color="#111" />
       </mesh>
-      {/* Skids, angled struts */}
       {[-0.85, 0.85].map((s) => (
         <group key={s}>
           <mesh position={[s, 0.32, 0]}>
@@ -98,7 +96,6 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
           </mesh>
         </group>
       ))}
-      {/* Gang accent stripe */}
       <mesh position={[0, 1.4, 0]}>
         <boxGeometry args={[1.02, 0.15, 3.2]} />
         <meshBasicMaterial color={gang.accent} />
@@ -121,9 +118,9 @@ function ParkedHelicopter({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   );
 }
 
-function LandingPad({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
+function LandingPad({ gangId, slot }: { gangId: 0 | 1 | 2 | 3; slot: 0 | 1 }) {
   const gang = GANGS[gangId];
-  const pos = HELI_PADS[gangId];
+  const pos = HELI_PADS[gangId][slot];
   return (
     <group position={[pos.x, 0, pos.z]}>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -139,11 +136,11 @@ function LandingPad({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
 }
 
 export function Helicopters() {
-  const ids = [0, 1, 2, 3] as const;
+  const gangs = [0, 1, 2, 3] as const;
   return (
     <>
-      {ids.map((g) => <LandingPad key={`pad-${g}`} gangId={g} />)}
-      {ids.map((g) => <ParkedHelicopter key={`heli-${g}`} gangId={g} />)}
+      {gangs.map((g) => [0, 1].map((s) => <LandingPad key={`pad-${g}-${s}`} gangId={g} slot={s as 0 | 1} />))}
+      {HELICOPTERS.map((_, i) => <ParkedHelicopter key={`heli-${i}`} index={i} />)}
     </>
   );
 }
