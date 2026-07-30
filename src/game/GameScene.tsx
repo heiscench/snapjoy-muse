@@ -11,6 +11,8 @@ import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
+import { Grenades } from "./Grenades";
+import { Crosshair } from "./Crosshair";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
 import { WeaponShop } from "./WeaponShop";
