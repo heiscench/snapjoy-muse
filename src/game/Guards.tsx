@@ -17,10 +17,8 @@ import { playerState, damagePlayer } from "./playerState";
 import { nearestHostile } from "./targets";
 import { territoryState } from "./territoryState";
 import { resolveCollision } from "./worldData";
-import { pilotState, damageHeli } from "./vehicleState";
+import { pilotState, damageHeli, damageCar } from "./vehicleState";
 import { carPilot } from "./carState";
-import { damageCar } from "./vehicleState";
-import { PLAYER_GANG } from "./gangs";
 import { spawnTracer } from "./tracerState";
 
 const SECURITY_UNIFORM = "#1a1d26";
@@ -113,7 +111,7 @@ function GuardUnit({ guard }: { guard: GuardState }) {
         if (d < GUARD_HIT_RANGE && targetIsLocal) {
           // Shots at a player inside a vehicle chew the vehicle, not the driver.
           if (targetInVehicle) {
-            if (pilotState.piloting) damageHeli(PLAYER_GANG, GUARD_DAMAGE, true);
+            if (pilotState.piloting) damageHeli(pilotState.heliIndex, GUARD_DAMAGE, true);
             else if (carPilot.driving) damageCar(carPilot.drivingIndex, GUARD_DAMAGE);
           } else {
             damagePlayer(GUARD_DAMAGE);
