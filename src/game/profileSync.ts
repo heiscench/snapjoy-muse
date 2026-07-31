@@ -7,6 +7,7 @@ import { setPlayerGang } from "./gangs";
 import { playerState } from "./playerState";
 import { weaponState, WEAPON_ORDER, type WeaponId } from "./weaponState";
 import { authState } from "./authState";
+import { GANG_HQ } from "./worldData";
 
 export type ProfileRow = {
   user_id: string;
@@ -36,9 +37,18 @@ export async function loadProfile(userId: string): Promise<ProfileRow | null> {
 export async function createProfile(
   userId: string, username: string, gang: GangId,
 ): Promise<ProfileRow | null> {
+  // New accounts start at their gang's HQ — this is the only case position
+  // should default rather than resume, since there's nothing to resume yet.
+  const hq = GANG_HQ[gang];
   const { data, error } = await supabase
     .from("player_profiles")
-    .insert({ user_id: userId, username, gang })
+    .insert({
+      user_id: userId,
+      username,
+      gang,
+      last_position_x: hq.x + 9,
+      last_position_z: hq.z,
+    })
     .select("*")
     .single();
   if (error) {
