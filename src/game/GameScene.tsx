@@ -197,8 +197,8 @@ export function GameScene() {
         input.run = !input.run;
         setRunning(input.run);
       } else if (zone === "fire") {
-        if (!pilotState.piloting && !carPilot.driving) input.fire = true;
-      } else if (zone === "move") {
+  input.fire = true;
+   } else if (zone === "move") {
         setMoveKnob({ x: 0, y: 0 });
       }
     },
