@@ -129,7 +129,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
         spawnTracer(from, to);
         if (distToPlayer < NPC_HIT_RANGE) {
           if (playerInVehicle) {
-            if (pilotState.piloting) damageHeli(PLAYER_GANG, NPC_DAMAGE, true);
+            if (pilotState.piloting) damageHeli(pilotState.heliIndex, NPC_DAMAGE, true);
             else if (carPilot.driving) damageCar(carPilot.drivingIndex, NPC_DAMAGE);
           } else {
             damagePlayer(NPC_DAMAGE);
