@@ -107,3 +107,55 @@ export function stopEngine() {
   engineOsc = null;
   engineGain = null;
 }
+
+// Helicopter engine — distinct from the car engine: a steady turbine tone
+// with a low-frequency oscillator amplitude-modulating it to create the
+// rhythmic rotor "whop-whop" instead of a car-like growl.
+let heliOsc: OscillatorNode | null = null;
+let heliGain: GainNode | null = null;
+let heliLFO: OscillatorNode | null = null;
+let heliLFOGain: GainNode | null = null;
+
+export function startHeliEngine() {
+  if (!ctx || heliOsc) return;
+  heliOsc = ctx.createOscillator();
+  heliOsc.type = "sawtooth";
+  heliOsc.frequency.value = 90;
+
+  heliGain = ctx.createGain();
+  heliGain.gain.value = 0.0001;
+
+  heliLFO = ctx.createOscillator();
+  heliLFO.type = "sine";
+  heliLFO.frequency.value = 9; // rotor blade-pass rate
+  heliLFOGain = ctx.createGain();
+  heliLFOGain.gain.value = 0.06;
+  heliLFO.connect(heliLFOGain);
+  heliLFOGain.connect(heliGain.gain);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 500;
+
+  heliOsc.connect(filter).connect(heliGain).connect(ctx.destination);
+  heliOsc.start();
+  heliLFO.start();
+}
+
+export function updateHeliEngine(intensity: number) {
+  if (!heliOsc || !heliGain || !heliLFO || !ctx) return;
+  const clamped = Math.max(0, Math.min(1, intensity));
+  heliOsc.frequency.setTargetAtTime(80 + clamped * 60, now(), 0.15);
+  heliGain.gain.setTargetAtTime(0.05 + clamped * 0.05, now(), 0.15);
+  heliLFO.frequency.setTargetAtTime(7 + clamped * 4, now(), 0.2);
+}
+
+export function stopHeliEngine() {
+  if (!heliOsc || !heliGain || !heliLFO || !ctx) return;
+  const o = heliOsc, g = heliGain, l = heliLFO;
+  g.gain.setTargetAtTime(0.0001, now(), 0.05);
+  setTimeout(() => {
+    try { o.stop(); l.stop(); } catch { /* already stopped */ }
+  }, 200);
+  heliOsc = null; heliGain = null; heliLFO = null; heliLFOGain = null;
+}
