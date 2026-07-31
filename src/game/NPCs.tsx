@@ -19,6 +19,8 @@ const NPC_MOVE_COMBAT = 3.2;
 const NPC_FIRE_RANGE = 40;
 const NPC_HIT_RANGE = 36;
 const ROSTER_POLL_MS = 300;
+const FOLLOWER_ENGAGE_RANGE = 22;
+const FOLLOWER_HOLD_DIST = 10;
 
 export function NPCs({ count = 12 }: { count?: number }) {
   useEffect(() => {
@@ -77,8 +79,6 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       return;
     }
 
-    // Boarded followers are "inside" a vehicle the player entered — hidden
-    // and paused until the player exits and they're placed back in the world.
     if (npc.boarded) {
       r.root.visible = false;
       npc.screenVisible = false;
@@ -94,6 +94,8 @@ function NPCUnit({ npc }: { npc: NPCState }) {
 
     let wantsCombat = false;
     const following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
+    let nearestThreat: NPCState | null = null;
+
     if (isEnemyOfPlayer) {
       const npcDistrict = districtAt(npc.pos.x, npc.pos.z);
       const playerDistrict = districtAt(pp.x, pp.z);
@@ -103,14 +105,17 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       if (distToPlayer < DETECT_RANGE) wantsCombat = true;
     }
     if (following && playerState.health > 0) {
-      const anyThreatNearPlayer = NPCS.some(
-        (o) => !o.dead && o.gang !== PLAYER_GANG && Math.hypot(o.pos.x - pp.x, o.pos.z - pp.z) < DETECT_RANGE,
-      );
-      if (anyThreatNearPlayer) wantsCombat = true;
+      let bestD = Infinity;
+      for (const o of NPCS) {
+        if (o.dead || o.gang === PLAYER_GANG) continue;
+        const d = Math.hypot(o.pos.x - pp.x, o.pos.z - pp.z);
+        if (d < DETECT_RANGE && d < bestD) { bestD = d; nearestThreat = o; }
+      }
+      if (nearestThreat) wantsCombat = true;
     }
 
     if (wantsCombat) npc.mode = "combat";
-    else if (npc.mode === "combat" && distToPlayer > DETECT_RANGE * 1.5) npc.mode = "patrol";
+    else if (npc.mode === "combat" && distToPlayer > DETECT_RANGE * 1.5 && !nearestThreat) npc.mode = "patrol";
 
     if (npc.mode === "combat" && isEnemyOfPlayer) {
       const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
@@ -135,6 +140,28 @@ function NPCUnit({ npc }: { npc: NPCState }) {
             damagePlayer(NPC_DAMAGE);
           }
         }
+      }
+    } else if (following && npc.mode === "combat" && nearestThreat) {
+      // A following ally actively fights whoever is threatening the player,
+      // instead of just standing near them.
+      const target = nearestThreat;
+      const dx = target.pos.x - npc.pos.x, dz = target.pos.z - npc.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      if (d > FOLLOWER_HOLD_DIST) {
+        const nx = npc.pos.x + (dx / d) * NPC_MOVE_COMBAT * dtc;
+        const nz = npc.pos.z + (dz / d) * NPC_MOVE_COMBAT * dtc;
+        const resolved = resolveCollision(npc.pos.x, npc.pos.z, nx, nz, 0.5);
+        npc.pos.x = resolved.x; npc.pos.z = resolved.z;
+      }
+      npc.dir.set(dx / d, 0, dz / d);
+
+      npc.fireCd = Math.max(0, npc.fireCd - dtc);
+      if (d < FOLLOWER_ENGAGE_RANGE && npc.fireCd === 0) {
+        npc.fireCd = NPC_FIRE_RATE;
+        const from = new THREE.Vector3(npc.pos.x, 1.4, npc.pos.z);
+        const to = new THREE.Vector3(target.pos.x, 1.4, target.pos.z).sub(from).normalize();
+        spawnTracer(from, to);
+        damageNPCFollowerTarget(target);
       }
     } else if (following) {
       const slot = npc.id % 6;
@@ -215,4 +242,14 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       </mesh>
     </group>
   );
+}
+
+function damageNPCFollowerTarget(target: NPCState) {
+  target.hp -= NPC_DAMAGE;
+  target.hitFlash = 0.25;
+  target.mode = "combat";
+  if (target.hp <= 0) {
+    target.dead = true;
+    target.respawn = target.kind === "defender" ? 25 : 4;
+  }
 }
