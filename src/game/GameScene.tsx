@@ -65,7 +65,7 @@ function snapshot(): HudState {
     money: Math.floor(playerState.money),
     reputation: Math.floor(playerState.reputation),
     piloting: pilotState.piloting,
-    nearHeli: pilotState.nearOwnHeli,
+    nearHeli: pilotState.nearHeliIndex >= 0,
     carDriving: carPilot.driving,
     nearCar: carPilot.nearIndex >= 0,
     error: pilotState.lastError,
@@ -161,7 +161,9 @@ export function GameScene() {
     new Map<number, { zone: Zone; startX: number; startY: number; lastX: number; lastY: number }>(),
   );
 
-unlockAudio();
+  useEffect(() => {
+    unlockAudio();
+  }, []);
 
   const zoneOf = useCallback((x: number, y: number): Zone => {
     if (hitTest(moveRef.current, x, y)) return "move";
@@ -183,7 +185,7 @@ unlockAudio();
         lastY: e.clientY,
       });
       if (zone === "aim") {
-        if (pilotState.piloting || pilotState.nearOwnHeli || carPilot.driving || carPilot.nearIndex >= 0) {
+        if (pilotState.piloting || pilotState.nearHeliIndex >= 0 || carPilot.driving || carPilot.nearIndex >= 0) {
           pilotState.interactPressed = true;
         } else {
           input.aim = true;
@@ -233,7 +235,7 @@ unlockAudio();
     if (!t) return;
     touches.current.delete(e.pointerId);
     if (t.zone === "aim") {
-      if (!pilotState.piloting && !pilotState.nearOwnHeli && !carPilot.driving && carPilot.nearIndex < 0) {
+      if (!pilotState.piloting && pilotState.nearHeliIndex < 0 && !carPilot.driving && carPilot.nearIndex < 0) {
         input.aim = false;
         setAiming(false);
       }
@@ -331,7 +333,9 @@ unlockAudio();
         </div>
       )}
 
-      <div className="pointer-events-none fixed right-4 top-14 z-20 flex flex-col items-end gap-1">
+      {/* District entry / capture / attack toasts — top-center, above and
+          clear of the minimap so they're never hidden behind it. */}
+      <div className="pointer-events-none fixed left-1/2 top-4 z-30 flex -translate-x-1/2 flex-col items-center gap-1">
         {alerts.map((a) => (
           <div
             key={a.id}
@@ -348,7 +352,6 @@ unlockAudio();
       <WeaponShop />
       <SquadPrompt />
 
-
       {error && (
         <button
           onClick={() => { pilotState.lastError = null; }}
@@ -358,7 +361,7 @@ unlockAudio();
         </button>
       )}
 
-{!inVehicleMode && <Crosshair />}
+      {!inVehicleMode && <Crosshair />}
 
       <div ref={moveRef} className="fixed bottom-6 left-6 z-20 h-32 w-32 select-none">
         <div className="absolute inset-0 rounded-full border border-white/25 bg-white/5" />
