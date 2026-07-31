@@ -46,6 +46,7 @@ const GUN_PROFILES: Record<string, { duration: number; filterFreq: number; gain:
   rifle:   { duration: 0.12, filterFreq: 1800, gain: 0.6 },
   shotgun: { duration: 0.18, filterFreq: 1200, gain: 0.75 },
   sniper:  { duration: 0.22, filterFreq: 1000, gain: 0.7 },
+  tank:    { duration: 0.3,  filterFreq: 900,  gain: 0.9 },
 };
 
 export function playGunshot(weaponId: string) {
@@ -73,8 +74,7 @@ export function playFootstep(running: boolean) {
   noiseBurst(running ? 0.05 : 0.045, running ? 900 : 600, running ? 0.12 : 0.08);
 }
 
-// Looping engine hum — call startEngine() once on entering a vehicle,
-// updateEngine(speedFraction 0..1) each frame while driving, stopEngine() on exit.
+// ---- Car engine — a car-like growl ----
 let engineOsc: OscillatorNode | null = null;
 let engineGain: GainNode | null = null;
 
@@ -108,9 +108,8 @@ export function stopEngine() {
   engineGain = null;
 }
 
-// Helicopter engine — distinct from the car engine: a steady turbine tone
-// with a low-frequency oscillator amplitude-modulating it to create the
-// rhythmic rotor "whop-whop" instead of a car-like growl.
+// ---- Helicopter engine — turbine whine + LFO-modulated rotor "whop-whop",
+// deliberately distinct from the car growl above ----
 let heliOsc: OscillatorNode | null = null;
 let heliGain: GainNode | null = null;
 let heliLFO: OscillatorNode | null = null;
