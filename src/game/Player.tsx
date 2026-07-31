@@ -74,7 +74,7 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
   if (playerState.health > 0) return false;
   const hq = GANG_HQ[PLAYER_GANG];
   unboardFollowers(hq.x, hq.z);
-  set(hq.x, 0, hq.z);
+  set(hq.x + 9, 0, hq.z);
   const recent =
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
       ? lastAttacker.userId
