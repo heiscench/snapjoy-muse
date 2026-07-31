@@ -2,7 +2,11 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
-import { playGunshot, playFootstep, startEngine, updateEngine, stopEngine, startHeliEngine, updateHeliEngine, stopHeliEngine } from "./audio";
+import {
+  playGunshot, playFootstep,
+  startEngine, updateEngine, stopEngine,
+  startHeliEngine, updateHeliEngine, stopHeliEngine,
+} from "./audio";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
 import { NPCS, damageNPC } from "./npcState";
@@ -102,9 +106,12 @@ export function Player() {
 
   function ejectToOnFoot(r: CharacterRefs, vel3: THREE.Vector3) {
     const heli = HELICOPTERS[pilotState.heliIndex];
-    stopEngine();
+    stopHeliEngine();
     pilotState.piloting = false;
     unboardFollowers(heli.pos.x, heli.pos.z);
+    // Exit at the helicopter's actual altitude (e.g. a rooftop), not always
+    // ground level — the on-foot gravity code below then respects whatever
+    // rooftop is beneath that spot so you don't sink through it.
     r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, heli.pos.y, heli.pos.z);
     r.root!.visible = true;
     pilotState.heliIndex = -1;
@@ -139,7 +146,6 @@ export function Player() {
       let bestN: { d: number; npc: (typeof NPCS)[number] } | null = null;
       let bestNPos: THREE.Vector3 | null = null;
       for (const n of NPCS) {
-        // Never target your own gang's NPCs/defenders/followers.
         if (n.dead || n.gang === PLAYER_GANG) continue;
         const toN = new THREE.Vector3(n.pos.x, 1, n.pos.z).sub(origin);
         const dist = toN.length();
@@ -152,7 +158,6 @@ export function Player() {
       let bestG: { d: number; g: (typeof GUARDS)[number] } | null = null;
       let bestGPos: THREE.Vector3 | null = null;
       for (const g of GUARDS) {
-        // Guards owned by your own gang are allies now too.
         if (g.dead || g.gang === PLAYER_GANG) continue;
         const toG = new THREE.Vector3(g.pos.x, 1, g.pos.z).sub(origin);
         const dist = toG.length();
@@ -294,7 +299,7 @@ export function Player() {
         pilotState.piloting = true;
         pilotState.heliIndex = pilotState.nearHeliIndex;
         r.root.visible = false;
-        startEngine();
+        startHeliEngine();
         boardNearbyFollowers(r.root.position.x, r.root.position.z);
       }
     } else {
@@ -368,8 +373,6 @@ export function Player() {
           camera.position.lerp(camTarget, Math.min(1, dtc * 6));
           camera.lookAt(c.x, 1, c.z);
 
-          // Fire straight ahead in the direction the car is facing — no
-          // separate aim while driving, matching the fixed-forward approach.
           fireCd.current = Math.max(0, fireCd.current - dtc);
           if (input.fire && fireCd.current === 0) {
             const w = currentWeapon();
@@ -406,7 +409,7 @@ export function Player() {
         const descend = input.run;
         const vTarget = ascend && !descend ? 9 : descend && !ascend ? -7 : -1.0;
         heli.vy = THREE.MathUtils.lerp(heli.vy, vTarget, Math.min(1, dtc * 3));
-        updateEngine(0.4 + Math.min(0.6, (Math.abs(heli.vy) + Math.hypot(heliVel.current.x, heliVel.current.z)) / 20));
+        updateHeliEngine(0.4 + Math.min(0.6, (Math.abs(heli.vy) + Math.hypot(heliVel.current.x, heliVel.current.z)) / 20));
 
         const fwd = new THREE.Vector3(-Math.sin(heli.yaw), 0, -Math.cos(heli.yaw));
         const rightV = new THREE.Vector3(-fwd.z, 0, fwd.x);
@@ -425,10 +428,10 @@ export function Player() {
         heli.pos.x = resolved.x;
         heli.pos.z = resolved.z;
 
-        const floor = rooftopHeightAt(heli.pos.x, heli.pos.z);
-        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, floor, 90);
-        if (heli.pos.y <= floor) {
-          heli.pos.y = floor;
+        const heliFloor = rooftopHeightAt(heli.pos.x, heli.pos.z);
+        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, heliFloor, 90);
+        if (heli.pos.y <= heliFloor) {
+          heli.pos.y = heliFloor;
           heli.vy = Math.max(0, heli.vy);
         }
 
@@ -445,8 +448,6 @@ export function Player() {
         camera.position.lerp(camTarget, Math.min(1, dtc * 6));
         camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
 
-        // Piloting keeps free-look, so shooting from the helicopter aims
-        // wherever the camera is actually pointing, same feel as on foot.
         fireCd.current = Math.max(0, fireCd.current - dtc);
         if (input.fire && fireCd.current === 0) {
           const w = currentWeapon();
@@ -458,7 +459,7 @@ export function Player() {
         }
 
         if (handleDeathAt(heli.pos.x, heli.pos.z, (x, y, z) => {
-          stopEngine();
+          stopHeliEngine();
           pilotState.piloting = false;
           const pad = HELI_PADS[PLAYER_GANG][pilotState.heliIndex % 2];
           heli.pos.set(pad.x, 0, pad.z);
@@ -475,6 +476,7 @@ export function Player() {
       }
     }
 
+    
     // ---- Normal on-foot movement ----
     yaw.current -= lookX * 2.6 * dtc;
     pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
@@ -524,8 +526,12 @@ export function Player() {
     }
 
     p.y += vel.current.y * dtc;
-    if (p.y <= 0) {
-      p.y = 0;
+    // Floor is either the ground or the roof of whatever building is
+    // directly beneath — fixes exiting a helicopter on a rooftop and
+    // sinking straight through it to the ground.
+    const floor = rooftopHeightAt(p.x, p.z);
+    if (p.y <= floor) {
+      p.y = floor;
       vel.current.y = 0;
       grounded.current = true;
     }
