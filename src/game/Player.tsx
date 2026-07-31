@@ -12,7 +12,7 @@ import { isFollowing } from "./squadState";
 import { Weapon } from "./Weapon";
 import {
   resolveCollision, resolveHeliCollision, rooftopHeightAt,
-  nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS,
+  nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS, HELI_PADS,
 } from "./worldData";
 import {
   playerState, damagePlayer, healPlayer, revivePlayer,
@@ -20,7 +20,7 @@ import {
 } from "./playerState";
 import { spawnTracer } from "./tracerState";
 import { throwGrenade } from "./grenadeState";
-import { HELICOPTERS, pilotState, damageHeli } from "./vehicleState";
+import { HELICOPTERS, gangHeliIndices, pilotState, damageHeli } from "./vehicleState";
 import { currentWeapon } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
@@ -44,9 +44,10 @@ const OTHER_OBJECT_RADIUS = 1.3;
 const CAR_HIT_HEIGHT = 1.0;
 const CAR_HIT_TOLERANCE = 0.008;
 const BOARD_RADIUS = 8;
+const WALK_SPEED = 8;
+const RUN_SPEED = 14;
+const AIM_SPEED = 4.5;
 
-/** Any following ally standing near the player when they enter a vehicle
- * "boards" it — hidden and paused until the player gets out again. */
 function boardNearbyFollowers(x: number, z: number) {
   for (const n of NPCS) {
     if (n.dead || n.gang !== PLAYER_GANG || !isFollowing(n.id)) continue;
@@ -54,8 +55,6 @@ function boardNearbyFollowers(x: number, z: number) {
   }
 }
 
-/** Releases boarded followers back into the world, spread around the exit
- * point instead of all stacking on the same spot. */
 function unboardFollowers(x: number, z: number) {
   let slot = 0;
   for (const n of NPCS) {
@@ -68,11 +67,12 @@ function unboardFollowers(x: number, z: number) {
 }
 
 function ejectToOnFoot(r: CharacterRefs, vel: THREE.Vector3) {
+  const heli = HELICOPTERS[pilotState.heliIndex];
   pilotState.piloting = false;
-  const heli = HELICOPTERS[PLAYER_GANG];
   unboardFollowers(heli.pos.x, heli.pos.z);
   r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, heli.pos.y, heli.pos.z);
   r.root!.visible = true;
+  pilotState.heliIndex = -1;
   vel.set(0, 0, 0);
 }
 
@@ -115,9 +115,10 @@ export function Player() {
     const r = refs.current;
     if (!r || !r.root) return;
 
+    // Spawn from wherever the saved profile left off (or the HQ fallback the
+    // profile was created with) — never overrides a loaded position.
     if (!hasSpawned.current) {
-      const hq = GANG_HQ[PLAYER_GANG];
-      r.root.position.set(hq.x + 9, 0, hq.z);
+      r.root.position.set(playerState.pos.x, 0, playerState.pos.z);
       hasSpawned.current = true;
     }
 
@@ -160,8 +161,9 @@ export function Player() {
         r.root.visible = false;
         startEngine();
         boardNearbyFollowers(r.root.position.x, r.root.position.z);
-      } else if (pilotState.nearOwnHeli) {
+      } else if (pilotState.nearHeliIndex >= 0) {
         pilotState.piloting = true;
+        pilotState.heliIndex = pilotState.nearHeliIndex;
         r.root.visible = false;
         boardNearbyFollowers(r.root.position.x, r.root.position.z);
       }
@@ -256,7 +258,7 @@ export function Player() {
     // ---- Piloting a helicopter ----
     if (pilotState.piloting) {
       try {
-        const heli = HELICOPTERS[PLAYER_GANG];
+        const heli = HELICOPTERS[pilotState.heliIndex];
         heli.yaw -= lookX * 1.8 * dtc;
         pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
 
@@ -304,10 +306,14 @@ export function Player() {
 
         if (handleDeathAt(heli.pos.x, heli.pos.z, (x, y, z) => {
           pilotState.piloting = false;
-          heli.pos.set(GANG_HQ[PLAYER_GANG].x, 0, GANG_HQ[PLAYER_GANG].z);
+          const hq = GANG_HQ[PLAYER_GANG];
+          const pad = HELI_PADS[PLAYER_GANG][pilotState.heliIndex % 2];
+          heli.pos.set(pad.x, 0, pad.z);
+          pilotState.heliIndex = -1;
           r.root!.position.set(x, 0, z);
           r.root!.visible = true;
           vel.current.set(0, 0, 0);
+          void hq;
         })) return;
 
         return;
@@ -324,7 +330,7 @@ export function Player() {
     const running = input.run || input.keys.has("ShiftLeft");
     const aiming = input.aim;
     const holding = aiming || input.fire;
-    const speedBase = aiming ? 3.5 : running ? 9 : 5;
+    const speedBase = aiming ? AIM_SPEED : running ? RUN_SPEED : WALK_SPEED;
     const speed = speedBase * mag;
 
     recoil.current = Math.max(0, recoil.current - dtc * RECOIL_DECAY);
@@ -355,8 +361,7 @@ export function Player() {
     p.x = resolved.x;
     p.z = resolved.z;
 
-    for (const gid of [0, 1, 2, 3] as const) {
-      const h = HELICOPTERS[gid];
+    for (const h of HELICOPTERS) {
       if (h.pos.y > 1.5) continue;
       const dx = p.x - h.pos.x, dz = p.z - h.pos.z;
       const d = Math.hypot(dx, dz);
@@ -377,8 +382,15 @@ export function Player() {
     playerState.pos.z = p.z;
     playerState.yaw = yaw.current;
 
-    pilotState.nearOwnHeli =
-      Math.hypot(p.x - HELICOPTERS[PLAYER_GANG].pos.x, p.z - HELICOPTERS[PLAYER_GANG].pos.z) < HELI_ENTER_RADIUS;
+    let bestHeliD = Infinity;
+    let bestHeliI = -1;
+    for (const hi of gangHeliIndices(PLAYER_GANG)) {
+      const h = HELICOPTERS[hi];
+      const d = Math.hypot(p.x - h.pos.x, p.z - h.pos.z);
+      if (d < HELI_ENTER_RADIUS && d < bestHeliD) { bestHeliD = d; bestHeliI = hi; }
+    }
+    pilotState.nearHeliIndex = bestHeliI;
+
     const shop = WEAPON_SHOPS[PLAYER_GANG];
     shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
 
@@ -493,20 +505,19 @@ export function Player() {
             if (dot < w.spread) continue;
             if (!bestG || dist < bestG.d) { bestG = { d: dist, g }; bestGPos = new THREE.Vector3(g.pos.x, 1, g.pos.z); }
           }
-          for (const gid of [0, 1, 2, 3] as const) {
-            const h = HELICOPTERS[gid];
+          for (let hi = 0; hi < HELICOPTERS.length; hi++) {
+            const h = HELICOPTERS[hi];
             if (h.destroyed) continue;
-            const occupied = pilotState.piloting && gid === PLAYER_GANG;
-            if (occupied) continue;
+            if (pilotState.piloting && hi === pilotState.heliIndex) continue;
             const toH = new THREE.Vector3(h.pos.x, h.pos.y + 1.4, h.pos.z).sub(origin);
             const dist = toH.length();
             if (dist > w.range) continue;
             toH.normalize();
             const dot = toH.dot(dir);
             if (dot < w.spread - 0.005) continue;
-            damageHeli(gid, w.damage, false);
+            damageHeli(hi, w.damage, false);
           }
-         
+
           let bestC: { d: number; i: number } | null = null;
           let bestCPos: THREE.Vector3 | null = null;
           for (let ci = 0; ci < CAR_LIVE.length; ci++) {
