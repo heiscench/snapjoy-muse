@@ -69,7 +69,9 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     r.root.visible = true;
 
     const pp = playerState.pos;
-    const hostile = nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DEAGGRO_RANGE, true);
+    const hostile = guard.gang !== null
+  ? nearestHostile(guard.pos.x, guard.pos.z, guard.gang, GUARD_DEAGGRO_RANGE, false)
+  : nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DEAGGRO_RANGE, true);
     const nearestDist = hostile ? hostile.dist : Infinity;
 
     // Aggro timer counts down to zero (it used to be floored at 3, which meant
