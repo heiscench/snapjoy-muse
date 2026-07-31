@@ -2,9 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { BLOCK_SIZE, GRID } from "./worldData";
-import { carPilot } from "./carState";
 import { initCarHealth, carDestroyed, carRespawn, CAR_MAX_HP } from "./vehicleState";
-import { CAR_LIVE, initCarLive } from "./carState";
+import { CAR_LIVE, initCarLive, carPilot } from "./carState";
 import { useFrame } from "@react-three/fiber";
 
 type CarType = "sedan" | "suv" | "sport";
@@ -117,6 +116,28 @@ function CarUnit({ index, car }: { index: number; car: Car }) {
       {car.type === "sedan" && <Sedan color={car.color} />}
       {car.type === "suv" && <SUV color={car.color} />}
       {car.type === "sport" && <Sport color={car.color} />}
+      {carPilot.driving && carPilot.drivingIndex === index && (
+        <>
+          <spotLight
+            position={[-0.5, 0.5, 2.2]}
+            target-position={[-0.5, 0, 12]}
+            angle={0.4}
+            penumbra={0.5}
+            intensity={6}
+            distance={30}
+            color="#fff6d8"
+          />
+          <spotLight
+            position={[0.5, 0.5, 2.2]}
+            target-position={[0.5, 0, 12]}
+            angle={0.4}
+            penumbra={0.5}
+            intensity={6}
+            distance={30}
+            color="#fff6d8"
+          />
+        </>
+      )}
     </group>
   );
 }
