@@ -407,14 +407,11 @@ export function GameScene() {
           {piloting ? "Down" : "Run"}
         </button>
         <button
-          ref={fireRef}
-          disabled={inVehicleNow}
-          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
-            inVehicleNow ? "border-white/10 bg-black/20 opacity-40" : "border-red-400/60 bg-red-600/40 active:bg-red-500/60"
-          }`}
-        >
-          Fire
-        </button>
+  ref={fireRef}
+  className="h-14 w-14 rounded-full border border-red-400/60 bg-red-600/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-red-500/60"
+>
+  Fire
+</button>
       </div>
 
       <div className="pointer-events-none fixed right-4 top-4 z-20 rounded bg-black/50 px-3 py-1 text-[10px] text-white/60 backdrop-blur">
