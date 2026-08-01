@@ -424,7 +424,7 @@ export function Player() {
         const prevX = heli.pos.x, prevZ = heli.pos.z;
         const nx = prevX + heliVel.current.x * dtc;
         const nz = prevZ + heliVel.current.z * dtc;
-        const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, heli.pos.y, 4.5);
+        const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, p.y, 0.6);
         heli.pos.x = resolved.x;
         heli.pos.z = resolved.z;
 
