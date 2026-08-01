@@ -13,7 +13,12 @@ export type BuildingType =
   | "plaza"
   | "silo"
   | "mall"
-  | "hq";
+  | "hq"
+  | "hangar"
+  | "casino"
+  | "pagoda"
+  | "shanty"
+  | "brownstone";
 
 export type District =
   | "downtown"
@@ -22,7 +27,13 @@ export type District =
   | "bank"
   | "shopping"
   | "harbor"
-  | "residential";
+  | "residential"
+  | "airport"
+  | "casino"
+  | "chinatown"
+  | "slums"
+  | "park"
+  | "uptown";
 
 export const ALL_DISTRICTS: District[] = [
   "downtown",
@@ -32,16 +43,27 @@ export const ALL_DISTRICTS: District[] = [
   "shopping",
   "harbor",
   "residential",
+  "airport",
+  "casino",
+  "chinatown",
+  "slums",
+  "park",
+  "uptown",
 ];
 
-// Districts that get unarmed wandering civilians. Industrial + harbor are
-// treated as gang/worker-only turf, so they're left out.
+// Districts that get unarmed wandering civilians. Industrial, harbor, and
+// airport are treated as restricted/worker-only turf, so they're left out.
 export const CIVILIAN_DISTRICTS: District[] = [
   "downtown",
   "stadium",
   "bank",
   "shopping",
   "residential",
+  "casino",
+  "chinatown",
+  "slums",
+  "park",
+  "uptown",
 ];
 
 export type BuildingBox = {
@@ -64,9 +86,18 @@ function rng(seed: number) {
 
 export const BLOCK_SIZE = 64;
 export const ROAD_WIDTH = 20;
-export const GRID = 6;
+export const GRID = 8; // widened from 6 to make room for the outer-ring districts
 
 export function districtFor(gx: number, gz: number): District {
+  // Outer ring — the six newly-wired districts sit beyond the original
+  // 13x13 core (gx, gz in [-6,6]), which keeps its original footprint below.
+  if (gz <= -6 && gx >= 3) return "airport";
+  if (gz <= -6 && gx <= -3) return "casino";
+  if (gx >= 6 && gz >= -2 && gz <= 3) return "uptown";
+  if (gx <= -6 && gz >= -2 && gz <= 3) return "chinatown";
+  if (gz >= 6 && gx <= 0) return "park";
+  if (gz >= 6 && gx > 0) return "slums";
+
   if (gz <= -4) return "harbor";
   if (gx <= -4) return "industrial";
   if (gx >= 4 && gz >= 4) return "stadium";
@@ -104,6 +135,18 @@ function buildingForDistrict(d: District, r: () => number): { type: BuildingType
       return { type: "harbor", w: 20 + r() * 6, depth: 14 + r() * 4, h: 5 + r() * 3 };
     case "residential":
       return { type: "house", w: 9, depth: 9, h: 6 };
+    case "airport":
+      return { type: "hangar", w: 40 + r() * 10, depth: 24 + r() * 6, h: 12 + r() * 4 };
+    case "casino":
+      return { type: "casino", w: 24 + r() * 6, depth: 24 + r() * 6, h: 20 + r() * 10 };
+    case "chinatown":
+      return { type: "pagoda", w: 16 + r() * 4, depth: 16 + r() * 4, h: 14 + r() * 6 };
+    case "slums":
+      return { type: "shanty", w: 10 + r() * 4, depth: 10 + r() * 4, h: 5 + r() * 2 };
+    case "park":
+      return { type: "plaza", w: 26 + r() * 8, depth: 26 + r() * 8, h: 1 };
+    case "uptown":
+      return { type: "brownstone", w: 14 + r() * 4, depth: 14 + r() * 4, h: 16 + r() * 10 };
   }
 }
 
@@ -115,6 +158,12 @@ const HQ_BLOCKS: Record<District, [number, number]> = {
   shopping: [0, 4],
   harbor: [0, -5],
   residential: [-2, 1],
+  airport: [6, -7],
+  casino: [-6, -7],
+  uptown: [7, 1],
+  chinatown: [-7, 1],
+  park: [-3, 7],
+  slums: [3, 7],
 };
 function hqBlockFor(gx: number, gz: number): District | null {
   for (const d of Object.keys(HQ_BLOCKS) as District[]) {
@@ -132,6 +181,12 @@ const HOSPITAL_BLOCKS: Record<District, [number, number]> = {
   shopping: [1, 5],
   harbor: [1, -5],
   residential: [-1, 2],
+  airport: [6, -8],
+  casino: [-6, -8],
+  uptown: [8, 1],
+  chinatown: [-8, 1],
+  park: [-3, 8],
+  slums: [3, 8],
 };
 function isHospitalBlock(gx: number, gz: number) {
   return (Object.values(HOSPITAL_BLOCKS) as [number, number][]).some(([hx, hz]) => hx === gx && hz === gz);
@@ -251,6 +306,12 @@ export const DISTRICT_LABELS: { name: string; district: District; x: number; z: 
   { name: "SHOPPING DISTRICT", district: "shopping", ...hqWorld("shopping") },
   { name: "HARBOR", district: "harbor", ...hqWorld("harbor") },
   { name: "RESIDENTIAL AREA", district: "residential", ...hqWorld("residential") },
+  { name: "AIRPORT", district: "airport", ...hqWorld("airport") },
+  { name: "CASINO DISTRICT", district: "casino", ...hqWorld("casino") },
+  { name: "CHINATOWN", district: "chinatown", ...hqWorld("chinatown") },
+  { name: "THE SLUMS", district: "slums", ...hqWorld("slums") },
+  { name: "CENTRAL PARK", district: "park", ...hqWorld("park") },
+  { name: "UPTOWN", district: "uptown", ...hqWorld("uptown") },
 ];
 
 /** Human-readable label for a district, e.g. "downtown" -> "DOWNTOWN". */
@@ -261,6 +322,12 @@ export function districtLabel(d: District): string {
 export const NEUTRAL_HQS: { district: District; x: number; z: number }[] = [
   { district: "stadium", ...hqWorld("stadium") },
   { district: "bank", ...hqWorld("bank") },
+  { district: "airport", ...hqWorld("airport") },
+  { district: "casino", ...hqWorld("casino") },
+  { district: "chinatown", ...hqWorld("chinatown") },
+  { district: "slums", ...hqWorld("slums") },
+  { district: "park", ...hqWorld("park") },
+  { district: "uptown", ...hqWorld("uptown") },
 ];
 
 export const ROBBABLE_BANKS: { id: number; x: number; z: number }[] = BUILDINGS
