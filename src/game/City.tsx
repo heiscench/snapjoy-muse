@@ -589,23 +589,48 @@ function Pagoda({ b }: { b: BuildingBox }) {
 }
 
 function Shanty({ b }: { b: BuildingBox }) {
+  const lean = (hash01(b.x, b.z, 11) - 0.5) * 0.12;
+  const patch = hash01(b.x, b.z, 12) > 0.5;
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#4a3f30" roughness={1} />
       </mesh>
-      <mesh position={[0, b.h + 0.3, 0]} rotation={[0.08, 0, 0]}>
-        <boxGeometry args={[b.w * 1.1, 0.4, b.d * 1.1]} />
-        <meshStandardMaterial color="#5a5248" metalness={0.5} roughness={0.8} />
+      {/* mismatched plank patches */}
+      {patch && (
+        <mesh position={[b.w * 0.2, b.h * 0.55, b.d / 2 + 0.05]} rotation={[0, 0, 0.15]}>
+          <boxGeometry args={[b.w * 0.4, b.h * 0.3, 0.1]} />
+          <meshStandardMaterial color="#6a5a44" roughness={1} />
+        </mesh>
+      )}
+      <mesh position={[-b.w * 0.28, b.h * 0.3, b.d / 2 + 0.05]}>
+        <boxGeometry args={[b.w * 0.22, b.h * 0.6, 0.08]} />
+        <meshStandardMaterial color="#33291f" roughness={1} />
       </mesh>
-      <mesh position={[0, b.h * 0.4, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.3, b.h * 0.35]} />
-        <meshBasicMaterial color="#ffcf7a" />
+      {/* corrugated tin roof, leaning */}
+      <mesh position={[0, b.h + 0.3, 0]} rotation={[0.1 + lean, 0, lean]}>
+        <boxGeometry args={[b.w * 1.15, 0.28, b.d * 1.15]} />
+        <meshStandardMaterial color="#5a5248" metalness={0.55} roughness={0.8} />
+      </mesh>
+      {/* weight blocks on roof */}
+      <mesh position={[b.w * 0.2, b.h + 0.65, b.d * 0.15]}>
+        <boxGeometry args={[0.5, 0.4, 0.5]} />
+        <meshStandardMaterial color="#3b352c" roughness={1} />
+      </mesh>
+      {/* lean-to prop pole */}
+      <mesh position={[b.w * 0.5, b.h * 0.5, b.d * 0.5]} rotation={[0, 0, 0.18]}>
+        <cylinderGeometry args={[0.08, 0.08, b.h, 5]} />
+        <meshStandardMaterial color="#2e2820" roughness={1} />
+      </mesh>
+      <mesh position={[0, b.h * 0.55, b.d / 2 + 0.03]}>
+        <planeGeometry args={[b.w * 0.26, b.h * 0.26]} />
+        <meshBasicMaterial color="#ffcf7a" toneMapped={false} />
       </mesh>
     </group>
   );
 }
+
 
 function Brownstone({ b }: { b: BuildingBox }) {
   const floors = Math.max(2, Math.floor(b.h / 4));
