@@ -633,26 +633,62 @@ function Shanty({ b }: { b: BuildingBox }) {
 
 
 function Brownstone({ b }: { b: BuildingBox }) {
-  const floors = Math.max(2, Math.floor(b.h / 4));
+  const seed = b.x * 0.53 + b.z * 0.37;
+  const floors = Math.max(2, Math.min(6, Math.floor(b.h / 4)));
+  const stoopSide = hash01(b.x, b.z, 13) > 0.5 ? 1 : -1;
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#5a3a2a" roughness={0.85} />
+        <meshStandardMaterial color="#5a3a2a" roughness={0.88} />
       </mesh>
-      {Array.from({ length: floors }).map((_, i) => (
-        <mesh key={i} position={[0, (i + 0.5) * (b.h / floors), b.d / 2 + 0.02]}>
-          <planeGeometry args={[b.w * 0.8, b.h / floors * 0.55]} />
-          <meshBasicMaterial color="#d6b8ff" transparent opacity={0.55} />
+      {/* stone base course */}
+      <mesh position={[0, 1.1, 0]}>
+        <boxGeometry args={[b.w * 1.03, 2.2, b.d * 1.03]} />
+        <meshStandardMaterial color="#43302a" roughness={0.95} />
+      </mesh>
+      {/* floor string courses */}
+      {Array.from({ length: floors - 1 }).map((_, i) => (
+        <mesh key={i} position={[0, (i + 1) * (b.h / floors), 0]}>
+          <boxGeometry args={[b.w * 1.02, 0.16, b.d * 1.02]} />
+          <meshStandardMaterial color="#3d2a20" roughness={0.9} />
         </mesh>
       ))}
-      <mesh position={[0, 1.4, b.d / 2 + 0.4]}>
-        <boxGeometry args={[b.w * 0.3, 2.8, 0.8]} />
-        <meshStandardMaterial color="#3a2418" />
+      <WindowGrid
+        w={b.w} h={b.h} d={b.d} cols={Math.max(2, Math.floor(b.w / 3.2))} rows={floors}
+        color="#1c1410" litColor="#e6c6ff" seed={seed} marginY={2.6}
+      />
+      {/* cornice */}
+      <mesh position={[0, b.h + 0.3, 0]}>
+        <boxGeometry args={[b.w * 1.1, 0.6, b.d * 1.1]} />
+        <meshStandardMaterial color="#372520" roughness={0.9} />
+      </mesh>
+      {/* fire escape */}
+      {Array.from({ length: floors - 1 }).map((_, i) => (
+        <mesh key={i} position={[-stoopSide * b.w * 0.28, (i + 1) * (b.h / floors) + 0.4, b.d / 2 + 0.5]}>
+          <boxGeometry args={[b.w * 0.32, 0.1, 1]} />
+          <meshStandardMaterial color="#22201f" metalness={0.5} roughness={0.7} />
+        </mesh>
+      ))}
+      {/* stoop + door */}
+      <mesh position={[stoopSide * b.w * 0.18, 1.4, b.d / 2 + 0.35]}>
+        <boxGeometry args={[b.w * 0.28, 2.8, 0.7]} />
+        <meshStandardMaterial color="#2b1a12" roughness={0.75} />
+      </mesh>
+      {[0, 1, 2].map((i) => (
+        <mesh key={i} position={[stoopSide * b.w * 0.18, 0.15 + i * 0.3, b.d / 2 + 1.1 + i * 0.4]}>
+          <boxGeometry args={[b.w * 0.34, 0.3, 0.5]} />
+          <meshStandardMaterial color="#3f2e26" roughness={0.95} />
+        </mesh>
+      ))}
+      <mesh position={[stoopSide * b.w * 0.18, 3.1, b.d / 2 + 0.45]}>
+        <sphereGeometry args={[0.18, 6, 6]} />
+        <meshBasicMaterial color="#ffd9a0" toneMapped={false} />
       </mesh>
     </group>
   );
 }
+
 
 function Headquarters({ b }: { b: BuildingBox }) {
   const bodyMat = useRef<THREE.MeshStandardMaterial>(null!);
