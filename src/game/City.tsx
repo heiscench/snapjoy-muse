@@ -135,7 +135,7 @@ function Tower({ b }: { b: BuildingBox }) {
       {/* parapet + crown */}
       <mesh position={[0, b.h + 0.35, 0]}>
         <boxGeometry args={[b.w * 1.04, 0.7, b.d * 1.04]} />
-        <meshStandardMaterial color="#20263200" color-r={0} roughness={0.9} />
+        <meshStandardMaterial color="#202632" roughness={0.9} />
       </mesh>
       {crown ? (
         <mesh position={[0, b.h + 2.6, 0]}>
