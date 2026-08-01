@@ -159,23 +159,50 @@ function Tower({ b }: { b: BuildingBox }) {
 
 
 function Warehouse({ b }: { b: BuildingBox }) {
+  const seed = b.x * 0.21 + b.z * 0.11;
+  const ribs = Math.max(3, Math.min(7, Math.floor(b.w / 3)));
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
         <meshStandardMaterial color="#2a2820" roughness={0.95} />
       </mesh>
-      <mesh position={[0, b.h * 0.4, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.35, b.h * 0.55]} />
-        <meshBasicMaterial color="#e8a24a" />
+      {/* corrugated ribs */}
+      {Array.from({ length: ribs }).map((_, i) => (
+        <mesh key={i} position={[(i + 0.5) * (b.w / ribs) - b.w / 2, b.h / 2, b.d / 2 + 0.04]}>
+          <boxGeometry args={[0.22, b.h * 0.94, 0.14]} />
+          <meshStandardMaterial color="#3a382c" roughness={0.9} />
+        </mesh>
+      ))}
+      {/* sawtooth roof */}
+      {Array.from({ length: 3 }).map((_, i) => (
+        <mesh key={i} position={[0, b.h + 0.5, (i - 1) * (b.d / 3.2)]} rotation={[0.5, 0, 0]}>
+          <boxGeometry args={[b.w * 0.96, 0.25, b.d / 3.6]} />
+          <meshStandardMaterial color="#413d30" metalness={0.35} roughness={0.75} />
+        </mesh>
+      ))}
+      {/* roll-up cargo door */}
+      <mesh position={[-b.w * 0.18, b.h * 0.3, b.d / 2 + 0.05]}>
+        <boxGeometry args={[b.w * 0.34, b.h * 0.58, 0.12]} />
+        <meshStandardMaterial color="#5a4a26" roughness={0.85} />
       </mesh>
-      <mesh position={[b.w * 0.28, b.h * 0.4, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.2, b.h * 0.55]} />
-        <meshBasicMaterial color="#c68a30" />
+      <mesh position={[-b.w * 0.18, b.h * 0.62, b.d / 2 + 0.12]}>
+        <planeGeometry args={[b.w * 0.34, 0.18]} />
+        <meshBasicMaterial color="#e8a24a" toneMapped={false} />
+      </mesh>
+      <WindowGrid
+        w={b.w} h={b.h} d={b.d} cols={3} rows={1}
+        color="#241f14" litColor="#e8a24a" seed={seed} marginY={b.h * 0.72}
+      />
+      {/* loading dock lip */}
+      <mesh position={[-b.w * 0.18, 0.35, b.d / 2 + 0.7]}>
+        <boxGeometry args={[b.w * 0.4, 0.7, 1.4]} />
+        <meshStandardMaterial color="#1e1c16" roughness={1} />
       </mesh>
     </group>
   );
 }
+
 
 function Silo({ b }: { b: BuildingBox }) {
   return (
