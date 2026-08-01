@@ -51,6 +51,7 @@ const BOARD_RADIUS = 8;
 const WALK_SPEED = 8;
 const RUN_SPEED = 14;
 const AIM_SPEED = 4.5;
+const RESPAWN_OFFSET = 14; // clears the 16-wide HQ building with real margin
 
 function boardNearbyFollowers(x: number, z: number) {
   for (const n of NPCS) {
@@ -74,7 +75,7 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
   if (playerState.health > 0) return false;
   const hq = GANG_HQ[PLAYER_GANG];
   unboardFollowers(hq.x, hq.z);
-  set(hq.x + 9, 0, hq.z);
+  set(hq.x + RESPAWN_OFFSET, 0, hq.z);
   const recent =
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
       ? lastAttacker.userId
@@ -109,18 +110,12 @@ export function Player() {
     stopHeliEngine();
     pilotState.piloting = false;
     unboardFollowers(heli.pos.x, heli.pos.z);
-    // Exit at the helicopter's actual altitude (e.g. a rooftop), not always
-    // ground level — the on-foot gravity code below then respects whatever
-    // rooftop is beneath that spot so you don't sink through it.
     r.root!.position.set(heli.pos.x + HELI_EXIT_OFFSET, heli.pos.y, heli.pos.z);
     r.root!.visible = true;
     pilotState.heliIndex = -1;
     vel3.set(0, 0, 0);
   }
 
-  // Shared by on-foot, driving, and flying fire — one weapon-resolution path
-  // so vehicle shooting behaves exactly like on-foot shooting (same target
-  // priority, same friendly-fire rules, same splash logic).
   function fireWeapon(origin: THREE.Vector3, forwardV: THREE.Vector3) {
     const w = currentWeapon();
 
@@ -424,7 +419,7 @@ export function Player() {
         const prevX = heli.pos.x, prevZ = heli.pos.z;
         const nx = prevX + heliVel.current.x * dtc;
         const nz = prevZ + heliVel.current.z * dtc;
-        const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, p.y, 0.6);
+        const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, heli.pos.y, 4.5);
         heli.pos.x = resolved.x;
         heli.pos.z = resolved.z;
 
@@ -511,7 +506,11 @@ export function Player() {
     const prevX = p.x, prevZ = p.z;
     const nx = p.x + vel.current.x * dtc;
     const nz = p.z + vel.current.z * dtc;
-    const resolved = resolveCollision(prevX, prevZ, nx, nz, 0.6);
+    // Height-aware collision — a player standing on top of a building no
+    // longer treats that same building's footprint as a wall blocking every
+    // direction. Below any building's roof this behaves identically to
+    // plain ground-level collision.
+    const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, p.y, 0.6);
     p.x = resolved.x;
     p.z = resolved.z;
 
@@ -526,9 +525,6 @@ export function Player() {
     }
 
     p.y += vel.current.y * dtc;
-    // Floor is either the ground or the roof of whatever building is
-    // directly beneath — fixes exiting a helicopter on a rooftop and
-    // sinking straight through it to the ground.
     const floor = rooftopHeightAt(p.x, p.z);
     if (p.y <= floor) {
       p.y = floor;
