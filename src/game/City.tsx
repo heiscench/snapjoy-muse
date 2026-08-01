@@ -22,6 +22,89 @@ const DISTRICT_ACCENT: Record<string, string> = {
   uptown: "#d6b8ff",
 };
 
+/** Deterministic 0..1 hash from world position so detail is stable per building. */
+function hash01(x: number, z: number, salt = 0) {
+  const v = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+const WINDOW_PLANE = new THREE.PlaneGeometry(1, 1);
+
+/**
+ * One InstancedMesh of window quads across the four facades of a box.
+ * Purely decorative: never affects footprint or collision. 1 draw call per building.
+ */
+function WindowGrid({
+  w, h, d, cols, rows, color, litColor, seed, marginY = 0.5, opacity = 1,
+}: {
+  w: number; h: number; d: number; cols: number; rows: number;
+  color: string; litColor: string; seed: number; marginY?: number; opacity?: number;
+}) {
+  const ref = useRef<THREE.InstancedMesh>(null!);
+  const count = cols * rows * 4;
+
+  const { matrices, colors } = useMemo(() => {
+    const m: THREE.Matrix4[] = [];
+    const c: THREE.Color[] = [];
+    const dark = new THREE.Color(color);
+    const lit = new THREE.Color(litColor);
+    const usableH = h - marginY * 2;
+    const cellH = usableH / rows;
+    const paneH = Math.min(cellH * 0.6, 1.2);
+    const dummy = new THREE.Object3D();
+
+    const faces = [
+      { nx: 0, nz: 1, rot: 0, span: w },
+      { nx: 0, nz: -1, rot: Math.PI, span: w },
+      { nx: 1, nz: 0, rot: Math.PI / 2, span: d },
+      { nx: -1, nz: 0, rot: -Math.PI / 2, span: d },
+    ];
+
+    faces.forEach((f, fi) => {
+      const cellW = (f.span * 0.86) / cols;
+      const paneW = Math.min(cellW * 0.6, 1.1);
+      for (let r = 0; r < rows; r++) {
+        for (let ci = 0; ci < cols; ci++) {
+          const along = (ci + 0.5) * cellW - (f.span * 0.86) / 2;
+          const y = marginY + (r + 0.5) * cellH;
+          const off = (f.nz !== 0 ? d : w) / 2 + 0.03;
+          dummy.position.set(
+            f.nx !== 0 ? f.nx * off : along,
+            y,
+            f.nz !== 0 ? f.nz * off : along,
+          );
+          dummy.rotation.set(0, f.rot, 0);
+          dummy.scale.set(paneW, paneH, 1);
+          dummy.updateMatrix();
+          m.push(dummy.matrix.clone());
+          c.push(hash01(along + fi * 3.1, y + seed, seed) > 0.42 ? lit : dark);
+        }
+      }
+    });
+    return { matrices: m, colors: c };
+  }, [w, h, d, cols, rows, color, litColor, seed, marginY]);
+
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    matrices.forEach((mat, i) => mesh.setMatrixAt(i, mat));
+    colors.forEach((col, i) => mesh.setColorAt(i, col));
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [matrices, colors]);
+
+  return (
+    <instancedMesh ref={ref} args={[WINDOW_PLANE, undefined, count]} frustumCulled>
+      <meshBasicMaterial
+        toneMapped={false}
+        side={THREE.DoubleSide}
+        transparent={opacity < 1}
+        opacity={opacity}
+      />
+    </instancedMesh>
+  );
+}
+
 function Tower({ b }: { b: BuildingBox }) {
   const bands = Math.max(3, Math.floor(b.h / 5));
   return (
