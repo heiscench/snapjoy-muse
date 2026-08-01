@@ -380,28 +380,124 @@ function Hospital({ b }: { b: BuildingBox }) {
   );
 }
 
+const HOUSE_WALLS = ["#5a4838", "#6a5340", "#4e4a3c", "#67483a", "#544b44"];
+const HOUSE_ROOFS = ["#2a1f18", "#33231c", "#242630", "#3a2418"];
+const HOUSE_DOORS = ["#2a1810", "#1d2a30", "#3a1c1c", "#243020"];
+
 function House({ b }: { b: BuildingBox }) {
+  const seed = b.x * 0.41 + b.z * 0.23;
+  const wall = HOUSE_WALLS[Math.floor(hash01(b.x, b.z, 3) * 5) % 5];
+  const roof = HOUSE_ROOFS[Math.floor(hash01(b.x, b.z, 4) * 4) % 4];
+  const door = HOUSE_DOORS[Math.floor(hash01(b.x, b.z, 6) * 4) % 4];
+  const gableRoof = hash01(b.x, b.z, 7) > 0.45;
+  const hasChimney = hash01(b.x, b.z, 8) > 0.4;
+  const hasPorch = hash01(b.x, b.z, 9) > 0.5;
+  const floors = Math.max(1, Math.min(2, Math.floor(b.h / 4)));
+  const doorW = b.w * 0.2;
+  const doorH = Math.min(b.h * 0.42, 2.6);
+
   return (
     <group position={[b.x, 0, b.z]}>
+      {/* foundation plinth */}
+      <mesh position={[0, 0.25, 0]}>
+        <boxGeometry args={[b.w * 1.04, 0.5, b.d * 1.04]} />
+        <meshStandardMaterial color="#33302b" roughness={1} />
+      </mesh>
+      {/* body */}
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#5a4838" roughness={0.9} />
+        <meshStandardMaterial color={wall} roughness={0.92} />
       </mesh>
-      <mesh position={[0, b.h + 0.9, 0]} rotation={[0, Math.PI / 4, 0]}>
-        <coneGeometry args={[b.w * 0.75, 1.8, 4]} />
-        <meshStandardMaterial color="#2a1f18" roughness={0.85} />
+      {/* corner trim boards */}
+      {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz], i) => (
+        <mesh key={i} position={[sx * (b.w / 2 - 0.12), b.h / 2, sz * (b.d / 2 - 0.12)]}>
+          <boxGeometry args={[0.26, b.h, 0.26]} />
+          <meshStandardMaterial color={roof} roughness={0.9} />
+        </mesh>
+      ))}
+      {/* mid-floor belt trim */}
+      {floors > 1 && (
+        <mesh position={[0, b.h * 0.5, 0]}>
+          <boxGeometry args={[b.w * 1.02, 0.18, b.d * 1.02]} />
+          <meshStandardMaterial color={roof} roughness={0.9} />
+        </mesh>
+      )}
+      {/* windows */}
+      <WindowGrid
+        w={b.w} h={b.h} d={b.d} cols={2} rows={floors}
+        color="#1a1410" litColor="#ffcf7a" seed={seed} marginY={Math.min(1.4, b.h * 0.2)}
+      />
+      {/* roof: gable or hip */}
+      {gableRoof ? (
+        <group position={[0, b.h, 0]}>
+          {[-1, 1].map((s) => (
+            <mesh key={s} position={[0, 0.85, s * b.d * 0.26]} rotation={[s * -0.72, 0, 0]}>
+              <boxGeometry args={[b.w * 1.14, 0.22, b.d * 0.72]} />
+              <meshStandardMaterial color={roof} roughness={0.88} />
+            </mesh>
+          ))}
+          {/* ridge beam */}
+          <mesh position={[0, 1.7, 0]}>
+            <boxGeometry args={[b.w * 1.16, 0.2, 0.28]} />
+            <meshStandardMaterial color="#1b140f" roughness={0.9} />
+          </mesh>
+        </group>
+      ) : (
+        <mesh position={[0, b.h + 0.9, 0]} rotation={[0, Math.PI / 4, 0]}>
+          <coneGeometry args={[b.w * 0.78, 1.9, 4]} />
+          <meshStandardMaterial color={roof} roughness={0.88} />
+        </mesh>
+      )}
+      {/* eaves overhang */}
+      <mesh position={[0, b.h + 0.08, 0]}>
+        <boxGeometry args={[b.w * 1.12, 0.16, b.d * 1.12]} />
+        <meshStandardMaterial color={roof} roughness={0.9} />
       </mesh>
-      <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.35, b.h * 0.3]} />
-        <meshBasicMaterial color="#ffcf7a" />
+      {hasChimney && (
+        <mesh position={[b.w * 0.28, b.h + 1.5, -b.d * 0.2]}>
+          <boxGeometry args={[0.7, 2.2, 0.7]} />
+          <meshStandardMaterial color="#3a2c24" roughness={1} />
+        </mesh>
+      )}
+      {/* door with frame + step + lamp */}
+      <mesh position={[0, doorH / 2 + 0.5, b.d / 2 + 0.06]}>
+        <boxGeometry args={[doorW + 0.22, doorH + 0.22, 0.1]} />
+        <meshStandardMaterial color={roof} roughness={0.85} />
       </mesh>
-      <mesh position={[0, b.h * 0.22, b.d / 2 + 0.03]}>
-        <planeGeometry args={[b.w * 0.22, b.h * 0.44]} />
-        <meshBasicMaterial color="#2a1810" />
+      <mesh position={[0, doorH / 2 + 0.5, b.d / 2 + 0.13]}>
+        <boxGeometry args={[doorW, doorH, 0.08]} />
+        <meshStandardMaterial color={door} roughness={0.7} />
       </mesh>
+      <mesh position={[doorW * 0.3, doorH * 0.55, b.d / 2 + 0.2]}>
+        <sphereGeometry args={[0.07, 6, 6]} />
+        <meshStandardMaterial color="#c9a24a" metalness={0.7} roughness={0.35} />
+      </mesh>
+      <mesh position={[doorW * 0.9, doorH + 0.5, b.d / 2 + 0.16]}>
+        <sphereGeometry args={[0.16, 6, 6]} />
+        <meshBasicMaterial color="#ffd9a0" toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0.55, b.d / 2 + 0.6]}>
+        <boxGeometry args={[doorW + 0.8, 0.2, 1]} />
+        <meshStandardMaterial color="#3b3833" roughness={1} />
+      </mesh>
+      {hasPorch && (
+        <group>
+          <mesh position={[0, doorH + 1.0, b.d / 2 + 0.9]}>
+            <boxGeometry args={[b.w * 0.62, 0.16, 1.9]} />
+            <meshStandardMaterial color={roof} roughness={0.9} />
+          </mesh>
+          {[-1, 1].map((s) => (
+            <mesh key={s} position={[s * b.w * 0.26, (doorH + 1) / 2, b.d / 2 + 1.7]}>
+              <cylinderGeometry args={[0.1, 0.1, doorH + 1, 6]} />
+              <meshStandardMaterial color={wall} roughness={0.9} />
+            </mesh>
+          ))}
+        </group>
+      )}
     </group>
   );
 }
+
 
 function Plaza({ b }: { b: BuildingBox }) {
   return (
