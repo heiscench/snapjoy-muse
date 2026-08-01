@@ -46,8 +46,7 @@ export async function createProfile(
       user_id: userId,
       username,
       gang,
-      last_position_x: hq.x + 9,
-      last_position_z: hq.z,
+      last_position_x: hq.x + 14, last_position_z: hq.z,
     })
     .select("*")
     .single();
