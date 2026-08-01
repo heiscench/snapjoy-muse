@@ -19,6 +19,8 @@ const PROPS: Record<WeaponId, Proportions> = {
   rifle:   { bodyColor: "#2a2418", barrelColor: "#3a3020", bodySize: [0.11, 0.17, 0.75], barrelSize: [0.06, 0.06, 0.42], barrelZ: 0.70, muzzleZ: 0.94 },
   shotgun: { bodyColor: "#3a1e14", barrelColor: "#141414", bodySize: [0.12, 0.18, 0.65], barrelSize: [0.09, 0.09, 0.40], barrelZ: 0.62, muzzleZ: 0.86 },
   sniper:  { bodyColor: "#181820", barrelColor: "#0a0a10", bodySize: [0.10, 0.16, 0.95], barrelSize: [0.05, 0.05, 0.60], barrelZ: 0.85, muzzleZ: 1.20 },
+  grenade: { bodyColor: "#2f3a24", barrelColor: "#3d4a2e", bodySize: [0.14, 0.16, 0.16], barrelSize: [0.05, 0.05, 0.06], barrelZ: 0.10, muzzleZ: 0.18 },
+  tank:    { bodyColor: "#2a2f26", barrelColor: "#1a1f18", bodySize: [0.16, 0.18, 0.70], barrelSize: [0.10, 0.10, 0.55], barrelZ: 0.68, muzzleZ: 1.00 },
 };
 
 export function Weapon() {
