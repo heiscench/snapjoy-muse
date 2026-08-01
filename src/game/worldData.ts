@@ -24,6 +24,26 @@ export type District =
   | "harbor"
   | "residential";
 
+export const ALL_DISTRICTS: District[] = [
+  "downtown",
+  "industrial",
+  "stadium",
+  "bank",
+  "shopping",
+  "harbor",
+  "residential",
+];
+
+// Districts that get unarmed wandering civilians. Industrial + harbor are
+// treated as gang/worker-only turf, so they're left out.
+export const CIVILIAN_DISTRICTS: District[] = [
+  "downtown",
+  "stadium",
+  "bank",
+  "shopping",
+  "residential",
+];
+
 export type BuildingBox = {
   x: number;
   z: number;
@@ -204,6 +224,11 @@ function hqWorld(d: District): { x: number; z: number } {
   return { x: gx * BLOCK_SIZE, z: gz * BLOCK_SIZE };
 }
 
+/** Public HQ-coordinate lookup for any district (not just the 4 gang HQs). */
+export function districtHQ(d: District): { x: number; z: number } {
+  return hqWorld(d);
+}
+
 export const GANG_HQ: Record<0 | 1 | 2 | 3, { x: number; z: number }> = {
   0: hqWorld("downtown"),
   1: hqWorld("industrial"),
@@ -227,6 +252,11 @@ export const DISTRICT_LABELS: { name: string; district: District; x: number; z: 
   { name: "HARBOR", district: "harbor", ...hqWorld("harbor") },
   { name: "RESIDENTIAL AREA", district: "residential", ...hqWorld("residential") },
 ];
+
+/** Human-readable label for a district, e.g. "downtown" -> "DOWNTOWN". */
+export function districtLabel(d: District): string {
+  return DISTRICT_LABELS.find((l) => l.district === d)?.name ?? d.toUpperCase();
+}
 
 export const NEUTRAL_HQS: { district: District; x: number; z: number }[] = [
   { district: "stadium", ...hqWorld("stadium") },
