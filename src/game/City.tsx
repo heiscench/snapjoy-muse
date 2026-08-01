@@ -244,20 +244,54 @@ function Bank({ b }: { b: BuildingBox }) {
   );
 }
 
+const LOWRISE_FACADES = ["#231a2a", "#2a1c22", "#1e1e2c", "#2c2130"];
+const LOWRISE_AWNINGS = ["#ff9ad6", "#6adfff", "#ffd66a", "#7cff9a"];
+
 function LowRise({ b }: { b: BuildingBox }) {
+  const seed = b.x * 0.31 + b.z * 0.17;
+  const pick = Math.floor(hash01(b.x, b.z, 2) * 4) % 4;
+  const rows = Math.max(1, Math.min(4, Math.floor(b.h / 4) - 1));
+  const awning = LOWRISE_AWNINGS[Math.floor(hash01(b.x, b.z, 5) * 4) % 4];
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#231a2a" emissive="#ff9ad6" emissiveIntensity={0.35} roughness={0.85} />
+        <meshStandardMaterial color={LOWRISE_FACADES[pick]} roughness={0.85} />
       </mesh>
-      <mesh position={[0, 1.5, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.9, 2.4]} />
-        <meshBasicMaterial color="#ffe4a3" />
+      {/* shopfront glazing */}
+      <mesh position={[0, 1.6, b.d / 2 + 0.04]}>
+        <planeGeometry args={[b.w * 0.9, 2.6]} />
+        <meshBasicMaterial color="#ffe4a3" toneMapped={false} />
+      </mesh>
+      {/* awning */}
+      <mesh position={[0, 3.2, b.d / 2 + 0.5]} rotation={[-0.42, 0, 0]}>
+        <boxGeometry args={[b.w * 0.94, 0.12, 1.5]} />
+        <meshStandardMaterial color={awning} emissive={awning} emissiveIntensity={0.35} roughness={0.6} />
+      </mesh>
+      {/* neon sign bar */}
+      <mesh position={[0, 4.6, b.d / 2 + 0.06]}>
+        <boxGeometry args={[b.w * 0.5, 0.5, 0.12]} />
+        <meshBasicMaterial color={awning} toneMapped={false} />
+      </mesh>
+      {rows > 0 && (
+        <WindowGrid
+          w={b.w} h={b.h} d={b.d} cols={Math.max(2, Math.floor(b.w / 3))} rows={rows}
+          color="#151122" litColor="#ffd9a3" seed={seed} marginY={5.4}
+        />
+      )}
+      {/* cornice + rooftop AC */}
+      <mesh position={[0, b.h + 0.2, 0]}>
+        <boxGeometry args={[b.w * 1.05, 0.4, b.d * 1.05]} />
+        <meshStandardMaterial color="#191622" roughness={0.9} />
+      </mesh>
+      <mesh position={[b.w * 0.2, b.h + 0.9, -b.d * 0.15]}>
+        <boxGeometry args={[1.4, 1, 1.2]} />
+        <meshStandardMaterial color="#2e2b36" roughness={0.85} />
       </mesh>
     </group>
   );
 }
+
 
 function Mall({ b }: { b: BuildingBox }) {
   return (
