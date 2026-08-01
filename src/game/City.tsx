@@ -106,22 +106,57 @@ function WindowGrid({
 }
 
 function Tower({ b }: { b: BuildingBox }) {
-  const bands = Math.max(3, Math.floor(b.h / 5));
+  const seed = b.x * 0.13 + b.z * 0.29;
+  const rows = Math.max(4, Math.min(14, Math.floor(b.h / 4)));
+  const cols = Math.max(2, Math.min(6, Math.floor(b.w / 3)));
+  const crown = hash01(b.x, b.z, 1) > 0.5;
   return (
     <group position={[b.x, 0, b.z]}>
+      {/* podium base */}
+      <mesh position={[0, 1, 0]}>
+        <boxGeometry args={[b.w * 1.06, 2, b.d * 1.06]} />
+        <meshStandardMaterial color="#141822" roughness={0.95} />
+      </mesh>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#1a1f2b" emissive="#6ab0ff" emissiveIntensity={0.35} roughness={0.9} />
+        <meshStandardMaterial color="#1a1f2b" roughness={0.85} metalness={0.15} />
       </mesh>
-      {Array.from({ length: bands }).map((_, i) => (
-        <mesh key={i} position={[0, (i + 0.5) * (b.h / bands), b.d / 2 + 0.02]}>
-          <planeGeometry args={[b.w * 0.9, 0.15]} />
-          <meshBasicMaterial color="#e8c96a" />
+      {/* vertical mullions */}
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * (b.w / 2 - 0.3), b.h / 2, b.d / 2 + 0.05]}>
+          <boxGeometry args={[0.35, b.h * 0.96, 0.2]} />
+          <meshStandardMaterial color="#2c3444" roughness={0.7} />
         </mesh>
       ))}
+      <WindowGrid
+        w={b.w} h={b.h} d={b.d} cols={cols} rows={rows}
+        color="#0e1622" litColor="#9fd0ff" seed={seed} marginY={2.4}
+      />
+      {/* parapet + crown */}
+      <mesh position={[0, b.h + 0.35, 0]}>
+        <boxGeometry args={[b.w * 1.04, 0.7, b.d * 1.04]} />
+        <meshStandardMaterial color="#20263200" color-r={0} roughness={0.9} />
+      </mesh>
+      {crown ? (
+        <mesh position={[0, b.h + 2.6, 0]}>
+          <cylinderGeometry args={[0.14, 0.14, 4, 6]} />
+          <meshStandardMaterial color="#2a3040" />
+        </mesh>
+      ) : (
+        <mesh position={[0, b.h + 1.4, 0]}>
+          <boxGeometry args={[b.w * 0.4, 1.4, b.d * 0.4]} />
+          <meshStandardMaterial color="#202632" roughness={0.9} />
+        </mesh>
+      )}
+      {/* aviation light */}
+      <mesh position={[0, b.h + (crown ? 4.7 : 2.3), 0]}>
+        <sphereGeometry args={[0.22, 6, 6]} />
+        <meshBasicMaterial color="#ff4a4a" toneMapped={false} />
+      </mesh>
     </group>
   );
 }
+
 
 function Warehouse({ b }: { b: BuildingBox }) {
   return (
