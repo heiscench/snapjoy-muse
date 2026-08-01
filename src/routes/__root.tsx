@@ -77,21 +77,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "war gang" },
-      { name: "description", content: "dominate district s" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Gang Wars — 3D Turf Warfare" },
+      {
+        name: "description",
+        content: "Mobile-first 3D multiplayer turf war. Pick a gang, capture districts, defend your city.",
+      },
+      { name: "author", content: "Gang Wars" },
+      { property: "og:title", content: "Gang Wars — 3D Turf Warfare" },
+      {
+        property: "og:description",
+        content: "Mobile-first 3D multiplayer turf war set in a neon-lit night city.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", ", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,
