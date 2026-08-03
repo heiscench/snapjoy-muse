@@ -7,7 +7,7 @@ import { authState } from "./authState";
 import { WEAPONS, WEAPON_ORDER, weaponState, magAmmo, selectWeapon } from "./weaponState";
 import { PERSONAL_VEHICLES, PERSONAL_ORDER, personalVehicleState } from "./personalVehicleState";
 import { territoryState } from "./territoryState";
-import { districtLabel } from "./worldData";
+import { districtLabel, type District } from "./worldData";
 
 const POLL_MS = 250;
 
@@ -26,7 +26,7 @@ export function StatsPanel() {
   const garage = PERSONAL_ORDER.filter((id) => personalVehicleState.owned.has(id));
   const held = Object.entries(territoryState.owners)
     .filter(([, o]) => o === PLAYER_GANG)
-    .map(([d]) => districtLabel(d as never));
+    .map(([d]) => districtLabel(d as District));
 
   return (
     <>
@@ -45,7 +45,7 @@ export function StatsPanel() {
         >
           <div className="mb-3">
             <div className="text-[10px] uppercase tracking-widest text-white/50">Operative</div>
-            <div className="text-lg font-black text-white">{authState.username ?? "Unregistered"}</div>
+            <div className="text-lg font-black text-white">{authState.username || "Unregistered"}</div>
             <div className="text-xs font-bold" style={{ color: gang.accent }}>{gang.name}</div>
           </div>
 

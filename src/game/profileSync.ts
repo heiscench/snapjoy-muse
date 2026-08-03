@@ -8,6 +8,7 @@ import { playerState } from "./playerState";
 import { weaponState, WEAPON_ORDER, type WeaponId } from "./weaponState";
 import { authState } from "./authState";
 import { GANG_HQ } from "./worldData";
+import { personalVehicleState, setOwnedPersonalVehicles } from "./personalVehicleState";
 
 export type ProfileRow = {
   user_id: string;
@@ -16,6 +17,7 @@ export type ProfileRow = {
   money: number;
   reputation: number;
   owned_weapons: string[];
+  owned_vehicles: string[];
   equipped_weapon: string;
   last_position_x: number;
   last_position_z: number;
@@ -72,6 +74,8 @@ export function applyProfileToGameState(row: ProfileRow) {
   );
   if (!weaponState.owned.has("pistol")) weaponState.owned.add("pistol");
 
+  setOwnedPersonalVehicles(row.owned_vehicles ?? []);
+
   const eq = row.equipped_weapon as WeaponId;
   weaponState.current = weaponState.owned.has(eq) ? eq : "pistol";
 }
@@ -83,6 +87,7 @@ export async function syncProfileToServer(): Promise<void> {
     money: Math.floor(playerState.money),
     reputation: Math.floor(playerState.reputation),
     owned_weapons: Array.from(weaponState.owned),
+    owned_vehicles: Array.from(personalVehicleState.owned),
     equipped_weapon: weaponState.current,
     last_position_x: playerState.pos.x,
     last_position_z: playerState.pos.z,
