@@ -354,7 +354,7 @@ export function GameScene() {
       <WeaponShop />
       <SquadPrompt />
       <StatsPanel />
-      {!inVehicleMode && <AmmoHud />}
+      <AmmoHud />
 
       {error && (
         <button
