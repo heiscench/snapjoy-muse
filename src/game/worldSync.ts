@@ -63,7 +63,18 @@ function applyBankRow(row: BankRow) {
   applyRemoteBankGuards(row.bank_id, toMs(row.guards_respawn_at));
 }
 
-export async function startWorldSync() {
+// Set synchronously so a second call during the awaited initial fetch (React
+// StrictMode double-mounts in dev) can't build a second channel with the same
+// name — Supabase would reuse the already-subscribed one and throw when we
+// attach postgres_changes handlers to it.
+let startPromise: Promise<void> | null = null;
+
+export function startWorldSync(): Promise<void> {
+  if (!startPromise) startPromise = openWorldSync();
+  return startPromise;
+}
+
+async function openWorldSync() {
   if (channel) return;
 
   const [{ data: terr }, { data: banks }] = await Promise.all([
@@ -72,6 +83,12 @@ export async function startWorldSync() {
   ]);
   for (const row of (terr ?? []) as TerritoryRow[]) applyTerritoryRow(row);
   for (const row of (banks ?? []) as BankRow[]) applyBankRow(row);
+
+  // Drop any stale channel with the same topic (dev double-mount) before
+  // building a fresh one — attaching handlers to a subscribed channel throws.
+  for (const ch of supabase.getChannels()) {
+    if (ch.topic === `realtime:${TERRITORY_CHANNEL}`) supabase.removeChannel(ch);
+  }
 
   channel = supabase
     .channel(TERRITORY_CHANNEL)
@@ -147,6 +164,7 @@ export async function startWorldSync() {
 }
 
 export function stopWorldSync() {
+  startPromise = null;
   if (channel) {
     supabase.removeChannel(channel);
     channel = null;

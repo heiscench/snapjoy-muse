@@ -2,9 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { BLOCK_SIZE, GRID } from "./worldData";
-import { initCarHealth, carDestroyed, carRespawn, CAR_MAX_HP } from "./vehicleState";
+import { initCarHealth, carDestroyed, carRespawn } from "./vehicleState";
 import { CAR_LIVE, initCarLive, carPilot } from "./carState";
 import { useFrame } from "@react-three/fiber";
+import {
+  ownedPersonalVehicles,
+  personalParkSpot,
+  personalVehicleState,
+  type PersonalVehicleId,
+} from "./personalVehicleState";
 
 type CarType = "sedan" | "suv" | "sport";
 
@@ -14,7 +20,11 @@ type Car = {
   z: number;
   rotY: number;
   color: string;
+  /** Set for player-owned personal vehicles — these respawn at HQ. */
+  personalId?: PersonalVehicleId;
 };
+
+const PERSONAL_POLL_MS = 400;
 
 const CAR_SCALE = 1.6;
 
@@ -116,6 +126,12 @@ function CarUnit({ index, car }: { index: number; car: Car }) {
       {car.type === "sedan" && <Sedan color={car.color} />}
       {car.type === "suv" && <SUV color={car.color} />}
       {car.type === "sport" && <Sport color={car.color} />}
+      {car.personalId && (
+        <mesh position={[0, 1.9, 0]}>
+          <coneGeometry args={[0.16, 0.32, 4]} />
+          <meshBasicMaterial color="#ffd66a" toneMapped={false} />
+        </mesh>
+      )}
       {carPilot.driving && carPilot.drivingIndex === index && (
         <>
           <spotLight
@@ -143,6 +159,18 @@ function CarUnit({ index, car }: { index: number; car: Car }) {
 }
 
 export function Vehicles({ count = 22 }: { count?: number }) {
+  // Owning a car changes the roster, so poll the shared version counter and
+  // rebuild only when it actually changes.
+  const [garageVersion, setGarageVersion] = useState(personalVehicleState.version);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (personalVehicleState.version !== garageVersion) {
+        setGarageVersion(personalVehicleState.version);
+      }
+    }, PERSONAL_POLL_MS);
+    return () => clearInterval(id);
+  }, [garageVersion]);
+
   const cars = useMemo<Car[]>(() => {
     const r = rng(20260726);
     const list: Car[] = [];
@@ -162,8 +190,14 @@ export function Vehicles({ count = 22 }: { count?: number }) {
       else color = GANGS[Math.floor(r() * 4)].color;
       list.push({ type, x, z, rotY, color });
     }
+    // Personal vehicles live in the same array, so all existing driving,
+    // collision, damage and destruction logic applies to them unchanged.
+    for (const v of ownedPersonalVehicles()) {
+      const spot = personalParkSpot(v.id);
+      list.push({ type: v.body, x: spot.x, z: spot.z, rotY: spot.rotY, color: v.color, personalId: v.id });
+    }
     return list;
-  }, [count]);
+  }, [count, garageVersion]);
 
   useEffect(() => {
     initCarHealth(cars.length);
@@ -178,6 +212,13 @@ export function Vehicles({ count = 22 }: { count?: number }) {
         carRespawn[i] -= dt;
         if (carRespawn[i] <= 0) {
           carDestroyed[i] = false;
+          const personal = cars[i]?.personalId;
+          if (personal) {
+            // Your own car always comes back to the HQ parking pad.
+            const spot = personalParkSpot(personal);
+            const live = CAR_LIVE[i];
+            if (live) { live.x = spot.x; live.z = spot.z; live.rotY = spot.rotY; live.speed = 0; }
+          }
           changed = true;
         }
       }
@@ -191,5 +232,3 @@ export function Vehicles({ count = 22 }: { count?: number }) {
     </group>
   );
 }
-
-void CAR_MAX_HP;

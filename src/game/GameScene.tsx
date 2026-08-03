@@ -17,6 +17,8 @@ import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
 import { WeaponShop } from "./WeaponShop";
 import { SquadPrompt } from "./SquadPrompt";
+import { AmmoHud } from "./AmmoHud";
+import { StatsPanel } from "./StatsPanel";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input } from "./input";
 import { playerState } from "./playerState";
@@ -351,6 +353,8 @@ export function GameScene() {
       <Minimap />
       <WeaponShop />
       <SquadPrompt />
+      <StatsPanel />
+      <AmmoHud />
 
       {error && (
         <button

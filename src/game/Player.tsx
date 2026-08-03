@@ -5,6 +5,7 @@ import { Character, type CharacterRefs } from "./Character";
 import {
   playGunshot, playFootstep,
   startEngine, updateEngine, stopEngine,
+  startRadio, stopRadio,
   startHeliEngine, updateHeliEngine, stopHeliEngine,
 } from "./audio";
 import { GANGS, PLAYER_GANG } from "./gangs";
@@ -25,7 +26,7 @@ import {
 import { spawnTracer } from "./tracerState";
 import { throwGrenade } from "./grenadeState";
 import { HELICOPTERS, gangHeliIndices, pilotState, damageHeli } from "./vehicleState";
-import { currentWeapon } from "./weaponState";
+import { canFire, consumeAmmo, currentWeapon, startReload, tickReload } from "./weaponState";
 import { tickTerritory, onPlayerKill } from "./territoryState";
 import { CAR_LIVE, carPilot, CAR_ENTER_RADIUS, CAR_EXIT_OFFSET, CAR_TOP_SPEED, CAR_COLLIDE_RADIUS } from "./carState";
 import { carDestroyed, damageCar } from "./vehicleState";
@@ -118,6 +119,13 @@ export function Player() {
 
   function fireWeapon(origin: THREE.Vector3, forwardV: THREE.Vector3) {
     const w = currentWeapon();
+
+    // Empty magazine: no shot, auto-start a reload instead.
+    if (!canFire()) {
+      startReload();
+      return;
+    }
+    consumeAmmo();
 
     if (w.kind === "grenade") {
       recoil.current = Math.min(1.4, recoil.current + RECOIL_PER_SHOT * 0.6);
@@ -246,6 +254,12 @@ export function Player() {
     const r = refs.current;
     if (!r || !r.root) return;
 
+    tickReload(dtc);
+    if (input.reload) {
+      input.reload = false;
+      startReload();
+    }
+
     if (!hasSpawned.current) {
       r.root.position.set(playerState.pos.x, 0, playerState.pos.z);
       hasSpawned.current = true;
@@ -278,6 +292,7 @@ export function Player() {
         carPilot.driving = false;
         carPilot.drivingIndex = -1;
         stopEngine();
+        stopRadio();
         unboardFollowers(c.x, c.z);
         r.root.position.set(c.x + Math.sin(c.rotY) * CAR_EXIT_OFFSET, 0, c.z + Math.cos(c.rotY) * CAR_EXIT_OFFSET);
         r.root.visible = true;
@@ -289,6 +304,7 @@ export function Player() {
         carPilot.drivingIndex = carPilot.nearIndex;
         r.root.visible = false;
         startEngine();
+        startRadio();
         boardNearbyFollowers(r.root.position.x, r.root.position.z);
       } else if (pilotState.nearHeliIndex >= 0) {
         pilotState.piloting = true;
@@ -308,6 +324,7 @@ export function Player() {
         if (carDestroyed[carPilot.drivingIndex]) {
           carPilot.driving = false;
           stopEngine();
+          stopRadio();
           unboardFollowers(c.x, c.z);
           r.root.visible = true;
         } else {

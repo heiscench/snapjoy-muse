@@ -10,6 +10,7 @@ import { territoryState } from "./territoryState";
 import { spawnTracer } from "./tracerState";
 import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED } from "./squadState";
 import { pilotState, damageHeli, damageCar } from "./vehicleState";
+import { nearestHostile } from "./targets";
 import { carPilot } from "./carState";
 
 const DETECT_RANGE = 22;
@@ -21,6 +22,7 @@ const NPC_HIT_RANGE = 36;
 const ROSTER_POLL_MS = 300;
 const FOLLOWER_ENGAGE_RANGE = 22;
 const FOLLOWER_HOLD_DIST = 10;
+const HOSTILE_SCAN_RANGE = DETECT_RANGE * 2;
 
 export function NPCs({ count = 12 }: { count?: number }) {
   useEffect(() => {
@@ -88,21 +90,28 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     r.root.visible = true;
 
     const pp = playerState.pos;
-    const distToPlayer = Math.hypot(npc.pos.x - pp.x, npc.pos.z - pp.z);
-    const isEnemyOfPlayer = npc.gang !== PLAYER_GANG;
-    const playerInVehicle = pilotState.piloting || carPilot.driving;
+    // Hostile can be the local player OR any remote human on another client —
+    // bots must not be able to tell the difference.
+    const hostile = nearestHostile(npc.pos.x, npc.pos.z, npc.gang, HOSTILE_SCAN_RANGE);
+    const hx = hostile ? hostile.target.x : pp.x;
+    const hz = hostile ? hostile.target.z : pp.z;
+    const distToHostile = hostile ? hostile.dist : Infinity;
+    const hostileIsLocal = hostile ? hostile.target.isLocal : false;
+    const hostileInVehicle = hostile
+      ? hostile.target.inVehicle
+      : pilotState.piloting || carPilot.driving;
 
     let wantsCombat = false;
     const following = isFollowing(npc.id) && npc.gang === PLAYER_GANG;
     let nearestThreat: NPCState | null = null;
 
-    if (isEnemyOfPlayer) {
+    if (hostile) {
       const npcDistrict = districtAt(npc.pos.x, npc.pos.z);
-      const playerDistrict = districtAt(pp.x, pp.z);
+      const hostileDistrict = districtAt(hx, hz);
       const ownsThis = territoryState.owners[npcDistrict] === npc.gang;
-      if (ownsThis && playerDistrict === npcDistrict) wantsCombat = true;
-      if (npc.kind === "defender" && npc.district === playerDistrict) wantsCombat = true;
-      if (distToPlayer < DETECT_RANGE) wantsCombat = true;
+      if (ownsThis && hostileDistrict === npcDistrict) wantsCombat = true;
+      if (npc.kind === "defender" && npc.district === hostileDistrict) wantsCombat = true;
+      if (distToHostile < DETECT_RANGE) wantsCombat = true;
     }
     if (following && playerState.health > 0) {
       let bestD = Infinity;
@@ -115,10 +124,10 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     }
 
     if (wantsCombat) npc.mode = "combat";
-    else if (npc.mode === "combat" && distToPlayer > DETECT_RANGE * 1.5 && !nearestThreat) npc.mode = "patrol";
+    else if (npc.mode === "combat" && distToHostile > DETECT_RANGE * 1.5 && !nearestThreat) npc.mode = "patrol";
 
-    if (npc.mode === "combat" && isEnemyOfPlayer) {
-      const dx = pp.x - npc.pos.x, dz = pp.z - npc.pos.z;
+    if (npc.mode === "combat" && hostile) {
+      const dx = hx - npc.pos.x, dz = hz - npc.pos.z;
       const d = Math.hypot(dx, dz) || 1;
       const nx = npc.pos.x + (dx / d) * NPC_MOVE_COMBAT * dtc;
       const nz = npc.pos.z + (dz / d) * NPC_MOVE_COMBAT * dtc;
@@ -127,13 +136,15 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       npc.dir.set(dx / d, 0, dz / d);
 
       npc.fireCd = Math.max(0, npc.fireCd - dtc);
-      if (distToPlayer < NPC_FIRE_RANGE && npc.fireCd === 0) {
+      if (distToHostile < NPC_FIRE_RANGE && npc.fireCd === 0) {
         npc.fireCd = NPC_FIRE_RATE;
         const from = new THREE.Vector3(npc.pos.x, 1.4, npc.pos.z);
-        const to = new THREE.Vector3(pp.x, 1.4, pp.z).sub(from).normalize();
+        const to = new THREE.Vector3(hx, 1.4, hz).sub(from).normalize();
         spawnTracer(from, to);
-        if (distToPlayer < NPC_HIT_RANGE) {
-          if (playerInVehicle) {
+        // Damage authority is local-only: a remote player's own client runs
+        // the same bot simulation and applies their damage there.
+        if (distToHostile < NPC_HIT_RANGE && hostileIsLocal) {
+          if (hostileInVehicle) {
             if (pilotState.piloting) damageHeli(pilotState.heliIndex, NPC_DAMAGE, true);
             else if (carPilot.driving) damageCar(carPilot.drivingIndex, NPC_DAMAGE);
           } else {

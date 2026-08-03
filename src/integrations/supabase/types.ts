@@ -46,6 +46,7 @@ export type Database = {
           last_position_x: number
           last_position_z: number
           money: number
+          owned_vehicles: string[]
           owned_weapons: string[]
           reputation: number
           updated_at: string
@@ -59,6 +60,7 @@ export type Database = {
           last_position_x?: number
           last_position_z?: number
           money?: number
+          owned_vehicles?: string[]
           owned_weapons?: string[]
           reputation?: number
           updated_at?: string
@@ -72,6 +74,7 @@ export type Database = {
           last_position_x?: number
           last_position_z?: number
           money?: number
+          owned_vehicles?: string[]
           owned_weapons?: string[]
           reputation?: number
           updated_at?: string

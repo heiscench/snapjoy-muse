@@ -3,6 +3,12 @@ import { WEAPONS, WEAPON_ORDER, weaponState, ownsWeapon, purchaseWeapon, selectW
 import { playerState } from "./playerState";
 import { weaponDiscount } from "./territoryState";
 import { shopState } from "./shopState";
+import {
+  PERSONAL_ORDER,
+  PERSONAL_VEHICLES,
+  ownsPersonalVehicle,
+  purchasePersonalVehicle,
+} from "./personalVehicleState";
 
 export function WeaponShop() {
   const [open, setOpen] = useState(false);
@@ -69,6 +75,36 @@ export function WeaponShop() {
                 className="rounded bg-green-600/70 px-2 py-1 text-[10px] font-bold text-white disabled:opacity-40"
               >
                 ${price}
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="mb-1 mt-3 text-[10px] font-bold uppercase tracking-widest text-amber-300">
+        Garage
+      </div>
+      <div className="mb-1 text-[9px] text-white/40">
+        Personal vehicles are yours only and respawn at HQ.
+      </div>
+      {PERSONAL_ORDER.map((id) => {
+        const v = PERSONAL_VEHICLES[id];
+        const owned = ownsPersonalVehicle(id);
+        return (
+          <div key={id} className="mb-1 flex items-center justify-between rounded bg-white/5 px-2 py-1 text-[10px]">
+            <div>
+              <div className="font-bold text-white">{v.name}</div>
+              <div className="text-white/60">{v.blurb}</div>
+            </div>
+            {owned ? (
+              <span className="rounded bg-cyan-500/40 px-2 py-1 text-[10px] font-bold text-white">Owned</span>
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); purchasePersonalVehicle(id); force((n) => n + 1); }}
+                disabled={playerState.money < v.cost}
+                className="rounded bg-green-600/70 px-2 py-1 text-[10px] font-bold text-white disabled:opacity-40"
+              >
+                ${v.cost}
               </button>
             )}
           </div>

@@ -525,36 +525,120 @@ function Plaza({ b }: { b: BuildingBox }) {
 }
 
 function Hangar({ b }: { b: BuildingBox }) {
+  const r = Math.min(b.h, b.w / 2);
+  const ribs = 5;
   return (
     <group position={[b.x, 0, b.z]}>
-      <mesh position={[0, b.h / 2, 0]} rotation={[0, 0, 0]}>
-        <cylinderGeometry args={[b.h / 2, b.h / 2, b.w, 12, 1, false, 0, Math.PI]} />
-        <meshStandardMaterial color="#3a3f45" metalness={0.3} roughness={0.6} side={THREE.DoubleSide} />
+      {/* Arched steel shell, correctly laid on its side along the depth axis */}
+      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r, r, b.d, 16, 1, true, 0, Math.PI]} />
+        <meshStandardMaterial color="#3a3f45" metalness={0.35} roughness={0.65} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0, b.h * 0.35, b.d / 2 - 0.5]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[b.h * 0.32, b.h * 0.32, 0.4, 12, 1, false, 0, Math.PI]} />
-        <meshBasicMaterial color="#8ac9ff" transparent opacity={0.4} />
+      {/* Structural ribs banding the shell */}
+      {Array.from({ length: ribs }).map((_, i) => {
+        const z = -b.d / 2 + (b.d / (ribs - 1)) * i;
+        return (
+          <mesh key={i} position={[0, 0, z]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[r + 0.12, r + 0.12, 0.3, 16, 1, true, 0, Math.PI]} />
+            <meshStandardMaterial color="#22262b" metalness={0.5} roughness={0.5} side={THREE.DoubleSide} />
+          </mesh>
+        );
+      })}
+      {/* Concrete apron + wheel-stop kerb */}
+      <mesh position={[0, 0.02, b.d / 2 + 5]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[b.w * 1.2, 10]} />
+        <meshStandardMaterial color="#2b2e33" roughness={1} />
+      </mesh>
+      {/* Rear wall */}
+      <mesh position={[0, r * 0.5, -b.d / 2]}>
+        <planeGeometry args={[b.w, r]} />
+        <meshStandardMaterial color="#2e3238" roughness={0.8} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Front gable with a big lit sliding door */}
+      <mesh position={[0, r * 0.5, b.d / 2]}>
+        <planeGeometry args={[b.w, r]} />
+        <meshStandardMaterial color="#2e3238" roughness={0.8} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, r * 0.34, b.d / 2 + 0.05]}>
+        <planeGeometry args={[b.w * 0.66, r * 0.62]} />
+        <meshBasicMaterial color="#8ac9ff" transparent opacity={0.35} toneMapped={false} />
+      </mesh>
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * b.w * 0.33, r * 0.34, b.d / 2 + 0.08]}>
+          <boxGeometry args={[0.18, r * 0.62, 0.12]} />
+          <meshStandardMaterial color="#181b1f" />
+        </mesh>
+      ))}
+      {/* Roof beacon */}
+      <mesh position={[0, r + 0.4, 0]}>
+        <sphereGeometry args={[0.28, 8, 8]} />
+        <meshBasicMaterial color="#ff5a4a" toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
 function Casino({ b }: { b: BuildingBox }) {
+  const bands = 6;
   return (
     <group position={[b.x, 0, b.z]}>
-      <mesh position={[0, b.h / 2, 0]}>
-        <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#241018" emissive="#ff5c9e" emissiveIntensity={0.4} roughness={0.6} />
+      {/* Stepped tower — a plinth, main slab, and a setback penthouse */}
+      <mesh position={[0, b.h * 0.06, 0]}>
+        <boxGeometry args={[b.w * 1.12, b.h * 0.12, b.d * 1.12]} />
+        <meshStandardMaterial color="#1b0d14" roughness={0.7} />
       </mesh>
-      {Array.from({ length: 4 }).map((_, i) => (
-        <mesh key={i} position={[0, b.h * (0.2 + i * 0.2), b.d / 2 + 0.03]}>
-          <planeGeometry args={[b.w * 0.85, 0.3]} />
-          <meshBasicMaterial color="#ffe36a" />
+      <mesh position={[0, b.h * 0.5, 0]}>
+        <boxGeometry args={[b.w, b.h * 0.78, b.d]} />
+        <meshStandardMaterial color="#241018" emissive="#ff5c9e" emissiveIntensity={0.35} roughness={0.55} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, b.h * 0.94, 0]}>
+        <boxGeometry args={[b.w * 0.6, b.h * 0.18, b.d * 0.6]} />
+        <meshStandardMaterial color="#2c1420" emissive="#ffd166" emissiveIntensity={0.3} roughness={0.5} />
+      </mesh>
+      {/* Neon bands wrapping all four faces */}
+      {Array.from({ length: bands }).map((_, i) => {
+        const y = b.h * (0.16 + i * 0.12);
+        const neon = i % 2 === 0 ? "#ffe36a" : "#ff5c9e";
+        return (
+          <group key={i} position={[0, y, 0]}>
+            <mesh position={[0, 0, b.d / 2 + 0.04]}>
+              <planeGeometry args={[b.w * 0.88, 0.26]} />
+              <meshBasicMaterial color={neon} toneMapped={false} />
+            </mesh>
+            <mesh position={[0, 0, -b.d / 2 - 0.04]} rotation={[0, Math.PI, 0]}>
+              <planeGeometry args={[b.w * 0.88, 0.26]} />
+              <meshBasicMaterial color={neon} toneMapped={false} />
+            </mesh>
+            <mesh position={[b.w / 2 + 0.04, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+              <planeGeometry args={[b.d * 0.88, 0.26]} />
+              <meshBasicMaterial color={neon} toneMapped={false} />
+            </mesh>
+            <mesh position={[-b.w / 2 - 0.04, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+              <planeGeometry args={[b.d * 0.88, 0.26]} />
+              <meshBasicMaterial color={neon} toneMapped={false} />
+            </mesh>
+          </group>
+        );
+      })}
+      {/* Entrance canopy on stanchions */}
+      <mesh position={[0, b.h * 0.18, b.d / 2 + 2]}>
+        <boxGeometry args={[b.w * 0.55, 0.3, 4]} />
+        <meshStandardMaterial color="#3a1526" emissive="#ff5c9e" emissiveIntensity={0.25} />
+      </mesh>
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * b.w * 0.24, b.h * 0.09, b.d / 2 + 3.6]}>
+          <cylinderGeometry args={[0.12, 0.12, b.h * 0.18, 6]} />
+          <meshStandardMaterial color="#141018" metalness={0.6} roughness={0.4} />
         </mesh>
       ))}
-      <mesh position={[0, b.h + 1, 0]}>
-        <cylinderGeometry args={[0.4, 0.4, 2, 8]} />
-        <meshBasicMaterial color="#ff5c9e" />
+      {/* Rooftop marquee sign + spire */}
+      <mesh position={[0, b.h * 1.06, 0]}>
+        <boxGeometry args={[b.w * 0.5, 1.2, 0.2]} />
+        <meshBasicMaterial color="#ffd166" toneMapped={false} />
+      </mesh>
+      <mesh position={[0, b.h * 1.2, 0]}>
+        <cylinderGeometry args={[0.16, 0.4, 2.6, 8]} />
+        <meshBasicMaterial color="#ff5c9e" toneMapped={false} />
       </mesh>
     </group>
   );
@@ -562,27 +646,65 @@ function Casino({ b }: { b: BuildingBox }) {
 
 function Pagoda({ b }: { b: BuildingBox }) {
   const tiers = 3;
+  const tierH = b.h / tiers;
   return (
     <group position={[b.x, 0, b.z]}>
+      {/* Stone plinth */}
+      <mesh position={[0, 0.35, 0]}>
+        <boxGeometry args={[b.w * 0.92, 0.7, b.d * 0.92]} />
+        <meshStandardMaterial color="#2b2622" roughness={0.9} />
+      </mesh>
       {Array.from({ length: tiers }).map((_, i) => {
         const scale = 1 - i * 0.22;
-        const y = (b.h / tiers) * i + (b.h / tiers) * 0.5;
+        const y = tierH * i + tierH * 0.5 + 0.7;
+        const halfW = (b.w * scale * 0.7) / 2;
+        const halfD = (b.d * scale * 0.7) / 2;
         return (
           <group key={i} position={[0, y, 0]}>
             <mesh>
-              <boxGeometry args={[b.w * scale * 0.7, b.h / tiers * 0.7, b.d * scale * 0.7]} />
+              <boxGeometry args={[b.w * scale * 0.7, tierH * 0.7, b.d * scale * 0.7]} />
               <meshStandardMaterial color="#5a1e18" roughness={0.7} />
             </mesh>
-            <mesh position={[0, b.h / tiers * 0.42, 0]}>
-              <coneGeometry args={[b.w * scale * 0.62, 0.9, 4]} />
-              <meshStandardMaterial color="#8a2a1a" />
+            {/* Timber corner posts */}
+            {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz], k) => (
+              <mesh key={k} position={[sx * halfW, 0, sz * halfD]}>
+                <boxGeometry args={[0.18, tierH * 0.7, 0.18]} />
+                <meshStandardMaterial color="#301410" roughness={0.9} />
+              </mesh>
+            ))}
+            {/* Lattice windows facing the street */}
+            <mesh position={[0, 0, halfD + 0.03]}>
+              <planeGeometry args={[b.w * scale * 0.4, tierH * 0.32]} />
+              <meshBasicMaterial color="#ffb066" toneMapped={false} />
             </mesh>
+            {/* Flared tiled eaves — a wide slab under a pyramid cap */}
+            <mesh position={[0, tierH * 0.38, 0]}>
+              <boxGeometry args={[b.w * scale * 0.98, 0.16, b.d * scale * 0.98]} />
+              <meshStandardMaterial color="#7a2418" roughness={0.6} />
+            </mesh>
+            <mesh position={[0, tierH * 0.55, 0]} rotation={[0, Math.PI / 4, 0]}>
+              <coneGeometry args={[b.w * scale * 0.66, 1.0, 4]} />
+              <meshStandardMaterial color="#8a2a1a" roughness={0.6} />
+            </mesh>
+            {/* Corner lanterns */}
+            {[-1, 1].map((s) => (
+              <mesh key={s} position={[s * halfW, tierH * 0.28, halfD]}>
+                <sphereGeometry args={[0.2, 8, 8]} />
+                <meshBasicMaterial color="#ff6a4a" toneMapped={false} />
+              </mesh>
+            ))}
           </group>
         );
       })}
+      {/* Finial spire */}
+      <mesh position={[0, b.h + 1.5, 0]}>
+        <cylinderGeometry args={[0.06, 0.16, 1.6, 6]} />
+        <meshStandardMaterial color="#c9a24a" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Vertical banner sign */}
       <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.3, b.h * 0.5]} />
-        <meshBasicMaterial color="#ff6a4a" />
+        <planeGeometry args={[b.w * 0.22, b.h * 0.5]} />
+        <meshBasicMaterial color="#ff6a4a" toneMapped={false} />
       </mesh>
     </group>
   );
