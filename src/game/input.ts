@@ -7,6 +7,7 @@ export const input = {
   run: false,
   aim: false,
   fire: false,
+  reload: false,
   keys: new Set<string>(),
 };
 
@@ -15,6 +16,7 @@ if (typeof window !== "undefined") {
     input.keys.add(e.code);
     if (e.code === "Space") input.jump = true;
     if (e.code === "ShiftLeft") input.run = true;
+    if (e.code === "KeyR") input.reload = true;
   });
   window.addEventListener("keyup", (e) => {
     input.keys.delete(e.code);
