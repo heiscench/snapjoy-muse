@@ -155,6 +155,7 @@ export async function startWorldSync() {
 }
 
 export function stopWorldSync() {
+  starting = false;
   if (channel) {
     supabase.removeChannel(channel);
     channel = null;
