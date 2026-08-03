@@ -158,3 +158,72 @@ export function stopHeliEngine() {
   }, 200);
   heliOsc = null; heliGain = null; heliLFO = null; heliLFOGain = null;
 }
+// ---- Driving radio — a short procedural synthwave loop, scheduled with a
+// lookahead so it stays in time without audio files. Only runs while the
+// player is actually in a car. ----
+const RADIO_BPM = 104;
+const RADIO_STEP = 60 / RADIO_BPM / 2; // eighth notes
+const RADIO_LOOKAHEAD_MS = 90;
+const RADIO_SCHEDULE_AHEAD = 0.25;
+const RADIO_BASS: number[] = [55, 55, 82.4, 55, 65.4, 65.4, 98, 73.4];
+const RADIO_LEAD: number[] = [
+  440, 0, 523.25, 587.33, 0, 493.88, 440, 0,
+  392, 0, 440, 523.25, 0, 392, 349.23, 0,
+];
+
+let radioTimer: ReturnType<typeof setInterval> | null = null;
+let radioStep = 0;
+let radioNextTime = 0;
+let radioBus: GainNode | null = null;
+
+function radioNote(freq: number, at: number, dur: number, type: OscillatorType, level: number) {
+  if (!ctx || !radioBus || freq <= 0) return;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, at);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.linearRampToValueAtTime(level, at + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  osc.connect(g).connect(radioBus);
+  osc.start(at);
+  osc.stop(at + dur + 0.02);
+}
+
+export function startRadio() {
+  if (!ctx || radioTimer) return;
+  radioBus = ctx.createGain();
+  radioBus.gain.value = 0.0001;
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 2400;
+  radioBus.connect(lp).connect(ctx.destination);
+  radioBus.gain.setTargetAtTime(0.09, now(), 0.4);
+
+  radioStep = 0;
+  radioNextTime = now() + 0.1;
+  radioTimer = setInterval(() => {
+    if (!ctx) return;
+    while (radioNextTime < ctx.currentTime + RADIO_SCHEDULE_AHEAD) {
+      const t = radioNextTime;
+      radioNote(RADIO_BASS[radioStep % RADIO_BASS.length], t, RADIO_STEP * 0.9, "sawtooth", 0.5);
+      radioNote(RADIO_LEAD[radioStep % RADIO_LEAD.length], t, RADIO_STEP * 0.8, "square", 0.16);
+      if (radioStep % 4 === 2) noiseBurst(0.05, 5000, 0.06); // hat
+      radioStep++;
+      radioNextTime += RADIO_STEP;
+    }
+  }, RADIO_LOOKAHEAD_MS);
+}
+
+export function stopRadio() {
+  if (radioTimer) {
+    clearInterval(radioTimer);
+    radioTimer = null;
+  }
+  if (radioBus && ctx) {
+    const bus = radioBus;
+    bus.gain.setTargetAtTime(0.0001, now(), 0.15);
+    setTimeout(() => { try { bus.disconnect(); } catch { /* already gone */ } }, 700);
+  }
+  radioBus = null;
+}
