@@ -39,7 +39,7 @@ export function WeaponShop() {
   }
 
   return (
-    <div className="fixed left-4 top-40 z-30 w-56 rounded-lg border border-amber-400/50 bg-black/85 p-2 backdrop-blur">
+    <div className="fixed left-4 top-40 bottom-44 z-30 w-56 overflow-y-auto rounded-lg border border-amber-400/50 bg-black/85 p-2 backdrop-blur">
       <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Weapon Shop</div>
       {discount > 0 && (
         <div className="mb-1 rounded bg-cyan-900/60 px-2 py-1 text-[9px] uppercase tracking-widest text-cyan-200">
