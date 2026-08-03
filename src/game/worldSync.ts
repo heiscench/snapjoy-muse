@@ -67,11 +67,15 @@ function applyBankRow(row: BankRow) {
 // StrictMode double-mounts in dev) can't build a second channel with the same
 // name — Supabase would reuse the already-subscribed one and throw when we
 // attach postgres_changes handlers to it.
-let starting = false;
+let startPromise: Promise<void> | null = null;
 
-export async function startWorldSync() {
-  if (channel || starting) return;
-  starting = true;
+export function startWorldSync(): Promise<void> {
+  if (!startPromise) startPromise = openWorldSync();
+  return startPromise;
+}
+
+async function openWorldSync() {
+  if (channel) return;
 
   const [{ data: terr }, { data: banks }] = await Promise.all([
     supabase.from("territory").select("district, owner, lock_until, captured_by"),
@@ -99,7 +103,6 @@ export async function startWorldSync() {
       },
     )
     .subscribe();
-  starting = false;
 
   // ---- Push local outcomes to the shared world ---------------------------
   registerTerritoryHooks({
@@ -155,7 +158,7 @@ export async function startWorldSync() {
 }
 
 export function stopWorldSync() {
-  starting = false;
+  startPromise = null;
   if (channel) {
     supabase.removeChannel(channel);
     channel = null;
