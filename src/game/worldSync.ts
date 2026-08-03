@@ -63,8 +63,15 @@ function applyBankRow(row: BankRow) {
   applyRemoteBankGuards(row.bank_id, toMs(row.guards_respawn_at));
 }
 
+// Set synchronously so a second call during the awaited initial fetch (React
+// StrictMode double-mounts in dev) can't build a second channel with the same
+// name — Supabase would reuse the already-subscribed one and throw when we
+// attach postgres_changes handlers to it.
+let starting = false;
+
 export async function startWorldSync() {
-  if (channel) return;
+  if (channel || starting) return;
+  starting = true;
 
   const [{ data: terr }, { data: banks }] = await Promise.all([
     supabase.from("territory").select("district, owner, lock_until, captured_by"),
@@ -92,6 +99,7 @@ export async function startWorldSync() {
       },
     )
     .subscribe();
+  starting = false;
 
   // ---- Push local outcomes to the shared world ---------------------------
   registerTerritoryHooks({
