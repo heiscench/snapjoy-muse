@@ -84,6 +84,12 @@ async function openWorldSync() {
   for (const row of (terr ?? []) as TerritoryRow[]) applyTerritoryRow(row);
   for (const row of (banks ?? []) as BankRow[]) applyBankRow(row);
 
+  // Drop any stale channel with the same topic (dev double-mount) before
+  // building a fresh one — attaching handlers to a subscribed channel throws.
+  for (const ch of supabase.getChannels()) {
+    if (ch.topic === `realtime:${TERRITORY_CHANNEL}`) supabase.removeChannel(ch);
+  }
+
   channel = supabase
     .channel(TERRITORY_CHANNEL)
     .on(
