@@ -232,5 +232,3 @@ export function Vehicles({ count = 22 }: { count?: number }) {
     </group>
   );
 }
-
-void CAR_MAX_HP;
