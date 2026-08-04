@@ -82,18 +82,19 @@ export function AuthScreen({ onReady }: Props) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {mode === "signup" && (
             <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-white/60">
-              Username
+              Username ({USERNAME_MIN}-{USERNAME_MAX}, must be unique)
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                maxLength={24}
+                minLength={USERNAME_MIN}
+                maxLength={USERNAME_MAX}
                 className="rounded border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
               />
             </label>
           )}
           <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-white/60">
-            Email
+            {mode === "signup" ? "Email (@gmail.com only)" : "Email"}
             <input
               type="email"
               value={email}
