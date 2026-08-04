@@ -36,6 +36,32 @@ export async function loadProfile(userId: string): Promise<ProfileRow | null> {
   return (data as ProfileRow | null) ?? null;
 }
 
+// Username rules — kept in sync with the DB trigger/unique index that enforce
+// the same thing server-side (client checks can be bypassed).
+export const USERNAME_MIN = 3;
+export const USERNAME_MAX = 24;
+const USERNAME_PATTERN = /^[A-Za-z0-9 ._-]+$/;
+const GMAIL_DOMAIN = "@gmail.com";
+
+export function validateUsername(raw: string): string {
+  const name = raw.trim();
+  if (name.length < USERNAME_MIN || name.length > USERNAME_MAX) {
+    throw new Error(`Username must be ${USERNAME_MIN}-${USERNAME_MAX} characters (no blank names).`);
+  }
+  if (!USERNAME_PATTERN.test(name)) {
+    throw new Error("Username can only use letters, numbers, spaces, dots, underscores and hyphens.");
+  }
+  return name;
+}
+
+export function validateSignupEmail(raw: string): string {
+  const email = raw.trim().toLowerCase();
+  if (!email.endsWith(GMAIL_DOMAIN)) {
+    throw new Error("Sign-ups are limited to @gmail.com addresses.");
+  }
+  return email;
+}
+
 export async function createProfile(
   userId: string, username: string, gang: GangId,
 ): Promise<ProfileRow | null> {
@@ -46,7 +72,7 @@ export async function createProfile(
     .from("player_profiles")
     .insert({
       user_id: userId,
-      username,
+      username: username.trim(),
       gang,
       last_position_x: hq.x + 14, last_position_z: hq.z,
     })
@@ -54,10 +80,18 @@ export async function createProfile(
     .single();
   if (error) {
     console.error("[profileSync] create failed", error);
+    if (error.code === "23505" || /duplicate key/i.test(error.message)) {
+      throw new Error("That username is already taken — pick another.");
+    }
+    if (/gmail\.com/i.test(error.message)) {
+      throw new Error("Sign-ups are limited to @gmail.com addresses.");
+    }
+    if (/Username/i.test(error.message)) throw new Error(error.message);
     return null;
   }
   return data as ProfileRow;
 }
+
 
 // Hydrate in-memory game state from a loaded row. Called once on login.
 export function applyProfileToGameState(row: ProfileRow) {

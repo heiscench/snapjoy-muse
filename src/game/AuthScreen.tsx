@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GANGS, type GangId } from "./gangs";
-import { applyProfileToGameState, createProfile, loadProfile } from "./profileSync";
+import {
+  applyProfileToGameState, createProfile, loadProfile,
+  validateSignupEmail, validateUsername, USERNAME_MIN, USERNAME_MAX,
+} from "./profileSync";
 
 type Mode = "login" | "signup";
 
@@ -24,15 +27,16 @@ export function AuthScreen({ onReady }: Props) {
     setLoading(true);
     try {
       if (mode === "signup") {
-        if (!username.trim()) throw new Error("Pick a username");
+        const cleanName = validateUsername(username);
+        const cleanEmail = validateSignupEmail(email);
         const { data, error: signErr } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { username } },
+          email: cleanEmail, password,
+          options: { data: { username: cleanName } },
         });
         if (signErr) throw signErr;
         const uid = data.user?.id;
         if (!uid) throw new Error("Signup failed — no user id returned");
-        const row = await createProfile(uid, username.trim(), gang);
+        const row = await createProfile(uid, cleanName, gang);
         if (!row) throw new Error("Could not create your player profile");
         applyProfileToGameState(row);
       } else {
@@ -78,18 +82,19 @@ export function AuthScreen({ onReady }: Props) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {mode === "signup" && (
             <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-white/60">
-              Username
+              Username ({USERNAME_MIN}-{USERNAME_MAX}, must be unique)
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                maxLength={24}
+                minLength={USERNAME_MIN}
+                maxLength={USERNAME_MAX}
                 className="rounded border border-white/10 bg-black/50 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
               />
             </label>
           )}
           <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-white/60">
-            Email
+            {mode === "signup" ? "Email (@gmail.com only)" : "Email"}
             <input
               type="email"
               value={email}
