@@ -27,15 +27,16 @@ export function AuthScreen({ onReady }: Props) {
     setLoading(true);
     try {
       if (mode === "signup") {
-        if (!username.trim()) throw new Error("Pick a username");
+        const cleanName = validateUsername(username);
+        const cleanEmail = validateSignupEmail(email);
         const { data, error: signErr } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { username } },
+          email: cleanEmail, password,
+          options: { data: { username: cleanName } },
         });
         if (signErr) throw signErr;
         const uid = data.user?.id;
         if (!uid) throw new Error("Signup failed — no user id returned");
-        const row = await createProfile(uid, username.trim(), gang);
+        const row = await createProfile(uid, cleanName, gang);
         if (!row) throw new Error("Could not create your player profile");
         applyProfileToGameState(row);
       } else {
