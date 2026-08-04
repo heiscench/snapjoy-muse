@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GANGS, type GangId } from "./gangs";
-import { applyProfileToGameState, createProfile, loadProfile } from "./profileSync";
+import {
+  applyProfileToGameState, createProfile, loadProfile,
+  validateSignupEmail, validateUsername, USERNAME_MIN, USERNAME_MAX,
+} from "./profileSync";
 
 type Mode = "login" | "signup";
 
