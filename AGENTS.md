@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep day/night timing and visibility thresholds in `src/game/dayNightConfig.ts` so visual tuning remains testable and consistent.

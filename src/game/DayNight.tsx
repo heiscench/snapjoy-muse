@@ -1,15 +1,21 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-
-const CYCLE_SECONDS = 12 * 60;
+import {
+  CYCLE_SECONDS,
+  MIN_AMBIENT_INTENSITY,
+  MIN_HEMISPHERE_INTENSITY,
+} from "./dayNightConfig";
 
 const KEYS = [
-  { t: 0.0,  sky: "#05060a", fog: "#05060a", sun: "#8ea6ff", intensity: 0.18 },
-  { t: 0.22, sky: "#3d2a3a", fog: "#3d2a3a", sun: "#ff9b6a", intensity: 1.0  },
-  { t: 0.5,  sky: "#bfe0f7", fog: "#cfe6f2", sun: "#fff8e0", intensity: 2.6  },
-  { t: 0.78, sky: "#5b2c3a", fog: "#5b2c3a", sun: "#ff7a4a", intensity: 0.9  },
-  { t: 1.0,  sky: "#05060a", fog: "#05060a", sun: "#8ea6ff", intensity: 0.18 },
+  { t: 0.0,  sky: "#101629", fog: "#11182a", sun: "#a8baff", intensity: 0.35 },
+  { t: 0.08, sky: "#503848", fog: "#5a414d", sun: "#ffad78", intensity: 1.15 },
+  { t: 0.18, sky: "#a9d1eb", fog: "#b8d7e8", sun: "#fff2d0", intensity: 2.2 },
+  { t: 0.50, sky: "#c9e9fa", fog: "#d4ebf5", sun: "#fffbed", intensity: 2.8 },
+  { t: 0.78, sky: "#afd8ef", fog: "#bfdce9", sun: "#fff0cc", intensity: 2.3 },
+  { t: 0.88, sky: "#704557", fog: "#744b58", sun: "#ff9565", intensity: 1.05 },
+  { t: 0.96, sky: "#171b31", fog: "#192037", sun: "#a8baff", intensity: 0.42 },
+  { t: 1.0,  sky: "#101629", fog: "#11182a", sun: "#a8baff", intensity: 0.35 },
 ];
 
 function lerpColor(a: string, b: string, k: number, out: THREE.Color) {
@@ -54,19 +60,19 @@ export function DayNight() {
       dirRef.current.position.set(Math.cos(ang) * r, Math.max(15, Math.sin(ang) * r + 30), 20);
     }
     if (hemiRef.current) {
-      hemiRef.current.intensity = 0.3 + intensity * 0.35;
+      hemiRef.current.intensity = MIN_HEMISPHERE_INTENSITY + intensity * 0.35;
       hemiRef.current.color.copy(skyColor).lerp(new THREE.Color("#eaf4ff"), 0.5);
     }
     if (ambRef.current) {
-      ambRef.current.intensity = 0.08 + intensity * 0.12;
+      ambRef.current.intensity = MIN_AMBIENT_INTENSITY + intensity * 0.12;
     }
   });
 
   return (
     <>
-      <ambientLight ref={ambRef} intensity={0.15} />
-      <hemisphereLight ref={hemiRef} args={["#5a6a95", "#08080f", 0.6]} />
-      <directionalLight ref={dirRef} position={[40, 70, 20]} intensity={0.5} color="#a9b8ff" />
+      <ambientLight ref={ambRef} intensity={MIN_AMBIENT_INTENSITY} />
+      <hemisphereLight ref={hemiRef} args={["#7588b8", "#14182a", MIN_HEMISPHERE_INTENSITY]} />
+      <directionalLight ref={dirRef} position={[40, 70, 20]} intensity={0.7} color="#b8c6ff" />
     </>
   );
 }
