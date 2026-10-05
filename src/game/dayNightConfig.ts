@@ -1,0 +1,10 @@
+export const CYCLE_SECONDS = 12 * 60;
+
+export const DAYLIGHT_START = 0.18;
+export const DAYLIGHT_END = 0.88;
+
+export const MIN_AMBIENT_INTENSITY = 0.22;
+export const MIN_HEMISPHERE_INTENSITY = 0.42;
+
+export const DAYLIGHT_FRACTION = DAYLIGHT_END - DAYLIGHT_START;
+export const NIGHT_FRACTION = 1 - DAYLIGHT_FRACTION;
