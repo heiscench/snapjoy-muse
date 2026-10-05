@@ -1,1 +1,1 @@
-- [ ] Make daytime longer than night and brighten night visibility.
+- [x] Make daytime longer than night and brighten night visibility.
