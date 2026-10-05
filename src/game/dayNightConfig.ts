@@ -1,7 +1,7 @@
 export const CYCLE_SECONDS = 12 * 60;
 
-export const DAYLIGHT_START = 0.12;
-export const DAYLIGHT_END = 0.86;
+export const DAYLIGHT_START = 0.18;
+export const DAYLIGHT_END = 0.88;
 
 export const MIN_AMBIENT_INTENSITY = 0.22;
 export const MIN_HEMISPHERE_INTENSITY = 0.42;

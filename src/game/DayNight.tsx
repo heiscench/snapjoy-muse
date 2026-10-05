@@ -3,6 +3,8 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
   CYCLE_SECONDS,
+  DAYLIGHT_END,
+  DAYLIGHT_START,
   MIN_AMBIENT_INTENSITY,
   MIN_HEMISPHERE_INTENSITY,
 } from "./dayNightConfig";
@@ -10,10 +12,10 @@ import {
 const KEYS = [
   { t: 0.0,  sky: "#101629", fog: "#11182a", sun: "#a8baff", intensity: 0.35 },
   { t: 0.08, sky: "#503848", fog: "#5a414d", sun: "#ffad78", intensity: 1.15 },
-  { t: 0.18, sky: "#a9d1eb", fog: "#b8d7e8", sun: "#fff2d0", intensity: 2.2 },
+  { t: DAYLIGHT_START, sky: "#a9d1eb", fog: "#b8d7e8", sun: "#fff2d0", intensity: 2.2 },
   { t: 0.50, sky: "#c9e9fa", fog: "#d4ebf5", sun: "#fffbed", intensity: 2.8 },
   { t: 0.78, sky: "#afd8ef", fog: "#bfdce9", sun: "#fff0cc", intensity: 2.3 },
-  { t: 0.88, sky: "#704557", fog: "#744b58", sun: "#ff9565", intensity: 1.05 },
+  { t: DAYLIGHT_END, sky: "#704557", fog: "#744b58", sun: "#ff9565", intensity: 1.05 },
   { t: 0.96, sky: "#171b31", fog: "#192037", sun: "#a8baff", intensity: 0.42 },
   { t: 1.0,  sky: "#101629", fog: "#11182a", sun: "#a8baff", intensity: 0.35 },
 ];
