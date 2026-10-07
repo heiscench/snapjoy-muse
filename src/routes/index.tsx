@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthScreen } from "@/game/AuthScreen";
 import { applyProfileToGameState, loadProfile } from "@/game/profileSync";
+import { AwakeningIntro } from "@/game/AwakeningIntro";
 import { authState } from "@/game/authState";
 
 const GameScene = lazy(() =>
@@ -40,6 +41,7 @@ function Index() {
 }
 
 function IndexGate() {
+  const [introComplete, setIntroComplete] = useState(false);
   const [status, setStatus] = useState<"checking" | "authed" | "guest">("checking");
 
   useEffect(() => {
@@ -66,6 +68,7 @@ function IndexGate() {
     return () => { cancelled = true; sub.subscription.unsubscribe(); };
   }, []);
 
+  if (!introComplete) return <AwakeningIntro onContinue={() => setIntroComplete(true)} />;
   if (status === "checking") return <div className="fixed inset-0 bg-background" />;
   if (status === "guest") return <AuthScreen onReady={() => setStatus("authed")} />;
   return (
