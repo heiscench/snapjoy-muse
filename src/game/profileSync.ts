@@ -46,10 +46,10 @@ const GMAIL_DOMAIN = "@gmail.com";
 export function validateUsername(raw: string): string {
   const name = raw.trim();
   if (name.length < USERNAME_MIN || name.length > USERNAME_MAX) {
-    throw new Error(`Username must be ${USERNAME_MIN}-${USERNAME_MAX} characters (no blank names).`);
+    throw new Error(`Your name must be ${USERNAME_MIN}-${USERNAME_MAX} characters (no blank names).`);
   }
   if (!USERNAME_PATTERN.test(name)) {
-    throw new Error("Username can only use letters, numbers, spaces, dots, underscores and hyphens.");
+    throw new Error("Names can only use letters, numbers, spaces, dots, underscores and hyphens.");
   }
   return name;
 }
@@ -57,7 +57,7 @@ export function validateUsername(raw: string): string {
 export function validateSignupEmail(raw: string): string {
   const email = raw.trim().toLowerCase();
   if (!email.endsWith(GMAIL_DOMAIN)) {
-    throw new Error("Sign-ups are limited to @gmail.com addresses.");
+    throw new Error("This email cannot begin an awakening.");
   }
   return email;
 }
@@ -81,10 +81,10 @@ export async function createProfile(
   if (error) {
     console.error("[profileSync] create failed", error);
     if (error.code === "23505" || /duplicate key/i.test(error.message)) {
-      throw new Error("That username is already taken — pick another.");
+      throw new Error("That name is already remembered. Choose another.");
     }
     if (/gmail\.com/i.test(error.message)) {
-      throw new Error("Sign-ups are limited to @gmail.com addresses.");
+      throw new Error("This email cannot begin an awakening.");
     }
     if (/Username/i.test(error.message)) throw new Error(error.message);
     return null;

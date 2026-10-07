@@ -18,9 +18,9 @@ export type PersonalVehicleDef = {
 };
 
 export const PERSONAL_VEHICLES: Record<PersonalVehicleId, PersonalVehicleDef> = {
-  cruiser:  { id: "cruiser",  name: "Street Cruiser", cost: 6000,  body: "sedan",  color: "#c9d6e2", blurb: "Reliable daily runner" },
-  warhorse: { id: "warhorse", name: "Warhorse SUV",   cost: 12000, body: "suv",    color: "#2f3a2a", blurb: "Heavy, hard to shift" },
-  phantom:  { id: "phantom",  name: "Phantom GT",     cost: 22000, body: "sport",  color: "#12060f", blurb: "Fastest thing on the map" },
+  cruiser:  { id: "cruiser",  name: "Wanderer Husk", cost: 6000,  body: "sedan",  color: "#c9d6e2", blurb: "An echo that carries you" },
+  warhorse: { id: "warhorse", name: "Sentinel Husk",   cost: 12000, body: "suv",    color: "#2f3a2a", blurb: "Stone that refuses to fade" },
+  phantom:  { id: "phantom",  name: "Wraith Husk",     cost: 22000, body: "sport",  color: "#12060f", blurb: "A shadow beyond memory" },
 };
 
 export const PERSONAL_ORDER: PersonalVehicleId[] = ["cruiser", "warhorse", "phantom"];

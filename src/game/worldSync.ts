@@ -51,9 +51,9 @@ function applyTerritoryRow(row: TerritoryRow) {
   applyRemoteOwner(d, owner, toMs(row.lock_until));
   if (prevOwner !== owner && row.captured_by && row.captured_by !== authState.userId) {
     if (prevOwner === PLAYER_GANG) {
-      pushAlert(`${districtName(d)} was taken from your gang!`, "warn");
+      pushAlert(`${districtName(d)} has faded from your faction`, "warn");
     } else if (owner === PLAYER_GANG) {
-      pushAlert(`${districtName(d)} claimed for ${GANGS[PLAYER_GANG].name}`);
+      pushAlert(`${districtName(d)} remembered by ${GANGS[PLAYER_GANG].name}`);
     }
   }
 }
@@ -127,7 +127,7 @@ async function openWorldSync() {
         .then(({ error }) => {
           if (error) console.error("[worldSync] capture push failed", error);
         });
-      broadcastAlert(owner, `${districtName(district)} captured by ${authState.username}`, "info");
+      broadcastAlert(owner, `${districtName(district)} reclaimed by ${authState.username}`, "info");
     },
     onRobbed: (bankId, lockUntilMs) => {
       void supabase
@@ -143,7 +143,7 @@ async function openWorldSync() {
     onAttackStarted: (district, defendingGang) => {
       broadcastAlert(
         defendingGang,
-        `${districtName(district)} is under attack!`,
+        `${districtName(district)} is fracturing!`,
         "warn",
       );
     },

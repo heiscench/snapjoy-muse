@@ -299,19 +299,19 @@ export const HELI_PADS: Record<0 | 1 | 2 | 3, { x: number; z: number }[]> = {
 };
 
 export const DISTRICT_LABELS: { name: string; district: District; x: number; z: number }[] = [
-  { name: "DOWNTOWN", district: "downtown", ...hqWorld("downtown") },
-  { name: "INDUSTRIAL AREA", district: "industrial", ...hqWorld("industrial") },
-  { name: "STADIUM", district: "stadium", ...hqWorld("stadium") },
-  { name: "BANK DISTRICT", district: "bank", ...hqWorld("bank") },
-  { name: "SHOPPING DISTRICT", district: "shopping", ...hqWorld("shopping") },
-  { name: "HARBOR", district: "harbor", ...hqWorld("harbor") },
-  { name: "RESIDENTIAL AREA", district: "residential", ...hqWorld("residential") },
-  { name: "AIRPORT", district: "airport", ...hqWorld("airport") },
-  { name: "CASINO DISTRICT", district: "casino", ...hqWorld("casino") },
-  { name: "CHINATOWN", district: "chinatown", ...hqWorld("chinatown") },
-  { name: "THE SLUMS", district: "slums", ...hqWorld("slums") },
-  { name: "CENTRAL PARK", district: "park", ...hqWorld("park") },
-  { name: "UPTOWN", district: "uptown", ...hqWorld("uptown") },
+  { name: "THE HOLLOW QUARTER", district: "downtown", ...hqWorld("downtown") },
+  { name: "THE ASHEN FORGE", district: "industrial", ...hqWorld("industrial") },
+  { name: "THE RING OF ECHOES", district: "stadium", ...hqWorld("stadium") },
+  { name: "THE ARCHIVE OF NOTHING", district: "bank", ...hqWorld("bank") },
+  { name: "THE VEILED EXCHANGE", district: "shopping", ...hqWorld("shopping") },
+  { name: "THE STILL SHORE", district: "harbor", ...hqWorld("harbor") },
+  { name: "THE LOST HEARTHS", district: "residential", ...hqWorld("residential") },
+  { name: "THE SHARD SANCTUM", district: "airport", ...hqWorld("airport") },
+  { name: "THE HALL OF FATES", district: "casino", ...hqWorld("casino") },
+  { name: "MEMORY GATE", district: "chinatown", ...hqWorld("chinatown") },
+  { name: "THE FRACTURED REFUGE", district: "slums", ...hqWorld("slums") },
+  { name: "THE SILENT GROVE", district: "park", ...hqWorld("park") },
+  { name: "THE PALE ASCENT", district: "uptown", ...hqWorld("uptown") },
 ];
 
 /** Human-readable label for a district, e.g. "downtown" -> "DOWNTOWN". */
