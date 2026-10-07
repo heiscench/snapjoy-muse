@@ -1,5 +1,7 @@
 // Signup / login gate shown before the game mounts. Matches the neon-dark
 // HUD aesthetic used throughout GameScene (pills, backdrop blur, gang tints).
+import { Button } from "@/components/ui/button";
+import { AwakeningBackdrop } from "./AwakeningIntro";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GANGS, type GangId } from "./gangs";
@@ -37,15 +39,15 @@ export function AuthScreen({ onReady }: Props) {
         const uid = data.user?.id;
         if (!uid) throw new Error("Signup failed — no user id returned");
         const row = await createProfile(uid, cleanName, gang);
-        if (!row) throw new Error("Could not create your player profile");
+        if (!row) throw new Error("Your awakening could not be saved. Please try again.");
         applyProfileToGameState(row);
       } else {
         const { data, error: logErr } = await supabase.auth.signInWithPassword({ email, password });
         if (logErr) throw logErr;
         const uid = data.user?.id;
-        if (!uid) throw new Error("Login failed");
+        if (!uid) throw new Error("The threshold did not open");
         const row = await loadProfile(uid);
-        if (!row) throw new Error("No profile found for this account");
+        if (!row) throw new Error("This account has no remembered being yet.");
         applyProfileToGameState(row);
       }
       onReady();
@@ -57,32 +59,37 @@ export function AuthScreen({ onReady }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-white/10 bg-black/70 p-6 backdrop-blur">
+    <main className="awakening-screen auth-screen">
+      <AwakeningBackdrop />
+      <div className="awakening-brand">FORGOTTEN <span>1,111 BEINGS · SOLANA</span></div>
+      <section className="awakening-content auth-content">
+        <div className="lore-eyebrow">11:11 · THE THRESHOLD</div>
+        <h1>FORGOTTEN</h1>
+        <p className="awakening-tagline">Remain forgotten.. or become remembered.</p>
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-black uppercase tracking-widest text-white">Gang Wars</h1>
+          <h2 className="auth-heading">{mode === "login" ? "You have been here before." : "A name stirs in the silence."}</h2>
           <div className="flex gap-1 text-[10px] uppercase tracking-widest">
-            <button
+            <Button variant="ghost"
               type="button"
               onClick={() => setMode("login")}
               className={`rounded px-2 py-1 ${mode === "login" ? "bg-white/20 text-white" : "text-white/50"}`}
             >
               Login
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost"
               type="button"
               onClick={() => setMode("signup")}
               className={`rounded px-2 py-1 ${mode === "signup" ? "bg-white/20 text-white" : "text-white/50"}`}
             >
               Sign up
-            </button>
+            </Button>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {mode === "signup" && (
             <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-white/60">
-              Username ({USERNAME_MIN}-{USERNAME_MAX}, must be unique)
+              Name (you may have forgotten it)
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -94,7 +101,7 @@ export function AuthScreen({ onReady }: Props) {
             </label>
           )}
           <label className="flex flex-col gap-1 text-[10px] uppercase tracking-widest text-white/60">
-            {mode === "signup" ? "Email (@gmail.com only)" : "Email"}
+            Email
             <input
               type="email"
               value={email}
@@ -117,20 +124,21 @@ export function AuthScreen({ onReady }: Props) {
 
           {mode === "signup" && (
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-widest text-white/60">Choose your gang</span>
+              <span className="text-[10px] uppercase tracking-widest text-white/60">Choose your era</span>
               <div className="grid grid-cols-2 gap-2">
                 {GANGS.map((g) => (
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     key={g.id}
                     onClick={() => setGang(g.id as GangId)}
-                    className={`rounded border px-3 py-2 text-left text-[11px] font-bold uppercase tracking-widest transition ${
-                      gang === g.id ? "border-white/70 text-white" : "border-white/10 text-white/70 hover:border-white/30"
+                    aria-pressed={gang === g.id}
+                    data-faction={g.id}
+                    className={`era-choice ${
+                      gang === g.id ? "selected" : ""
                     }`}
-                    style={{ backgroundColor: `${g.color}${gang === g.id ? "cc" : "66"}` }}
                   >
                     {g.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -142,15 +150,16 @@ export function AuthScreen({ onReady }: Props) {
             </div>
           )}
 
-          <button
+          <Button variant="ghost"
             type="submit"
             disabled={loading}
-            className="mt-2 rounded bg-white px-4 py-2 text-sm font-black uppercase tracking-widest text-black disabled:opacity-50"
+            className="awakening-cta"
           >
-            {loading ? "…" : mode === "signup" ? "Create & play" : "Enter city"}
-          </button>
+            {loading ? "…" : mode === "signup" ? "Begin at 11:11" : "Awaken"}
+          </Button>
         </form>
-      </div>
-    </div>
+      </section>
+      <div className="awakening-footer"><span>THE FORGOTTEN PROJECT</span><span>AWAKENED AT 11:11</span></div>
+    </main>
   );
 }

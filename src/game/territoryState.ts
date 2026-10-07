@@ -154,11 +154,11 @@ function announceDistrict(d: District) {
   const owner = territoryState.owners[d];
   const name = districtLabel(d);
   if (owner === null || owner === undefined) {
-    pushAlert(`${name} — uncontrolled`, "info", DISTRICT_TOAST_SECS);
+    pushAlert(`${name} — forgotten`, "info", DISTRICT_TOAST_SECS);
   } else if (owner === PLAYER_GANG) {
-    pushAlert(`${name} — held by your gang`, "info", DISTRICT_TOAST_SECS);
+    pushAlert(`${name} — remembered by your faction`, "info", DISTRICT_TOAST_SECS);
   } else {
-    pushAlert(`${name} — controlled by ${GANGS[owner].name}`, "warn", DISTRICT_TOAST_SECS);
+    pushAlert(`${name} — remembered by ${GANGS[owner].name}`, "warn", DISTRICT_TOAST_SECS);
   }
 }
 
@@ -201,7 +201,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
       s.captureDistrict = null;
       s.captureProgress = 0;
     } else if (nowMs < lockedUntil) {
-      if (s.captureDistrict !== inZone) setMessage("District locked");
+      if (s.captureDistrict !== inZone) setMessage("Memory zone sealed");
       s.captureDistrict = null;
       s.captureProgress = 0;
     } else {
@@ -226,7 +226,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
         const lockUntilMs = nowMs + CAPTURE_LOCK * 1000;
         s.owners[inZone] = PLAYER_GANG;
         s.lockUntil[inZone] = lockUntilMs;
-        setMessage(`${labelFor(inZone)?.name ?? inZone.toUpperCase()} captured`);
+        setMessage(`${labelFor(inZone)?.name ?? inZone.toUpperCase()} remembered`);
         _onOwnerChanged(inZone, PLAYER_GANG);
         _onCaptured(inZone, PLAYER_GANG, lockUntilMs);
         s.captureDistrict = null;
@@ -248,7 +248,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
     const guardsAlive = anyGuardAliveForBank(inVault.id);
     if (nowMs < lockUntil || guardsAlive) {
       if (s.robberyBankId !== inVault.id) {
-        setMessage(guardsAlive ? "Clear the guards first" : "Vault sealed");
+        setMessage(guardsAlive ? "The Sentinels still remember" : "Relic sealed");
       }
       s.robberyBankId = null;
       s.robberyProgress = 0;
@@ -266,8 +266,8 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
         earnMoney(payout);
         const lockUntilMs = nowMs + ROBBERY_COOLDOWN * 1000;
         s.robberyLockUntil[inVault.id] = lockUntilMs;
-        setMessage(`Robbery success: +$${payout}`);
-        pushAlert(`Vault cracked — +$${payout}`);
+        setMessage(`Relic raid complete: +◈ ${payout}`);
+        pushAlert(`Memory unearthed — +◈ ${payout}`);
         _onRobbed(inVault.id, lockUntilMs);
         s.robberyBankId = null;
         s.robberyProgress = 0;

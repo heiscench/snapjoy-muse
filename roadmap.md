@@ -1,1 +1,5 @@
 - [x] Make daytime longer than night and brighten night visibility.
+- [ ] Reskin identity, intro, login, lore labels and faction palettes as FORGOTTEN.
+- [ ] Replace vehicle visuals and dress the existing world as ruins without gameplay changes.
+- [ ] Implement Daylight/Dusk balance and tests.
+- [ ] Adapt safe-area HUD for portrait/landscape and verify requested sizes.

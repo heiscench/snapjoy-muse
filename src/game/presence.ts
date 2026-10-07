@@ -149,7 +149,7 @@ export function startPresence() {
     lastAttacker.userId = p.fromUserId;
     lastAttacker.at = Date.now();
     damagePlayer(p.amount);
-    pushAlert(`Hit by ${p.fromUsername}`, "warn");
+    pushAlert(`Marked by ${p.fromUsername}`, "warn");
   });
 
   channel.on("broadcast", { event: "died" }, (msg) => {
@@ -162,7 +162,7 @@ export function startPresence() {
     if (p.killerUserId && p.killerUserId === authState.userId) {
       earnMoney(KILL_BOUNTY);
       onPlayerKill();
-      pushAlert(`You eliminated ${p.username} — +$${KILL_BOUNTY}`);
+      pushAlert(`You unmade ${p.username} — +◈ ${KILL_BOUNTY}`);
     }
   });
 
@@ -184,7 +184,7 @@ export function startPresence() {
     }
     if (p.accepted) {
       squadState.humanFollowers.add(p.fromUserId);
-      pushAlert(`${p.fromUsername} joined your squad`);
+      pushAlert(`${p.fromUsername} walks beside you`);
     } else {
       pushAlert(`${p.fromUsername} declined`, "warn");
     }

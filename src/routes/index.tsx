@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthScreen } from "@/game/AuthScreen";
 import { applyProfileToGameState, loadProfile } from "@/game/profileSync";
+import { AwakeningIntro } from "@/game/AwakeningIntro";
 import { authState } from "@/game/authState";
 
 const GameScene = lazy(() =>
@@ -13,16 +14,16 @@ const GameScene = lazy(() =>
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Gang Wars — 3D Turf Warfare" },
+      { title: "FORGOTTEN" },
       {
         name: "description",
         content:
-          "Mobile-first 3D multiplayer turf war. Pick a gang, capture districts, defend your city.",
+          "1,111 beings on Solana. Awakened at 11:11. Remain forgotten.. or become remembered.",
       },
-      { property: "og:title", content: "Gang Wars — 3D Turf Warfare" },
+      { property: "og:title", content: "FORGOTTEN" },
       {
         property: "og:description",
-        content: "Mobile-first 3D multiplayer turf war set in a neon-lit night city.",
+        content: "Awaken among forgotten ruins. Reclaim fractured memories. Remain forgotten.. or become remembered.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -33,13 +34,14 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <ClientOnly fallback={<div className="fixed inset-0 bg-black" />}>
+    <ClientOnly fallback={<div className="fixed inset-0 bg-background" />}>
       <IndexGate />
     </ClientOnly>
   );
 }
 
 function IndexGate() {
+  const [introComplete, setIntroComplete] = useState(false);
   const [status, setStatus] = useState<"checking" | "authed" | "guest">("checking");
 
   useEffect(() => {
@@ -66,10 +68,11 @@ function IndexGate() {
     return () => { cancelled = true; sub.subscription.unsubscribe(); };
   }, []);
 
-  if (status === "checking") return <div className="fixed inset-0 bg-black" />;
+  if (!introComplete) return <AwakeningIntro onContinue={() => setIntroComplete(true)} />;
+  if (status === "checking") return <div className="fixed inset-0 bg-background" />;
   if (status === "guest") return <AuthScreen onReady={() => setStatus("authed")} />;
   return (
-    <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+    <Suspense fallback={<div className="fixed inset-0 bg-background" />}>
       <GameScene />
     </Suspense>
   );

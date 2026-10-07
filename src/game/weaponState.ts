@@ -19,13 +19,13 @@ export type WeaponDef = {
 };
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
-  pistol:  { id: "pistol",  name: "Pistol",        cost: 0,    damage: 34,  fireRate: 0.28, range: 60,  spread: 0.985, pellets: 1, kind: "hitscan", magSize: 12, reloadTime: 1.3 },
-  smg:     { id: "smg",     name: "SMG",           cost: 800,  damage: 18,  fireRate: 0.08, range: 55,  spread: 0.978, pellets: 1, kind: "hitscan", magSize: 30, reloadTime: 1.8 },
-  rifle:   { id: "rifle",   name: "Assault Rifle", cost: 1500, damage: 30,  fireRate: 0.14, range: 90,  spread: 0.99,  pellets: 1, kind: "hitscan", magSize: 25, reloadTime: 2.1 },
-  shotgun: { id: "shotgun", name: "Shotgun",       cost: 1200, damage: 14,  fireRate: 0.7,  range: 30,  spread: 0.965, pellets: 6, kind: "hitscan", magSize: 6,  reloadTime: 2.6 },
-  sniper:  { id: "sniper",  name: "Sniper",        cost: 2500, damage: 110, fireRate: 1.1,  range: 220, spread: 0.998, pellets: 1, kind: "hitscan", magSize: 5,  reloadTime: 2.9 },
-  grenade: { id: "grenade", name: "Grenade",       cost: 600,  damage: 70,  fireRate: 1.2,  range: 999, spread: 0,     pellets: 1, kind: "grenade", magSize: 3,  reloadTime: 3.4, splash: 6 },
-  tank:    { id: "tank",    name: "Cannon",        cost: 9000, damage: 180, fireRate: 2.6,  range: 150, spread: 0.995, pellets: 1, kind: "hitscan", magSize: 4,  reloadTime: 4.0, splash: 5 },
+  pistol:  { id: "pistol",  name: "Whisper",        cost: 0,    damage: 34,  fireRate: 0.28, range: 60,  spread: 0.985, pellets: 1, kind: "hitscan", magSize: 12, reloadTime: 1.3 },
+  smg:     { id: "smg",     name: "Echo Storm",           cost: 800,  damage: 18,  fireRate: 0.08, range: 55,  spread: 0.978, pellets: 1, kind: "hitscan", magSize: 30, reloadTime: 1.8 },
+  rifle:   { id: "rifle",   name: "Memory Lance", cost: 1500, damage: 30,  fireRate: 0.14, range: 90,  spread: 0.99,  pellets: 1, kind: "hitscan", magSize: 25, reloadTime: 2.1 },
+  shotgun: { id: "shotgun", name: "Fracture",       cost: 1200, damage: 14,  fireRate: 0.7,  range: 30,  spread: 0.965, pellets: 6, kind: "hitscan", magSize: 6,  reloadTime: 2.6 },
+  sniper:  { id: "sniper",  name: "Last Witness",        cost: 2500, damage: 110, fireRate: 1.1,  range: 220, spread: 0.998, pellets: 1, kind: "hitscan", magSize: 5,  reloadTime: 2.9 },
+  grenade: { id: "grenade", name: "Void Seed",       cost: 600,  damage: 70,  fireRate: 1.2,  range: 999, spread: 0,     pellets: 1, kind: "grenade", magSize: 3,  reloadTime: 3.4, splash: 6 },
+  tank:    { id: "tank",    name: "Oblivion",        cost: 9000, damage: 180, fireRate: 2.6,  range: 150, spread: 0.995, pellets: 1, kind: "hitscan", magSize: 4,  reloadTime: 4.0, splash: 5 },
 };
 
 export const WEAPON_ORDER: WeaponId[] = ["pistol", "smg", "rifle", "shotgun", "sniper", "grenade", "tank"];
