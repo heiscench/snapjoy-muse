@@ -119,6 +119,7 @@ export function RemotePlayers() {
         return (
           <group key={i}>
             <Character
+              identity={() => { const being = active.current[i]; if (!being) return undefined; return { id: being.userId, color: GANGS[being.gang].color, accent: GANGS[being.gang].accent }; }}
               ref={(v) => { slot.refs.current = v; }}
               color={gang.color}
               accent={gang.accent}

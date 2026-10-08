@@ -3,11 +3,12 @@ import { useRef } from "react";
 import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { HELICOPTERS } from "./vehicleState";
+import { RelicSkiff, RELIC_PALETTE } from "./RelicVisuals";
 import { HELI_PADS } from "./worldData";
 
 function ParkedHelicopter({ index }: { index: number }) {
   const group = useRef<THREE.Group>(null!);
-  const rotor = useRef<THREE.Group>(null!);
+  const rotor = useRef<THREE.Group>(null);
   const lastPos = useRef(new THREE.Vector3());
   const h0 = HELICOPTERS[index];
   const gang = GANGS[h0.gang];
@@ -32,7 +33,7 @@ function ParkedHelicopter({ index }: { index: number }) {
     group.current.visible = true;
 
     const flying = h.pos.y > 0.5 || Math.abs(h.vy) > 0.5;
-    rotor.current.rotation.y += dt * (flying ? 22 : 1.2);
+    rotor.current.position.y = 0.18 + Math.sin(performance.now() * 0.001) * (flying ? 0.06 : 0.1);
 
     const vx = h.pos.x - lastPos.current.x;
     const vz = h.pos.z - lastPos.current.z;
@@ -52,68 +53,7 @@ function ParkedHelicopter({ index }: { index: number }) {
 
   return (
     <group ref={group} position={[pad.x, 0, pad.z]}>
-      <mesh position={[0, 1.4, 0.3]}>
-        <coneGeometry args={[0.55, 1.4, 10]} />
-        <meshStandardMaterial color={gang.color} metalness={0.55} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, 1.4, -0.9]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.55, 0.4, 2.4, 10]} />
-        <meshStandardMaterial color={gang.color} metalness={0.55} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, 1.48, 1.15]}>
-        <sphereGeometry args={[0.62, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.6]} />
-        <meshStandardMaterial color="#0c1420" transparent opacity={0.6} roughness={0.05} metalness={0.2} />
-      </mesh>
-      <mesh position={[0, 1.05, -0.6]}>
-        <boxGeometry args={[0.7, 0.3, 1.1]} />
-        <meshStandardMaterial color="#1a1a1e" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, 1.45, -2.6]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.16, 0.28, 3, 8]} />
-        <meshStandardMaterial color={gang.color} metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, 1.85, -4]}>
-        <boxGeometry args={[0.06, 0.8, 0.9]} />
-        <meshStandardMaterial color={gang.color} />
-      </mesh>
-      <mesh position={[0.05, 1.9, -4]} rotation={[0, 0, Math.PI / 2]}>
-        <boxGeometry args={[0.05, 1.1, 0.1]} />
-        <meshStandardMaterial color="#111" />
-      </mesh>
-      {[-0.85, 0.85].map((s) => (
-        <group key={s}>
-          <mesh position={[s, 0.32, 0]}>
-            <boxGeometry args={[0.1, 0.1, 2.8]} />
-            <meshStandardMaterial color="#111" />
-          </mesh>
-          <mesh position={[s, 0.75, 0.7]} rotation={[0, 0, s > 0 ? -0.35 : 0.35]}>
-            <boxGeometry args={[0.06, 0.9, 0.06]} />
-            <meshStandardMaterial color="#111" />
-          </mesh>
-          <mesh position={[s, 0.75, -0.7]} rotation={[0, 0, s > 0 ? -0.35 : 0.35]}>
-            <boxGeometry args={[0.06, 0.9, 0.06]} />
-            <meshStandardMaterial color="#111" />
-          </mesh>
-        </group>
-      ))}
-      <mesh position={[0, 1.4, 0]}>
-        <boxGeometry args={[1.02, 0.15, 3.2]} />
-        <meshBasicMaterial color={gang.accent} />
-      </mesh>
-      <group ref={rotor} position={[0, 2.75, 0.3]}>
-        <mesh>
-          <boxGeometry args={[7.5, 0.06, 0.32]} />
-          <meshStandardMaterial color="#0a0a0a" metalness={0.3} />
-        </mesh>
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[7.5, 0.06, 0.32]} />
-          <meshStandardMaterial color="#0a0a0a" metalness={0.3} />
-        </mesh>
-        <mesh position={[0, 0.08, 0]}>
-          <cylinderGeometry args={[0.15, 0.15, 0.25, 8]} />
-          <meshStandardMaterial color="#1a1a1a" />
-        </mesh>
-      </group>
+      <group ref={rotor}><RelicSkiff color={gang.color} /></group>
     </group>
   );
 }
@@ -125,7 +65,7 @@ function LandingPad({ gangId, slot }: { gangId: 0 | 1 | 2 | 3; slot: 0 | 1 }) {
     <group position={[pos.x, 0, pos.z]}>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[7, 24]} />
-        <meshStandardMaterial color="#141414" />
+        <meshStandardMaterial color={RELIC_PALETTE.ink} />
       </mesh>
       <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[5.6, 6, 24]} />

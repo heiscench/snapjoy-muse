@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
+import { characterVariant, hasMonsterEyes } from "./characterAppearance";
 import {
   CIVILIANS,
   CIVILIAN_TURN_SECS,
@@ -77,7 +78,7 @@ function CivilianUnit({ civ }: { civ: CivilianState }) {
     if (r.armR) r.armR.rotation.x = swing * 0.7;
   });
 
-  return <Character ref={refs} color={civ.shirt} accent={civ.pants} />;
+  return <Character role="civilian" variant={characterVariant(civ.id)} ref={refs} color={civ.shirt} accent={civ.pants} />;
 }
 
 void THREE;

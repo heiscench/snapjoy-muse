@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
+import { characterVariant, hasMonsterEyes } from "./characterAppearance";
 import { GANGS } from "./gangs";
 import {
   GUARDS,
@@ -21,8 +22,8 @@ import { pilotState, damageHeli, damageCar } from "./vehicleState";
 import { carPilot } from "./carState";
 import { spawnTracer } from "./tracerState";
 
-const SECURITY_UNIFORM = "#1a1d26";
-const SECURITY_ACCENT = "#3a4050";
+const SECURITY_UNIFORM = "#14111c";
+const SECURITY_ACCENT = "#b49a60";
 const GUARD_BANK_SPEED = 3.4;
 const GUARD_NEUTRAL_SPEED = 3.8;
 const GUARD_RETURN_SPEED = 1.4;
@@ -154,5 +155,5 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     }
   });
 
-  return <Character ref={refs} color={SECURITY_UNIFORM} accent={SECURITY_ACCENT} />;
+  return <Character role="guard" variant={characterVariant(guard.id)} ref={refs} color={SECURITY_UNIFORM} accent={SECURITY_ACCENT} />;
 }
