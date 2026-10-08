@@ -1,12 +1,11 @@
-// Signup / login gate shown before the game mounts. Matches the neon-dark
-// HUD aesthetic used throughout GameScene (pills, backdrop blur, gang tints).
+// Signup / login gate shown before the game mounts.
 import { Button } from "@/components/ui/button";
 import { AwakeningBackdrop } from "./AwakeningIntro";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GANGS, type GangId } from "./gangs";
 import {
-  applyProfileToGameState, createProfile, loadProfile,
+  applyProfileToGameState, createProfile, ensureProfile,
   validateSignupEmail, validateUsername, USERNAME_MIN, USERNAME_MAX,
 } from "./profileSync";
 
@@ -22,10 +21,12 @@ export function AuthScreen({ onReady }: Props) {
   const [gang, setGang] = useState<GangId>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
     try {
       if (mode === "signup") {
@@ -33,21 +34,32 @@ export function AuthScreen({ onReady }: Props) {
         const cleanEmail = validateSignupEmail(email);
         const { data, error: signErr } = await supabase.auth.signUp({
           email: cleanEmail, password,
-          options: { data: { username: cleanName } },
+          options: { data: { username: cleanName, gang } },
         });
         if (signErr) throw signErr;
         const uid = data.user?.id;
         if (!uid) throw new Error("Signup failed — no user id returned");
+
+        // Email confirmation on: no session yet. The profile is created from
+        // the signup metadata at first login.
+        if (!data.session) {
+          setNotice("Check your email to confirm, then log in to complete your awakening.");
+          setMode("login");
+          return;
+        }
+
         const row = await createProfile(uid, cleanName, gang);
         if (!row) throw new Error("Your awakening could not be saved. Please try again.");
         applyProfileToGameState(row);
       } else {
-        const { data, error: logErr } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: logErr } = await supabase.auth.signInWithPassword({
+          email: email.trim(), password,
+        });
         if (logErr) throw logErr;
-        const uid = data.user?.id;
-        if (!uid) throw new Error("The threshold did not open");
-        const row = await loadProfile(uid);
-        if (!row) throw new Error("This account has no remembered being yet.");
+        const user = data.user;
+        if (!user) throw new Error("The threshold did not open");
+        const row = await ensureProfile(user);
+        if (!row) throw new Error("This account has no remembered being yet. Sign up first.");
         applyProfileToGameState(row);
       }
       onReady();
@@ -133,9 +145,7 @@ export function AuthScreen({ onReady }: Props) {
                     onClick={() => setGang(g.id as GangId)}
                     aria-pressed={gang === g.id}
                     data-faction={g.id}
-                    className={`era-choice ${
-                      gang === g.id ? "selected" : ""
-                    }`}
+                    className={`era-choice ${gang === g.id ? "selected" : ""}`}
                   >
                     {g.name}
                   </Button>
@@ -144,6 +154,11 @@ export function AuthScreen({ onReady }: Props) {
             </div>
           )}
 
+          {notice && (
+            <div className="rounded border border-amber-300/40 bg-amber-900/30 px-3 py-2 text-xs text-amber-100">
+              {notice}
+            </div>
+          )}
           {error && (
             <div className="rounded border border-red-500/40 bg-red-900/40 px-3 py-2 text-xs text-red-100">
               {error}
