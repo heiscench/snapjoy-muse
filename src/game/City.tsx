@@ -5,20 +5,25 @@ import * as THREE from "three";
 import { BUILDINGS, BLOCK_SIZE, GRID, HARBOR_Z, DISTRICT_LABELS, type BuildingBox } from "./worldData";
 import { GANGS } from "./gangs";
 import { territoryState } from "./territoryState";
+import { RELIC_PALETTE as P, RuinDetails } from "./RelicVisuals";
+
+const GOLD = "#cfb878";
+const VIOLET = "#b398d3";
+const STONES = ["#303735", "#3a3f3c", "#2a2e33", "#34302f"];
 
 const DISTRICT_ACCENT: Record<string, string> = {
-  downtown: "#6ab0ff",
-  industrial: "#e8c96a",
-  stadium: "#7cff9a",
-  bank: "#ffd66a",
-  shopping: "#ff9ad6",
-  harbor: "#6adfff",
-  residential: "#ffb86a",
+  downtown: "#b398d3",
+  industrial: "#cfb878",
+  stadium: "#9fd08a",
+  bank: "#d8ac52",
+  shopping: "#c78fd0",
+  harbor: "#7f9fe0",
+  residential: "#d8a77a",
   airport: "#c9d6e8",
-  casino: "#ff5c9e",
-  chinatown: "#ff6a4a",
+  casino: "#d8ac52",
+  chinatown: "#d23a5c",
   slums: "#c98a4a",
-  park: "#8aff6a",
+  park: "#9bd08a",
   uptown: "#d6b8ff",
 };
 
@@ -28,17 +33,18 @@ function hash01(x: number, z: number, salt = 0) {
   return v - Math.floor(v);
 }
 
+function stoneOf(b: BuildingBox) {
+  return STONES[Math.floor(hash01(b.x, b.z, 21) * 4) % 4];
+}
+
 const WINDOW_PLANE = new THREE.PlaneGeometry(1, 1);
 
-/**
- * One InstancedMesh of window quads across the four facades of a box.
- * Purely decorative: never affects footprint or collision. 1 draw call per building.
- */
+/** One InstancedMesh of dim rune-lit window quads across the four facades. Decorative only. */
 function WindowGrid({
-  w, h, d, cols, rows, color, litColor, seed, marginY = 0.5, opacity = 1,
+  w, h, d, cols, rows, color, litColor, seed, marginY = 0.5, opacity = 1, litChance = 0.62,
 }: {
   w: number; h: number; d: number; cols: number; rows: number;
-  color: string; litColor: string; seed: number; marginY?: number; opacity?: number;
+  color: string; litColor: string; seed: number; marginY?: number; opacity?: number; litChance?: number;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null!);
   const count = cols * rows * 4;
@@ -77,12 +83,12 @@ function WindowGrid({
           dummy.scale.set(paneW, paneH, 1);
           dummy.updateMatrix();
           m.push(dummy.matrix.clone());
-          c.push(hash01(along + fi * 3.1, y + seed, seed) > 0.42 ? lit : dark);
+          c.push(hash01(along + fi * 3.1, y + seed, seed) > litChance ? lit : dark);
         }
       }
     });
     return { matrices: m, colors: c };
-  }, [w, h, d, cols, rows, color, litColor, seed, marginY]);
+  }, [w, h, d, cols, rows, color, litColor, seed, marginY, litChance]);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -105,58 +111,116 @@ function WindowGrid({
   );
 }
 
-function Tower({ b }: { b: BuildingBox }) {
-  const seed = b.x * 0.13 + b.z * 0.29;
-  const rows = Math.max(4, Math.min(14, Math.floor(b.h / 4)));
-  const cols = Math.max(2, Math.min(6, Math.floor(b.w / 3)));
-  const crown = hash01(b.x, b.z, 1) > 0.5;
+/** The 11:11 mark: two bars, two dots, two bars. Always faces +Z. */
+function Clock1111({ position, scale = 1, color = GOLD }: {
+  position: [number, number, number]; scale?: number; color?: string;
+}) {
   return (
-    <group position={[b.x, 0, b.z]}>
-      {/* podium base */}
-      <mesh position={[0, 1, 0]}>
-        <boxGeometry args={[b.w * 1.06, 2, b.d * 1.06]} />
-        <meshStandardMaterial color="#141822" roughness={0.95} />
-      </mesh>
-      <mesh position={[0, b.h / 2, 0]}>
-        <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#1a1f2b" roughness={0.85} metalness={0.15} />
-      </mesh>
-      {/* vertical mullions */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * (b.w / 2 - 0.3), b.h / 2, b.d / 2 + 0.05]}>
-          <boxGeometry args={[0.35, b.h * 0.96, 0.2]} />
-          <meshStandardMaterial color="#2c3444" roughness={0.7} />
+    <group position={position} scale={scale}>
+      {[-0.62, -0.38, 0.38, 0.62].map((x) => (
+        <mesh key={x} position={[x, 0, 0]}>
+          <boxGeometry args={[0.09, 0.62, 0.04]} />
+          <meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
       ))}
-      <WindowGrid
-        w={b.w} h={b.h} d={b.d} cols={cols} rows={rows}
-        color="#0e1622" litColor="#9fd0ff" seed={seed} marginY={2.4}
-      />
-      {/* parapet + crown */}
-      <mesh position={[0, b.h + 0.35, 0]}>
-        <boxGeometry args={[b.w * 1.04, 0.7, b.d * 1.04]} />
-        <meshStandardMaterial color="#202632" roughness={0.9} />
-      </mesh>
-      {crown ? (
-        <mesh position={[0, b.h + 2.6, 0]}>
-          <cylinderGeometry args={[0.14, 0.14, 4, 6]} />
-          <meshStandardMaterial color="#2a3040" />
+      {[-0.13, 0.13].map((y) => (
+        <mesh key={y} position={[0, y, 0]}>
+          <boxGeometry args={[0.09, 0.09, 0.04]} />
+          <meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
-      ) : (
-        <mesh position={[0, b.h + 1.4, 0]}>
-          <boxGeometry args={[b.w * 0.4, 1.4, b.d * 0.4]} />
-          <meshStandardMaterial color="#202632" roughness={0.9} />
-        </mesh>
-      )}
-      {/* aviation light */}
-      <mesh position={[0, b.h + (crown ? 4.7 : 2.3), 0]}>
-        <sphereGeometry args={[0.22, 6, 6]} />
-        <meshBasicMaterial color="#ff4a4a" toneMapped={false} />
-      </mesh>
+      ))}
     </group>
   );
 }
 
+/** Glowing vertical rune strips on a facade. */
+function RuneStrips({ b, color = VIOLET, count = 2, z }: {
+  b: BuildingBox; color?: string; count?: number; z?: number;
+}) {
+  const zz = z ?? b.d / 2 + 0.05;
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => {
+        const x = (i - (count - 1) / 2) * (b.w * 0.56);
+        return (
+          <mesh key={i} position={[x, b.h * 0.5, zz]}>
+            <boxGeometry args={[0.1, b.h * 0.78, 0.06]} />
+            <meshBasicMaterial color={color} transparent opacity={0.75} toneMapped={false} />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
+/** Jagged broken crown + fallen rubble. Everything stays within ~the footprint. */
+function Rubble({ b, color }: { b: BuildingBox; color: string }) {
+  return (
+    <>
+      {[[-0.28, 0.22], [0.26, -0.2], [0, 0.05]].map(([sx, sz], i) => {
+        const hh = 0.8 + hash01(b.x + i, b.z, 41) * 2.2;
+        return (
+          <mesh key={i} position={[sx * b.w, b.h + 0.35 + hh / 2, sz * b.d]}
+            rotation={[0, hash01(b.x, b.z + i, 42), 0]}>
+            <boxGeometry args={[b.w * 0.26, hh, b.d * 0.26]} />
+            <meshStandardMaterial color={color} roughness={1} />
+          </mesh>
+        );
+      })}
+      {[[-0.5, 0.52], [0.52, 0.48], [-0.46, -0.5]].map(([sx, sz], i) => (
+        <mesh key={`r${i}`} position={[sx * b.w, 0.35, sz * b.d]}
+          rotation={[hash01(b.x, b.z, 50 + i), hash01(b.x, b.z, 60 + i), 0]}>
+          <boxGeometry args={[0.9 + i * 0.2, 0.7, 0.8]} />
+          <meshStandardMaterial color={P.stoneLight} roughness={1} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function Tower({ b }: { b: BuildingBox }) {
+  const seed = b.x * 0.13 + b.z * 0.29;
+  const rows = Math.max(4, Math.min(14, Math.floor(b.h / 4)));
+  const cols = Math.max(2, Math.min(6, Math.floor(b.w / 3)));
+  const stone = stoneOf(b);
+  const lit = hash01(b.x, b.z, 2) > 0.5 ? GOLD : VIOLET;
+  const mark = hash01(b.x, b.z, 3) > 0.74;
+  return (
+    <group>
+      <group position={[b.x, 0, b.z]}>
+        <mesh position={[0, 1, 0]}>
+          <boxGeometry args={[b.w * 1.06, 2, b.d * 1.06]} />
+          <meshStandardMaterial color={P.ink} roughness={0.95} />
+        </mesh>
+        <mesh position={[0, b.h / 2, 0]}>
+          <boxGeometry args={[b.w, b.h, b.d]} />
+          <meshStandardMaterial color={stone} roughness={0.95} metalness={0.05} />
+        </mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * (b.w / 2 - 0.3), b.h / 2, b.d / 2 + 0.05]}>
+            <boxGeometry args={[0.4, b.h * 0.96, 0.22]} />
+            <meshStandardMaterial color={P.stoneLight} roughness={0.9} />
+          </mesh>
+        ))}
+        <WindowGrid
+          w={b.w} h={b.h} d={b.d} cols={cols} rows={rows}
+          color="#0b0a10" litColor={lit} seed={seed} marginY={2.4} litChance={0.66}
+        />
+        <mesh position={[0, b.h + 0.35, 0]}>
+          <boxGeometry args={[b.w * 1.04, 0.7, b.d * 1.04]} />
+          <meshStandardMaterial color={P.ink} roughness={0.9} />
+        </mesh>
+        <Rubble b={b} color={stone} />
+        <mesh position={[0, b.h + 4.6, 0]}>
+          <sphereGeometry args={[0.22, 6, 6]} />
+          <meshBasicMaterial color={VIOLET} toneMapped={false} />
+        </mesh>
+        {mark && <Clock1111 position={[0, Math.min(b.h * 0.55, 14), b.d / 2 + 0.12]} scale={Math.min(3, b.w / 3)} />}
+      </group>
+      {b.h > 24 && <RuinDetails x={b.x} z={b.z} w={b.w} d={b.d} h={b.h} banner={hash01(b.x, b.z, 4) > 0.55} />}
+    </group>
+  );
+}
 
 function Warehouse({ b }: { b: BuildingBox }) {
   const seed = b.x * 0.21 + b.z * 0.11;
@@ -165,149 +229,175 @@ function Warehouse({ b }: { b: BuildingBox }) {
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#2a2820" roughness={0.95} />
+        <meshStandardMaterial color="#2b2a28" roughness={0.95} />
       </mesh>
-      {/* corrugated ribs */}
       {Array.from({ length: ribs }).map((_, i) => (
         <mesh key={i} position={[(i + 0.5) * (b.w / ribs) - b.w / 2, b.h / 2, b.d / 2 + 0.04]}>
           <boxGeometry args={[0.22, b.h * 0.94, 0.14]} />
-          <meshStandardMaterial color="#3a382c" roughness={0.9} />
+          <meshStandardMaterial color={P.stoneLight} roughness={0.9} />
         </mesh>
       ))}
-      {/* sawtooth roof */}
-      {Array.from({ length: 3 }).map((_, i) => (
-        <mesh key={i} position={[0, b.h + 0.5, (i - 1) * (b.d / 3.2)]} rotation={[0.5, 0, 0]}>
-          <boxGeometry args={[b.w * 0.96, 0.25, b.d / 3.6]} />
-          <meshStandardMaterial color="#413d30" metalness={0.35} roughness={0.75} />
+      {/* collapsed roof slabs */}
+      {[-1, 0, 1].map((i) => (
+        <mesh key={i} position={[0, b.h + 0.45 + (i === 0 ? -0.2 : 0.1), i * (b.d / 3.2)]}
+          rotation={[0.35 * (i || 1), 0, i * 0.05]}>
+          <boxGeometry args={[b.w * 0.94, 0.28, b.d / 3.6]} />
+          <meshStandardMaterial color={P.stone} roughness={0.95} />
         </mesh>
       ))}
-      {/* roll-up cargo door */}
+      {/* sealed rune door */}
       <mesh position={[-b.w * 0.18, b.h * 0.3, b.d / 2 + 0.05]}>
         <boxGeometry args={[b.w * 0.34, b.h * 0.58, 0.12]} />
-        <meshStandardMaterial color="#5a4a26" roughness={0.85} />
+        <meshStandardMaterial color={P.ink} roughness={0.9} />
       </mesh>
-      <mesh position={[-b.w * 0.18, b.h * 0.62, b.d / 2 + 0.12]}>
-        <planeGeometry args={[b.w * 0.34, 0.18]} />
-        <meshBasicMaterial color="#e8a24a" toneMapped={false} />
+      <mesh position={[-b.w * 0.18, b.h * 0.3, b.d / 2 + 0.13]}>
+        <planeGeometry args={[0.12, b.h * 0.5]} />
+        <meshBasicMaterial color={VIOLET} toneMapped={false} />
       </mesh>
       <WindowGrid
         w={b.w} h={b.h} d={b.d} cols={3} rows={1}
-        color="#241f14" litColor="#e8a24a" seed={seed} marginY={b.h * 0.72}
+        color="#0b0a10" litColor={GOLD} seed={seed} marginY={b.h * 0.72}
       />
-      {/* loading dock lip */}
-      <mesh position={[-b.w * 0.18, 0.35, b.d / 2 + 0.7]}>
-        <boxGeometry args={[b.w * 0.4, 0.7, 1.4]} />
-        <meshStandardMaterial color="#1e1c16" roughness={1} />
-      </mesh>
     </group>
   );
 }
-
 
 function Silo({ b }: { b: BuildingBox }) {
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
-        <cylinderGeometry args={[b.w / 2, b.w / 2, b.h, 16]} />
-        <meshStandardMaterial color="#3a3530" metalness={0.4} roughness={0.6} />
+        <cylinderGeometry args={[b.w / 2 - 0.3, b.w / 2, b.h, 8]} />
+        <meshStandardMaterial color={P.stone} roughness={0.95} />
       </mesh>
-      <mesh position={[0, b.h + 0.6, 0]}>
-        <coneGeometry args={[b.w / 2 + 0.4, 1.2, 16]} />
-        <meshStandardMaterial color="#2a2620" />
-      </mesh>
-      <mesh position={[0, b.h * 0.6, b.w / 2 + 0.02]}>
-        <planeGeometry args={[0.4, b.h * 0.5]} />
-        <meshBasicMaterial color="#e8a24a" />
-      </mesh>
-    </group>
-  );
-}
-
-function Bank({ b }: { b: BuildingBox }) {
-  return (
-    <group position={[b.x, 0, b.z]}>
-      <mesh position={[0, b.h / 2, 0]}>
-        <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#2a2418" emissive="#ffd66a" emissiveIntensity={0.25} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, b.h + 1, 0]}>
-        <boxGeometry args={[b.w * 1.1, 2, b.d * 1.1]} />
-        <meshStandardMaterial color="#3a3222" />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * (b.w / 2 - 1.5), b.h * 0.3, b.d / 2 + 0.5]}>
-          <boxGeometry args={[1, b.h * 0.6, 1]} />
-          <meshStandardMaterial color="#4a4230" />
+      {[0.3, 0.55, 0.8].map((t) => (
+        <mesh key={t} position={[0, b.h * t, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[b.w / 2 - 0.1 + (1 - t) * 0.25, 0.06, 4, 20]} />
+          <meshBasicMaterial color={VIOLET} transparent opacity={0.7} toneMapped={false} />
         </mesh>
       ))}
+      <mesh position={[0, b.h + 0.7, 0]} rotation={[0.1, 0.6, 0.12]}>
+        <octahedronGeometry args={[b.w * 0.32, 0]} />
+        <meshStandardMaterial color={P.stoneLight} emissive={VIOLET} emissiveIntensity={0.18} roughness={1} />
+      </mesh>
     </group>
   );
 }
 
-const LOWRISE_FACADES = ["#231a2a", "#2a1c22", "#1e1e2c", "#2c2130"];
-const LOWRISE_AWNINGS = ["#ff9ad6", "#6adfff", "#ffd66a", "#7cff9a"];
+/** The Cache: a gold-trimmed vault temple with the 11:11 mark. */
+function Bank({ b }: { b: BuildingBox }) {
+  return (
+    <group>
+      <group position={[b.x, 0, b.z]}>
+        <mesh position={[0, 0.6, 0]}>
+          <boxGeometry args={[b.w * 1.1, 1.2, b.d * 1.1]} />
+          <meshStandardMaterial color={P.ink} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, b.h / 2, 0]}>
+          <boxGeometry args={[b.w, b.h, b.d]} />
+          <meshStandardMaterial color="#2a2820" emissive={GOLD} emissiveIntensity={0.22} roughness={0.8} />
+        </mesh>
+        <mesh position={[0, b.h + 1, 0]}>
+          <boxGeometry args={[b.w * 1.1, 2, b.d * 1.1]} />
+          <meshStandardMaterial color="#3a3626" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, b.h + 2.8, 0]} rotation={[0, Math.PI / 4, 0]}>
+          <coneGeometry args={[b.w * 0.42, 2.6, 4]} />
+          <meshStandardMaterial color={P.ink} roughness={0.95} />
+        </mesh>
+        {[-1, 0, 1].map((s) => (
+          <mesh key={s} position={[s * (b.w / 2 - 1.5), b.h * 0.3, b.d / 2 + 0.6]}>
+            <boxGeometry args={[1, b.h * 0.6, 1]} />
+            <meshStandardMaterial color={P.stoneLight} roughness={0.9} />
+          </mesh>
+        ))}
+        <mesh position={[0, b.h * 0.25, b.d / 2 + 0.08]}>
+          <planeGeometry args={[b.w * 0.2, b.h * 0.42]} />
+          <meshBasicMaterial color={GOLD} transparent opacity={0.85} toneMapped={false} />
+        </mesh>
+        <Clock1111 position={[0, b.h * 0.72, b.d / 2 + 0.12]} scale={Math.max(3, b.w / 3.2)} />
+      </group>
+      <RuinDetails x={b.x} z={b.z} w={b.w} d={b.d} h={b.h} banner />
+    </group>
+  );
+}
+
+const LOWRISE_FACADES = ["#2a2c2f", "#2e2a2c", "#262b2e", "#2c2b27"];
+const LOWRISE_BANNERS = ["#4a3c5c", "#5a4a30", "#3c4a46", "#5a3640"];
 
 function LowRise({ b }: { b: BuildingBox }) {
   const seed = b.x * 0.31 + b.z * 0.17;
   const pick = Math.floor(hash01(b.x, b.z, 2) * 4) % 4;
   const rows = Math.max(1, Math.min(4, Math.floor(b.h / 4) - 1));
-  const awning = LOWRISE_AWNINGS[Math.floor(hash01(b.x, b.z, 5) * 4) % 4];
+  const banner = LOWRISE_BANNERS[Math.floor(hash01(b.x, b.z, 5) * 4) % 4];
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color={LOWRISE_FACADES[pick]} roughness={0.85} />
+        <meshStandardMaterial color={LOWRISE_FACADES[pick]} roughness={0.95} />
       </mesh>
-      {/* shopfront glazing */}
+      {/* dark broken shopfront with a faint inner glow */}
       <mesh position={[0, 1.6, b.d / 2 + 0.04]}>
         <planeGeometry args={[b.w * 0.9, 2.6]} />
-        <meshBasicMaterial color="#ffe4a3" toneMapped={false} />
+        <meshBasicMaterial color="#17131f" toneMapped={false} />
       </mesh>
-      {/* awning */}
-      <mesh position={[0, 3.2, b.d / 2 + 0.5]} rotation={[-0.42, 0, 0]}>
-        <boxGeometry args={[b.w * 0.94, 0.12, 1.5]} />
-        <meshStandardMaterial color={awning} emissive={awning} emissiveIntensity={0.35} roughness={0.6} />
+      <mesh position={[0, 1.6, b.d / 2 + 0.06]}>
+        <planeGeometry args={[b.w * 0.2, 1.8]} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.45} toneMapped={false} />
       </mesh>
-      {/* neon sign bar */}
+      {/* torn cloth awning */}
+      <mesh position={[0, 3.2, b.d / 2 + 0.5]} rotation={[-0.5, 0, 0.04]}>
+        <boxGeometry args={[b.w * 0.9, 0.06, 1.4]} />
+        <meshStandardMaterial color={banner} roughness={1} />
+      </mesh>
+      {/* faint rune sign instead of neon */}
       <mesh position={[0, 4.6, b.d / 2 + 0.06]}>
-        <boxGeometry args={[b.w * 0.5, 0.5, 0.12]} />
-        <meshBasicMaterial color={awning} toneMapped={false} />
+        <boxGeometry args={[b.w * 0.3, 0.12, 0.08]} />
+        <meshBasicMaterial color={VIOLET} transparent opacity={0.7} toneMapped={false} />
       </mesh>
       {rows > 0 && (
         <WindowGrid
           w={b.w} h={b.h} d={b.d} cols={Math.max(2, Math.floor(b.w / 3))} rows={rows}
-          color="#151122" litColor="#ffd9a3" seed={seed} marginY={5.4}
+          color="#0d0b12" litColor={GOLD} seed={seed} marginY={5.4} litChance={0.7}
         />
       )}
-      {/* cornice + rooftop AC */}
       <mesh position={[0, b.h + 0.2, 0]}>
         <boxGeometry args={[b.w * 1.05, 0.4, b.d * 1.05]} />
-        <meshStandardMaterial color="#191622" roughness={0.9} />
+        <meshStandardMaterial color={P.ink} roughness={0.9} />
       </mesh>
-      <mesh position={[b.w * 0.2, b.h + 0.9, -b.d * 0.15]}>
-        <boxGeometry args={[1.4, 1, 1.2]} />
-        <meshStandardMaterial color="#2e2b36" roughness={0.85} />
+      <mesh position={[b.w * 0.2, b.h + 0.8, -b.d * 0.15]} rotation={[0.2, 0.4, 0.3]}>
+        <boxGeometry args={[1.2, 0.9, 1]} />
+        <meshStandardMaterial color={P.stoneLight} roughness={1} />
       </mesh>
     </group>
   );
 }
 
-
+/** The Archive: wide hall with a violet memory-glass front. */
 function Mall({ b }: { b: BuildingBox }) {
   return (
-    <group position={[b.x, 0, b.z]}>
-      <mesh position={[0, b.h / 2, 0]}>
-        <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#241c2c" emissive="#ff9ad6" emissiveIntensity={0.2} roughness={0.8} />
-      </mesh>
-      <mesh position={[0, b.h + 0.6, 0]}>
-        <boxGeometry args={[b.w * 0.6, 1.2, 1]} />
-        <meshBasicMaterial color="#ffd66a" />
-      </mesh>
-      <mesh position={[0, b.h * 0.45, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.85, b.h * 0.6]} />
-        <meshBasicMaterial color="#c9f0ff" transparent opacity={0.5} />
-      </mesh>
+    <group>
+      <group position={[b.x, 0, b.z]}>
+        <mesh position={[0, b.h / 2, 0]}>
+          <boxGeometry args={[b.w, b.h, b.d]} />
+          <meshStandardMaterial color="#2a2c33" emissive={VIOLET} emissiveIntensity={0.1} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, b.h * 0.45, b.d / 2 + 0.02]}>
+          <planeGeometry args={[b.w * 0.85, b.h * 0.6]} />
+          <meshBasicMaterial color="#7f6aa8" transparent opacity={0.4} toneMapped={false} />
+        </mesh>
+        {[-3, -1, 1, 3].map((i) => (
+          <mesh key={i} position={[(i * b.w) / 9, b.h * 0.45, b.d / 2 + 0.3]}>
+            <boxGeometry args={[0.5, b.h * 0.7, 0.5]} />
+            <meshStandardMaterial color={P.stoneLight} roughness={0.9} />
+          </mesh>
+        ))}
+        <mesh position={[0, b.h + 0.3, 0]}>
+          <boxGeometry args={[b.w * 1.04, 0.6, b.d * 1.04]} />
+          <meshStandardMaterial color={P.ink} roughness={0.9} />
+        </mesh>
+        <Rubble b={b} color="#2a2c33" />
+      </group>
+      <RuinDetails x={b.x} z={b.z} w={b.w} d={b.d} h={b.h} />
     </group>
   );
 }
@@ -317,206 +407,184 @@ function Harbor({ b }: { b: BuildingBox }) {
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#1a2a30" roughness={0.9} />
+        <meshStandardMaterial color="#1c2024" roughness={0.95} />
+      </mesh>
+      <mesh position={[0, b.h + 0.1, b.d / 2 - 0.1]}>
+        <boxGeometry args={[b.w * 0.9, 0.12, 0.12]} />
+        <meshBasicMaterial color={VIOLET} transparent opacity={0.6} toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
+/** Broken arch standing where the crane was. */
 function Crane({ b }: { b: BuildingBox }) {
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#8a3a1a" />
+        <meshStandardMaterial color={P.stone} roughness={0.95} />
       </mesh>
-      <mesh position={[b.w * 3, b.h * 0.9, 0]}>
-        <boxGeometry args={[b.w * 6, 0.6, 0.8]} />
-        <meshStandardMaterial color="#8a3a1a" />
+      <mesh position={[b.w * 3, b.h * 0.9, 0]} rotation={[0, 0, -0.08]}>
+        <boxGeometry args={[b.w * 6, 0.7, 0.9]} />
+        <meshStandardMaterial color={P.stoneLight} roughness={0.95} />
+      </mesh>
+      <mesh position={[b.w * 5.6, b.h * 0.55, 0]}>
+        <boxGeometry args={[0.08, b.h * 0.6, 0.08]} />
+        <meshBasicMaterial color={VIOLET} transparent opacity={0.6} toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
+/** Ring of Echoes: a broken circle of glowing stone. */
 function Stadium({ b }: { b: BuildingBox }) {
   const segs = 16;
   return (
     <group position={[b.x, 0, b.z]}>
       {Array.from({ length: segs }).map((_, i) => {
+        if (i % 5 === 3) return null; // gap in the ring
         const a = (i / segs) * Math.PI * 2;
         const r = b.w / 2;
+        const hh = b.h * (0.7 + hash01(i, b.x, 9) * 0.3);
         return (
-          <mesh key={i} position={[Math.cos(a) * r, b.h / 2, Math.sin(a) * r]} rotation={[0, -a, 0]}>
-            <boxGeometry args={[(2 * Math.PI * r) / segs, b.h, 3]} />
-            <meshStandardMaterial color="#2a2f2a" emissive="#7cff9a" emissiveIntensity={0.3} />
+          <mesh key={i} position={[Math.cos(a) * r, hh / 2, Math.sin(a) * r]} rotation={[0, -a, 0]}>
+            <boxGeometry args={[(2 * Math.PI * r) / segs, hh, 3]} />
+            <meshStandardMaterial color="#2c312f" emissive={VIOLET} emissiveIntensity={0.18} roughness={0.95} />
           </mesh>
         );
       })}
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[b.w / 2 - 3, 24]} />
-        <meshStandardMaterial color="#0f3a1a" />
+        <meshStandardMaterial color="#14161a" roughness={1} />
+      </mesh>
+      <mesh position={[0, 0.07, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[b.w * 0.18, b.w * 0.2, 32]} />
+        <meshBasicMaterial color={VIOLET} transparent opacity={0.6} toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
+/** The Sanctum. */
 function Hospital({ b }: { b: BuildingBox }) {
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#e9edf2" roughness={0.8} />
+        <meshStandardMaterial color="#6b706a" roughness={0.9} />
       </mesh>
       {[b.d / 2 + 0.03, -(b.d / 2 + 0.03)].map((zOff, i) => (
-        <group key={i} position={[0, b.h * 0.55, zOff]}>
-          <mesh><boxGeometry args={[1.6, 0.5, 0.05]} /><meshBasicMaterial color="#ff3b3b" /></mesh>
-          <mesh><boxGeometry args={[0.5, 1.6, 0.05]} /><meshBasicMaterial color="#ff3b3b" /></mesh>
+        <group key={i} position={[0, b.h * 0.55, zOff]} rotation={[0, i ? Math.PI : 0, 0]}>
+          <mesh><ringGeometry args={[0.7, 0.85, 24]} /><meshBasicMaterial color={VIOLET} toneMapped={false} side={THREE.DoubleSide} /></mesh>
+          <mesh><circleGeometry args={[0.25, 12]} /><meshBasicMaterial color={GOLD} toneMapped={false} side={THREE.DoubleSide} /></mesh>
         </group>
       ))}
-      <Text position={[0, b.h + 1.6, 0]} fontSize={2.2} color="#ff5a5a" anchorX="center" anchorY="middle">
-        HOSPITAL
+      <mesh position={[0, b.h + 0.25, 0]}>
+        <boxGeometry args={[b.w * 1.04, 0.5, b.d * 1.04]} />
+        <meshStandardMaterial color={P.ink} roughness={0.9} />
+      </mesh>
+      <Text position={[0, b.h + 1.8, 0]} fontSize={2.2} color={VIOLET} anchorX="center" anchorY="middle">
+        THE SANCTUM
       </Text>
     </group>
   );
 }
 
-const HOUSE_WALLS = ["#5a4838", "#6a5340", "#4e4a3c", "#67483a", "#544b44"];
-const HOUSE_ROOFS = ["#2a1f18", "#33231c", "#242630", "#3a2418"];
-const HOUSE_DOORS = ["#2a1810", "#1d2a30", "#3a1c1c", "#243020"];
+const HOUSE_WALLS = ["#4a4a44", "#52504a", "#3f4540", "#4c4642", "#46484a"];
+const HOUSE_ROOFS = ["#1d1a1c", "#22201f", "#1a1c22", "#26201c"];
 
+/** Ruined cottage: half a roof, a dark arch, one candle-lit window. */
 function House({ b }: { b: BuildingBox }) {
   const seed = b.x * 0.41 + b.z * 0.23;
   const wall = HOUSE_WALLS[Math.floor(hash01(b.x, b.z, 3) * 5) % 5];
   const roof = HOUSE_ROOFS[Math.floor(hash01(b.x, b.z, 4) * 4) % 4];
-  const door = HOUSE_DOORS[Math.floor(hash01(b.x, b.z, 6) * 4) % 4];
-  const gableRoof = hash01(b.x, b.z, 7) > 0.45;
   const hasChimney = hash01(b.x, b.z, 8) > 0.4;
-  const hasPorch = hash01(b.x, b.z, 9) > 0.5;
   const floors = Math.max(1, Math.min(2, Math.floor(b.h / 4)));
   const doorW = b.w * 0.2;
   const doorH = Math.min(b.h * 0.42, 2.6);
+  const missing = hash01(b.x, b.z, 7) > 0.5 ? 1 : -1;
 
   return (
     <group position={[b.x, 0, b.z]}>
-      {/* foundation plinth */}
       <mesh position={[0, 0.25, 0]}>
         <boxGeometry args={[b.w * 1.04, 0.5, b.d * 1.04]} />
-        <meshStandardMaterial color="#33302b" roughness={1} />
+        <meshStandardMaterial color="#26282a" roughness={1} />
       </mesh>
-      {/* body */}
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color={wall} roughness={0.92} />
+        <meshStandardMaterial color={wall} roughness={0.95} />
       </mesh>
-      {/* corner trim boards */}
       {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz], i) => (
         <mesh key={i} position={[sx * (b.w / 2 - 0.12), b.h / 2, sz * (b.d / 2 - 0.12)]}>
           <boxGeometry args={[0.26, b.h, 0.26]} />
           <meshStandardMaterial color={roof} roughness={0.9} />
         </mesh>
       ))}
-      {/* mid-floor belt trim */}
-      {floors > 1 && (
-        <mesh position={[0, b.h * 0.5, 0]}>
-          <boxGeometry args={[b.w * 1.02, 0.18, b.d * 1.02]} />
-          <meshStandardMaterial color={roof} roughness={0.9} />
-        </mesh>
-      )}
-      {/* windows */}
       <WindowGrid
         w={b.w} h={b.h} d={b.d} cols={2} rows={floors}
-        color="#1a1410" litColor="#ffcf7a" seed={seed} marginY={Math.min(1.4, b.h * 0.2)}
+        color="#0d0b0c" litColor={GOLD} seed={seed} marginY={Math.min(1.4, b.h * 0.2)} litChance={0.72}
       />
-      {/* roof: gable or hip */}
-      {gableRoof ? (
-        <group position={[0, b.h, 0]}>
-          {[-1, 1].map((s) => (
-            <mesh key={s} position={[0, 0.85, s * b.d * 0.26]} rotation={[s * -0.72, 0, 0]}>
-              <boxGeometry args={[b.w * 1.14, 0.22, b.d * 0.72]} />
-              <meshStandardMaterial color={roof} roughness={0.88} />
-            </mesh>
-          ))}
-          {/* ridge beam */}
-          <mesh position={[0, 1.7, 0]}>
-            <boxGeometry args={[b.w * 1.16, 0.2, 0.28]} />
-            <meshStandardMaterial color="#1b140f" roughness={0.9} />
-          </mesh>
-        </group>
-      ) : (
-        <mesh position={[0, b.h + 0.9, 0]} rotation={[0, Math.PI / 4, 0]}>
-          <coneGeometry args={[b.w * 0.78, 1.9, 4]} />
-          <meshStandardMaterial color={roof} roughness={0.88} />
-        </mesh>
-      )}
-      {/* eaves overhang */}
-      <mesh position={[0, b.h + 0.08, 0]}>
-        <boxGeometry args={[b.w * 1.12, 0.16, b.d * 1.12]} />
+      {/* one surviving roof slope */}
+      <mesh position={[0, b.h + 0.85, -missing * b.d * 0.26]} rotation={[missing * 0.72, 0, 0]}>
+        <boxGeometry args={[b.w * 1.14, 0.22, b.d * 0.72]} />
+        <meshStandardMaterial color={roof} roughness={0.9} />
+      </mesh>
+      <mesh position={[0, b.h + 0.1, 0]}>
+        <boxGeometry args={[b.w * 1.1, 0.16, b.d * 1.1]} />
         <meshStandardMaterial color={roof} roughness={0.9} />
       </mesh>
       {hasChimney && (
-        <mesh position={[b.w * 0.28, b.h + 1.5, -b.d * 0.2]}>
+        <mesh position={[b.w * 0.28, b.h + 1.5, -b.d * 0.2]} rotation={[0, 0, 0.08]}>
           <boxGeometry args={[0.7, 2.2, 0.7]} />
-          <meshStandardMaterial color="#3a2c24" roughness={1} />
+          <meshStandardMaterial color="#2c2a28" roughness={1} />
         </mesh>
       )}
-      {/* door with frame + step + lamp */}
-      <mesh position={[0, doorH / 2 + 0.5, b.d / 2 + 0.06]}>
+      {/* dark doorway */}
+      <mesh position={[0, doorH / 2 + 0.5, b.d / 2 + 0.07]}>
         <boxGeometry args={[doorW + 0.22, doorH + 0.22, 0.1]} />
         <meshStandardMaterial color={roof} roughness={0.85} />
       </mesh>
-      <mesh position={[0, doorH / 2 + 0.5, b.d / 2 + 0.13]}>
+      <mesh position={[0, doorH / 2 + 0.5, b.d / 2 + 0.14]}>
         <boxGeometry args={[doorW, doorH, 0.08]} />
-        <meshStandardMaterial color={door} roughness={0.7} />
-      </mesh>
-      <mesh position={[doorW * 0.3, doorH * 0.55, b.d / 2 + 0.2]}>
-        <sphereGeometry args={[0.07, 6, 6]} />
-        <meshStandardMaterial color="#c9a24a" metalness={0.7} roughness={0.35} />
+        <meshBasicMaterial color="#07060a" />
       </mesh>
       <mesh position={[doorW * 0.9, doorH + 0.5, b.d / 2 + 0.16]}>
-        <sphereGeometry args={[0.16, 6, 6]} />
-        <meshBasicMaterial color="#ffd9a0" toneMapped={false} />
+        <sphereGeometry args={[0.13, 6, 6]} />
+        <meshBasicMaterial color={GOLD} toneMapped={false} />
       </mesh>
-      <mesh position={[0, 0.55, b.d / 2 + 0.6]}>
-        <boxGeometry args={[doorW + 0.8, 0.2, 1]} />
-        <meshStandardMaterial color="#3b3833" roughness={1} />
-      </mesh>
-      {hasPorch && (
-        <group>
-          <mesh position={[0, doorH + 1.0, b.d / 2 + 0.9]}>
-            <boxGeometry args={[b.w * 0.62, 0.16, 1.9]} />
-            <meshStandardMaterial color={roof} roughness={0.9} />
-          </mesh>
-          {[-1, 1].map((s) => (
-            <mesh key={s} position={[s * b.w * 0.26, (doorH + 1) / 2, b.d / 2 + 1.7]}>
-              <cylinderGeometry args={[0.1, 0.1, doorH + 1, 6]} />
-              <meshStandardMaterial color={wall} roughness={0.9} />
-            </mesh>
-          ))}
-        </group>
-      )}
     </group>
   );
 }
 
-
+/** Memory Garden: pale ground, standing stones, a floating orb. */
 function Plaza({ b }: { b: BuildingBox }) {
   return (
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[b.w / 2, 20]} />
-        <meshStandardMaterial color="#14361f" roughness={0.9} />
+        <circleGeometry args={[b.w / 2, 24]} />
+        <meshStandardMaterial color="#1a2420" roughness={1} />
       </mesh>
-      <mesh position={[0, 1.5, 0]}>
-        <cylinderGeometry args={[0.3, 0.3, 3, 8]} />
-        <meshStandardMaterial color="#2a2a30" />
+      <mesh position={[0, 0.07, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[b.w * 0.16, b.w * 0.18, 28]} />
+        <meshBasicMaterial color={VIOLET} transparent opacity={0.55} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 3.2, 0]}>
+        <icosahedronGeometry args={[0.7, 0]} />
+        <meshBasicMaterial color={VIOLET} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 1.4, 0]}>
+        <cylinderGeometry args={[0.18, 0.28, 2.8, 6]} />
+        <meshStandardMaterial color={P.stone} roughness={1} />
       </mesh>
       {[0, 1, 2, 3, 4, 5].map((i) => {
         const a = (i / 6) * Math.PI * 2;
         const r = b.w / 2 - 1.5;
+        const hh = 1.4 + hash01(i, b.x, 14) * 1.8;
         return (
-          <mesh key={i} position={[Math.cos(a) * r, 1, Math.sin(a) * r]}>
-            <sphereGeometry args={[0.8, 8, 8]} />
-            <meshStandardMaterial color="#0f3a1a" />
+          <mesh key={i} position={[Math.cos(a) * r, hh / 2, Math.sin(a) * r]} rotation={[0, a, (i % 2 ? 1 : -1) * 0.1]}>
+            <boxGeometry args={[0.7, hh, 0.5]} />
+            <meshStandardMaterial color={P.stoneLight} roughness={1} />
           </mesh>
         );
       })}
@@ -524,188 +592,171 @@ function Plaza({ b }: { b: BuildingBox }) {
   );
 }
 
+/** Relic bay: arched stone shell with a violet-lit mouth. */
 function Hangar({ b }: { b: BuildingBox }) {
   const r = Math.min(b.h, b.w / 2);
   const ribs = 5;
   return (
     <group position={[b.x, 0, b.z]}>
-      {/* Arched steel shell, correctly laid on its side along the depth axis */}
-      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[r, r, b.d, 16, 1, true, 0, Math.PI]} />
-        <meshStandardMaterial color="#3a3f45" metalness={0.35} roughness={0.65} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#2d3234" roughness={0.95} side={THREE.DoubleSide} />
       </mesh>
-      {/* Structural ribs banding the shell */}
       {Array.from({ length: ribs }).map((_, i) => {
         const z = -b.d / 2 + (b.d / (ribs - 1)) * i;
         return (
           <mesh key={i} position={[0, 0, z]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[r + 0.12, r + 0.12, 0.3, 16, 1, true, 0, Math.PI]} />
-            <meshStandardMaterial color="#22262b" metalness={0.5} roughness={0.5} side={THREE.DoubleSide} />
+            <meshStandardMaterial color={P.ink} roughness={0.8} side={THREE.DoubleSide} />
           </mesh>
         );
       })}
-      {/* Concrete apron + wheel-stop kerb */}
       <mesh position={[0, 0.02, b.d / 2 + 5]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[b.w * 1.2, 10]} />
-        <meshStandardMaterial color="#2b2e33" roughness={1} />
+        <meshStandardMaterial color="#17181b" roughness={1} />
       </mesh>
-      {/* Rear wall */}
       <mesh position={[0, r * 0.5, -b.d / 2]}>
         <planeGeometry args={[b.w, r]} />
-        <meshStandardMaterial color="#2e3238" roughness={0.8} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#24282a" roughness={0.9} side={THREE.DoubleSide} />
       </mesh>
-      {/* Front gable with a big lit sliding door */}
       <mesh position={[0, r * 0.5, b.d / 2]}>
         <planeGeometry args={[b.w, r]} />
-        <meshStandardMaterial color="#2e3238" roughness={0.8} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#24282a" roughness={0.9} side={THREE.DoubleSide} />
       </mesh>
       <mesh position={[0, r * 0.34, b.d / 2 + 0.05]}>
         <planeGeometry args={[b.w * 0.66, r * 0.62]} />
-        <meshBasicMaterial color="#8ac9ff" transparent opacity={0.35} toneMapped={false} />
+        <meshBasicMaterial color="#8a6ac4" transparent opacity={0.35} toneMapped={false} />
       </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * b.w * 0.33, r * 0.34, b.d / 2 + 0.08]}>
-          <boxGeometry args={[0.18, r * 0.62, 0.12]} />
-          <meshStandardMaterial color="#181b1f" />
-        </mesh>
-      ))}
-      {/* Roof beacon */}
       <mesh position={[0, r + 0.4, 0]}>
-        <sphereGeometry args={[0.28, 8, 8]} />
-        <meshBasicMaterial color="#ff5a4a" toneMapped={false} />
+        <octahedronGeometry args={[0.35, 0]} />
+        <meshBasicMaterial color={VIOLET} toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
+/** Cathedral of Echoes: stepped spire with gold and violet bands. */
 function Casino({ b }: { b: BuildingBox }) {
   const bands = 6;
   return (
-    <group position={[b.x, 0, b.z]}>
-      {/* Stepped tower — a plinth, main slab, and a setback penthouse */}
-      <mesh position={[0, b.h * 0.06, 0]}>
-        <boxGeometry args={[b.w * 1.12, b.h * 0.12, b.d * 1.12]} />
-        <meshStandardMaterial color="#1b0d14" roughness={0.7} />
-      </mesh>
-      <mesh position={[0, b.h * 0.5, 0]}>
-        <boxGeometry args={[b.w, b.h * 0.78, b.d]} />
-        <meshStandardMaterial color="#241018" emissive="#ff5c9e" emissiveIntensity={0.35} roughness={0.55} metalness={0.2} />
-      </mesh>
-      <mesh position={[0, b.h * 0.94, 0]}>
-        <boxGeometry args={[b.w * 0.6, b.h * 0.18, b.d * 0.6]} />
-        <meshStandardMaterial color="#2c1420" emissive="#ffd166" emissiveIntensity={0.3} roughness={0.5} />
-      </mesh>
-      {/* Neon bands wrapping all four faces */}
-      {Array.from({ length: bands }).map((_, i) => {
-        const y = b.h * (0.16 + i * 0.12);
-        const neon = i % 2 === 0 ? "#ffe36a" : "#ff5c9e";
-        return (
-          <group key={i} position={[0, y, 0]}>
-            <mesh position={[0, 0, b.d / 2 + 0.04]}>
-              <planeGeometry args={[b.w * 0.88, 0.26]} />
-              <meshBasicMaterial color={neon} toneMapped={false} />
-            </mesh>
-            <mesh position={[0, 0, -b.d / 2 - 0.04]} rotation={[0, Math.PI, 0]}>
-              <planeGeometry args={[b.w * 0.88, 0.26]} />
-              <meshBasicMaterial color={neon} toneMapped={false} />
-            </mesh>
-            <mesh position={[b.w / 2 + 0.04, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-              <planeGeometry args={[b.d * 0.88, 0.26]} />
-              <meshBasicMaterial color={neon} toneMapped={false} />
-            </mesh>
-            <mesh position={[-b.w / 2 - 0.04, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-              <planeGeometry args={[b.d * 0.88, 0.26]} />
-              <meshBasicMaterial color={neon} toneMapped={false} />
-            </mesh>
-          </group>
-        );
-      })}
-      {/* Entrance canopy on stanchions */}
-      <mesh position={[0, b.h * 0.18, b.d / 2 + 2]}>
-        <boxGeometry args={[b.w * 0.55, 0.3, 4]} />
-        <meshStandardMaterial color="#3a1526" emissive="#ff5c9e" emissiveIntensity={0.25} />
-      </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * b.w * 0.24, b.h * 0.09, b.d / 2 + 3.6]}>
-          <cylinderGeometry args={[0.12, 0.12, b.h * 0.18, 6]} />
-          <meshStandardMaterial color="#141018" metalness={0.6} roughness={0.4} />
+    <group>
+      <group position={[b.x, 0, b.z]}>
+        <mesh position={[0, b.h * 0.06, 0]}>
+          <boxGeometry args={[b.w * 1.12, b.h * 0.12, b.d * 1.12]} />
+          <meshStandardMaterial color={P.ink} roughness={0.9} />
         </mesh>
-      ))}
-      {/* Rooftop marquee sign + spire */}
-      <mesh position={[0, b.h * 1.06, 0]}>
-        <boxGeometry args={[b.w * 0.5, 1.2, 0.2]} />
-        <meshBasicMaterial color="#ffd166" toneMapped={false} />
-      </mesh>
-      <mesh position={[0, b.h * 1.2, 0]}>
-        <cylinderGeometry args={[0.16, 0.4, 2.6, 8]} />
-        <meshBasicMaterial color="#ff5c9e" toneMapped={false} />
-      </mesh>
+        <mesh position={[0, b.h * 0.5, 0]}>
+          <boxGeometry args={[b.w, b.h * 0.78, b.d]} />
+          <meshStandardMaterial color="#2a2830" emissive={VIOLET} emissiveIntensity={0.12} roughness={0.85} />
+        </mesh>
+        <mesh position={[0, b.h * 0.94, 0]}>
+          <boxGeometry args={[b.w * 0.6, b.h * 0.18, b.d * 0.6]} />
+          <meshStandardMaterial color="#34302a" emissive={GOLD} emissiveIntensity={0.18} roughness={0.8} />
+        </mesh>
+        {Array.from({ length: bands }).map((_, i) => {
+          const y = b.h * (0.16 + i * 0.12);
+          const c = i % 2 === 0 ? GOLD : VIOLET;
+          return (
+            <group key={i} position={[0, y, 0]}>
+              <mesh position={[0, 0, b.d / 2 + 0.04]}>
+                <planeGeometry args={[b.w * 0.88, 0.14]} />
+                <meshBasicMaterial color={c} transparent opacity={0.75} toneMapped={false} />
+              </mesh>
+              <mesh position={[0, 0, -b.d / 2 - 0.04]} rotation={[0, Math.PI, 0]}>
+                <planeGeometry args={[b.w * 0.88, 0.14]} />
+                <meshBasicMaterial color={c} transparent opacity={0.75} toneMapped={false} />
+              </mesh>
+              <mesh position={[b.w / 2 + 0.04, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+                <planeGeometry args={[b.d * 0.88, 0.14]} />
+                <meshBasicMaterial color={c} transparent opacity={0.75} toneMapped={false} />
+              </mesh>
+              <mesh position={[-b.w / 2 - 0.04, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+                <planeGeometry args={[b.d * 0.88, 0.14]} />
+                <meshBasicMaterial color={c} transparent opacity={0.75} toneMapped={false} />
+              </mesh>
+            </group>
+          );
+        })}
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * b.w * 0.24, b.h * 0.09, b.d / 2 + 3.2]}>
+            <cylinderGeometry args={[0.2, 0.26, b.h * 0.18, 6]} />
+            <meshStandardMaterial color={P.stoneLight} roughness={0.9} />
+          </mesh>
+        ))}
+        <Clock1111 position={[0, b.h * 1.08, 0.3]} scale={Math.max(2.5, b.w / 4)} />
+        <mesh position={[0, b.h * 1.22, 0]}>
+          <coneGeometry args={[0.5, 3.4, 4]} />
+          <meshStandardMaterial color={P.ink} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, b.h * 1.22 + 2.2, 0]}>
+          <octahedronGeometry args={[0.35, 0]} />
+          <meshBasicMaterial color={VIOLET} toneMapped={false} />
+        </mesh>
+      </group>
+      <RuinDetails x={b.x} z={b.z} w={b.w} d={b.d} h={b.h} banner />
     </group>
   );
 }
 
+/** Shrine of the Warriors: dark tiers with crimson banners. */
 function Pagoda({ b }: { b: BuildingBox }) {
   const tiers = 3;
   const tierH = b.h / tiers;
   return (
-    <group position={[b.x, 0, b.z]}>
-      {/* Stone plinth */}
-      <mesh position={[0, 0.35, 0]}>
-        <boxGeometry args={[b.w * 0.92, 0.7, b.d * 0.92]} />
-        <meshStandardMaterial color="#2b2622" roughness={0.9} />
-      </mesh>
-      {Array.from({ length: tiers }).map((_, i) => {
-        const scale = 1 - i * 0.22;
-        const y = tierH * i + tierH * 0.5 + 0.7;
-        const halfW = (b.w * scale * 0.7) / 2;
-        const halfD = (b.d * scale * 0.7) / 2;
-        return (
-          <group key={i} position={[0, y, 0]}>
-            <mesh>
-              <boxGeometry args={[b.w * scale * 0.7, tierH * 0.7, b.d * scale * 0.7]} />
-              <meshStandardMaterial color="#5a1e18" roughness={0.7} />
-            </mesh>
-            {/* Timber corner posts */}
-            {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz], k) => (
-              <mesh key={k} position={[sx * halfW, 0, sz * halfD]}>
-                <boxGeometry args={[0.18, tierH * 0.7, 0.18]} />
-                <meshStandardMaterial color="#301410" roughness={0.9} />
+    <group>
+      <group position={[b.x, 0, b.z]}>
+        <mesh position={[0, 0.35, 0]}>
+          <boxGeometry args={[b.w * 0.92, 0.7, b.d * 0.92]} />
+          <meshStandardMaterial color="#24262a" roughness={0.95} />
+        </mesh>
+        {Array.from({ length: tiers }).map((_, i) => {
+          const scale = 1 - i * 0.22;
+          const y = tierH * i + tierH * 0.5 + 0.7;
+          const halfW = (b.w * scale * 0.7) / 2;
+          const halfD = (b.d * scale * 0.7) / 2;
+          return (
+            <group key={i} position={[0, y, 0]}>
+              <mesh>
+                <boxGeometry args={[b.w * scale * 0.7, tierH * 0.7, b.d * scale * 0.7]} />
+                <meshStandardMaterial color="#2c2a2c" roughness={0.9} />
               </mesh>
-            ))}
-            {/* Lattice windows facing the street */}
-            <mesh position={[0, 0, halfD + 0.03]}>
-              <planeGeometry args={[b.w * scale * 0.4, tierH * 0.32]} />
-              <meshBasicMaterial color="#ffb066" toneMapped={false} />
-            </mesh>
-            {/* Flared tiled eaves — a wide slab under a pyramid cap */}
-            <mesh position={[0, tierH * 0.38, 0]}>
-              <boxGeometry args={[b.w * scale * 0.98, 0.16, b.d * scale * 0.98]} />
-              <meshStandardMaterial color="#7a2418" roughness={0.6} />
-            </mesh>
-            <mesh position={[0, tierH * 0.55, 0]} rotation={[0, Math.PI / 4, 0]}>
-              <coneGeometry args={[b.w * scale * 0.66, 1.0, 4]} />
-              <meshStandardMaterial color="#8a2a1a" roughness={0.6} />
-            </mesh>
-            {/* Corner lanterns */}
-            {[-1, 1].map((s) => (
-              <mesh key={s} position={[s * halfW, tierH * 0.28, halfD]}>
-                <sphereGeometry args={[0.2, 8, 8]} />
-                <meshBasicMaterial color="#ff6a4a" toneMapped={false} />
+              {[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz], k) => (
+                <mesh key={k} position={[sx * halfW, 0, sz * halfD]}>
+                  <boxGeometry args={[0.18, tierH * 0.7, 0.18]} />
+                  <meshStandardMaterial color={P.ink} roughness={0.9} />
+                </mesh>
+              ))}
+              <mesh position={[0, 0, halfD + 0.03]}>
+                <planeGeometry args={[b.w * scale * 0.4, tierH * 0.32]} />
+                <meshBasicMaterial color={GOLD} transparent opacity={0.55} toneMapped={false} />
               </mesh>
-            ))}
-          </group>
-        );
-      })}
-      {/* Finial spire */}
-      <mesh position={[0, b.h + 1.5, 0]}>
-        <cylinderGeometry args={[0.06, 0.16, 1.6, 6]} />
-        <meshStandardMaterial color="#c9a24a" metalness={0.7} roughness={0.3} />
-      </mesh>
-      {/* Vertical banner sign */}
-      <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
-        <planeGeometry args={[b.w * 0.22, b.h * 0.5]} />
-        <meshBasicMaterial color="#ff6a4a" toneMapped={false} />
-      </mesh>
+              <mesh position={[0, tierH * 0.38, 0]}>
+                <boxGeometry args={[b.w * scale * 0.98, 0.16, b.d * scale * 0.98]} />
+                <meshStandardMaterial color={P.ink} roughness={0.9} />
+              </mesh>
+              <mesh position={[0, tierH * 0.55, 0]} rotation={[0, Math.PI / 4, 0]}>
+                <coneGeometry args={[b.w * scale * 0.66, 1.0, 4]} />
+                <meshStandardMaterial color="#3a2428" roughness={0.9} />
+              </mesh>
+              {[-1, 1].map((s) => (
+                <mesh key={s} position={[s * halfW, tierH * 0.28, halfD]}>
+                  <sphereGeometry args={[0.2, 8, 8]} />
+                  <meshBasicMaterial color={VIOLET} toneMapped={false} />
+                </mesh>
+              ))}
+            </group>
+          );
+        })}
+        <mesh position={[0, b.h + 1.5, 0]}>
+          <cylinderGeometry args={[0.06, 0.16, 1.6, 6]} />
+          <meshStandardMaterial color={GOLD} metalness={0.5} roughness={0.5} />
+        </mesh>
+        <mesh position={[0, b.h * 0.5, b.d / 2 + 0.02]}>
+          <planeGeometry args={[b.w * 0.2, b.h * 0.5]} />
+          <meshBasicMaterial color="#8a2a3a" toneMapped={false} />
+        </mesh>
+      </group>
+      <RuinDetails x={b.x} z={b.z} w={b.w} d={b.d} h={b.h} banner />
     </group>
   );
 }
@@ -717,42 +768,33 @@ function Shanty({ b }: { b: BuildingBox }) {
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#4a3f30" roughness={1} />
+        <meshStandardMaterial color="#3a3b38" roughness={1} />
       </mesh>
-      {/* mismatched plank patches */}
       {patch && (
         <mesh position={[b.w * 0.2, b.h * 0.55, b.d / 2 + 0.05]} rotation={[0, 0, 0.15]}>
           <boxGeometry args={[b.w * 0.4, b.h * 0.3, 0.1]} />
-          <meshStandardMaterial color="#6a5a44" roughness={1} />
+          <meshStandardMaterial color="#54524c" roughness={1} />
         </mesh>
       )}
       <mesh position={[-b.w * 0.28, b.h * 0.3, b.d / 2 + 0.05]}>
         <boxGeometry args={[b.w * 0.22, b.h * 0.6, 0.08]} />
-        <meshStandardMaterial color="#33291f" roughness={1} />
+        <meshBasicMaterial color="#08070b" />
       </mesh>
-      {/* corrugated tin roof, leaning */}
       <mesh position={[0, b.h + 0.3, 0]} rotation={[0.1 + lean, 0, lean]}>
         <boxGeometry args={[b.w * 1.15, 0.28, b.d * 1.15]} />
-        <meshStandardMaterial color="#5a5248" metalness={0.55} roughness={0.8} />
+        <meshStandardMaterial color="#4a4d4a" metalness={0.3} roughness={0.9} />
       </mesh>
-      {/* weight blocks on roof */}
-      <mesh position={[b.w * 0.2, b.h + 0.65, b.d * 0.15]}>
-        <boxGeometry args={[0.5, 0.4, 0.5]} />
-        <meshStandardMaterial color="#3b352c" roughness={1} />
-      </mesh>
-      {/* lean-to prop pole */}
       <mesh position={[b.w * 0.5, b.h * 0.5, b.d * 0.5]} rotation={[0, 0, 0.18]}>
         <cylinderGeometry args={[0.08, 0.08, b.h, 5]} />
-        <meshStandardMaterial color="#2e2820" roughness={1} />
+        <meshStandardMaterial color="#22201f" roughness={1} />
       </mesh>
       <mesh position={[0, b.h * 0.55, b.d / 2 + 0.03]}>
-        <planeGeometry args={[b.w * 0.26, b.h * 0.26]} />
-        <meshBasicMaterial color="#ffcf7a" toneMapped={false} />
+        <planeGeometry args={[b.w * 0.2, b.h * 0.22]} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.6} toneMapped={false} />
       </mesh>
     </group>
   );
 }
-
 
 function Brownstone({ b }: { b: BuildingBox }) {
   const seed = b.x * 0.53 + b.z * 0.37;
@@ -762,56 +804,52 @@ function Brownstone({ b }: { b: BuildingBox }) {
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, b.h / 2, 0]}>
         <boxGeometry args={[b.w, b.h, b.d]} />
-        <meshStandardMaterial color="#5a3a2a" roughness={0.88} />
+        <meshStandardMaterial color="#3c3736" roughness={0.95} />
       </mesh>
-      {/* stone base course */}
       <mesh position={[0, 1.1, 0]}>
         <boxGeometry args={[b.w * 1.03, 2.2, b.d * 1.03]} />
-        <meshStandardMaterial color="#43302a" roughness={0.95} />
+        <meshStandardMaterial color="#2a2829" roughness={1} />
       </mesh>
-      {/* floor string courses */}
       {Array.from({ length: floors - 1 }).map((_, i) => (
         <mesh key={i} position={[0, (i + 1) * (b.h / floors), 0]}>
           <boxGeometry args={[b.w * 1.02, 0.16, b.d * 1.02]} />
-          <meshStandardMaterial color="#3d2a20" roughness={0.9} />
+          <meshStandardMaterial color={P.ink} roughness={0.9} />
         </mesh>
       ))}
       <WindowGrid
         w={b.w} h={b.h} d={b.d} cols={Math.max(2, Math.floor(b.w / 3.2))} rows={floors}
-        color="#1c1410" litColor="#e6c6ff" seed={seed} marginY={2.6}
+        color="#0d0b10" litColor={VIOLET} seed={seed} marginY={2.6} litChance={0.7}
       />
-      {/* cornice */}
       <mesh position={[0, b.h + 0.3, 0]}>
         <boxGeometry args={[b.w * 1.1, 0.6, b.d * 1.1]} />
-        <meshStandardMaterial color="#372520" roughness={0.9} />
+        <meshStandardMaterial color={P.ink} roughness={0.9} />
       </mesh>
-      {/* fire escape */}
       {Array.from({ length: floors - 1 }).map((_, i) => (
-        <mesh key={i} position={[-stoopSide * b.w * 0.28, (i + 1) * (b.h / floors) + 0.4, b.d / 2 + 0.5]}>
+        <mesh key={i} position={[-stoopSide * b.w * 0.28, (i + 1) * (b.h / floors) + 0.4, b.d / 2 + 0.5]}
+          rotation={[0, 0, (i % 2 ? 1 : -1) * 0.06]}>
           <boxGeometry args={[b.w * 0.32, 0.1, 1]} />
-          <meshStandardMaterial color="#22201f" metalness={0.5} roughness={0.7} />
+          <meshStandardMaterial color={P.stoneLight} roughness={0.9} />
         </mesh>
       ))}
-      {/* stoop + door */}
       <mesh position={[stoopSide * b.w * 0.18, 1.4, b.d / 2 + 0.35]}>
         <boxGeometry args={[b.w * 0.28, 2.8, 0.7]} />
-        <meshStandardMaterial color="#2b1a12" roughness={0.75} />
+        <meshBasicMaterial color="#08070b" />
       </mesh>
       {[0, 1, 2].map((i) => (
         <mesh key={i} position={[stoopSide * b.w * 0.18, 0.15 + i * 0.3, b.d / 2 + 1.1 + i * 0.4]}>
           <boxGeometry args={[b.w * 0.34, 0.3, 0.5]} />
-          <meshStandardMaterial color="#3f2e26" roughness={0.95} />
+          <meshStandardMaterial color="#33302f" roughness={1} />
         </mesh>
       ))}
       <mesh position={[stoopSide * b.w * 0.18, 3.1, b.d / 2 + 0.45]}>
         <sphereGeometry args={[0.18, 6, 6]} />
-        <meshBasicMaterial color="#ffd9a0" toneMapped={false} />
+        <meshBasicMaterial color={GOLD} toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
-
+/** The Hall: an obelisk that takes the color of the faction holding the district. */
 function Headquarters({ b }: { b: BuildingBox }) {
   const bodyMat = useRef<THREE.MeshStandardMaterial>(null!);
   const flagMat = useRef<THREE.MeshBasicMaterial>(null!);
@@ -819,8 +857,8 @@ function Headquarters({ b }: { b: BuildingBox }) {
   useFrame(() => {
     const owner = territoryState.owners[b.district];
     const hasOwner = owner !== null && owner !== undefined;
-    const bodyColor = hasOwner ? GANGS[owner].color : "#7a7a82";
-    const flagColor = hasOwner ? GANGS[owner].accent : "#c9c9d0";
+    const bodyColor = hasOwner ? GANGS[owner].color : "#6a6c72";
+    const flagColor = hasOwner ? GANGS[owner].accent : "#b9bac2";
     if (bodyMat.current) bodyMat.current.color.set(bodyColor);
     if (flagMat.current) flagMat.current.color.set(flagColor);
   });
@@ -829,26 +867,19 @@ function Headquarters({ b }: { b: BuildingBox }) {
     <group position={[b.x, 0, b.z]}>
       <mesh position={[0, 0.4, 0]}>
         <boxGeometry args={[b.w, 0.8, b.d]} />
-        <meshStandardMaterial color="#232328" roughness={0.85} />
+        <meshStandardMaterial color="#1c1d22" roughness={0.9} />
       </mesh>
-      <mesh position={[0, b.h * 0.45, 0]}>
-        <boxGeometry args={[b.w * 0.4, b.h * 0.8, b.d * 0.4]} />
-        <meshStandardMaterial ref={bodyMat} color="#7a7a82" roughness={0.55} metalness={0.2} />
+      <mesh position={[0, b.h * 0.45, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <cylinderGeometry args={[b.w * 0.14, b.w * 0.24, b.h * 0.9, 4]} />
+        <meshStandardMaterial ref={bodyMat} color="#6a6c72" roughness={0.7} metalness={0.15} />
       </mesh>
-      <mesh position={[0, b.h + 0.6, 0]}>
-        <coneGeometry args={[b.w * 0.3, 2, 4]} />
-        <meshStandardMaterial color="#181820" />
+      <mesh position={[0, b.h * 0.95 + 1.2, 0]}>
+        <octahedronGeometry args={[1.1, 0]} />
+        <meshBasicMaterial ref={flagMat} color="#b9bac2" toneMapped={false} />
       </mesh>
-      <mesh position={[b.w * 0.28, b.h * 0.55, 0]}>
-        <cylinderGeometry args={[0.12, 0.12, b.h * 1.1, 6]} />
-        <meshStandardMaterial color="#0f0f12" />
-      </mesh>
-      <mesh position={[b.w * 0.28 + 0.9, b.h * 0.9, 0]}>
-        <planeGeometry args={[1.8, 1.1]} />
-        <meshBasicMaterial ref={flagMat} color="#c9c9d0" side={THREE.DoubleSide} />
-      </mesh>
-      <Text position={[0, b.h + 3.2, 0]} fontSize={2} color="#ffffff" anchorX="center" anchorY="middle">
-        HEADQUARTERS
+      <Clock1111 position={[0, b.h * 0.45, b.w * 0.2]} scale={1.4} />
+      <Text position={[0, b.h + 4, 0]} fontSize={2} color="#e9e4d8" anchorX="center" anchorY="middle">
+        THE HALL
       </Text>
     </group>
   );
@@ -889,12 +920,13 @@ export function City() {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[groundExtent, groundExtent]} />
-        <meshStandardMaterial color="#0a0b10" roughness={1} />
+        <meshStandardMaterial color="#17171b" roughness={1} />
       </mesh>
 
+      {/* the Black Tide */}
       <mesh position={[0, 0.03, HARBOR_Z - BLOCK_SIZE * 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[groundExtent, BLOCK_SIZE * 1.4]} />
-        <meshStandardMaterial color="#0d2a3f" emissive="#0a1a30" emissiveIntensity={0.2} roughness={0.4} />
+        <meshStandardMaterial color="#120e26" emissive="#2a1850" emissiveIntensity={0.25} roughness={0.4} />
       </mesh>
 
       {Array.from({ length: roadCount }).map((_, i) => {
@@ -903,19 +935,19 @@ export function City() {
           <group key={i}>
             <mesh position={[p, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
               <planeGeometry args={[10, roadLen]} />
-              <meshStandardMaterial color="#04050a" roughness={0.7} />
+              <meshStandardMaterial color="#0c0b10" roughness={0.9} />
             </mesh>
             <mesh position={[0, 0.02, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} receiveShadow>
               <planeGeometry args={[10, roadLen]} />
-              <meshStandardMaterial color="#04050a" roughness={0.7} />
+              <meshStandardMaterial color="#0c0b10" roughness={0.9} />
             </mesh>
             <mesh position={[p, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[0.2, roadLen]} />
-              <meshBasicMaterial color="#e8c96a" />
+              <planeGeometry args={[0.16, roadLen]} />
+              <meshBasicMaterial color="#5a4e30" />
             </mesh>
             <mesh position={[0, 0.03, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
-              <planeGeometry args={[0.2, roadLen]} />
-              <meshBasicMaterial color="#e8c96a" />
+              <planeGeometry args={[0.16, roadLen]} />
+              <meshBasicMaterial color="#5a4e30" />
             </mesh>
           </group>
         );
