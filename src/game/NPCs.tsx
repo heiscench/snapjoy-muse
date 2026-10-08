@@ -2,6 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
+import { characterVariant, hasMonsterEyes } from "./characterAppearance";
 import { GANGS, PLAYER_GANG, type GangId } from "./gangs";
 import { NPCS, npcRoster, spawnNPC, respawnPosition, type NPCState } from "./npcState";
 import { resolveCollision, districtAt } from "./worldData";
@@ -246,7 +247,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
 
   return (
     <group>
-      <Character ref={refs} color={gang.color} accent={gang.accent} />
+      <Character variant={characterVariant(npc.id)} monster={hasMonsterEyes(npc.id, npc.gang)} ref={refs} color={gang.color} accent={gang.accent} />
       <mesh ref={marker} position={[0, 2.4, 0]} visible={false}>
         <coneGeometry args={[0.18, 0.35, 4]} />
         <meshBasicMaterial color={isFollowing(npc.id) ? "#5cff8a" : GANGS[PLAYER_GANG].accent} />
