@@ -1,9 +1,10 @@
-// Shared world state (district ownership + bank robbery/guard locks) backed
-// by the `territory` and `bank_state` tables and kept live with Postgres
-// change subscriptions. Everything here mutates the same plain state objects
-// the single-player systems already read.
+// Shared world state (district ownership + vault robbery/guard locks) backed
+// by the forgotten.territory and forgotten.bank_state tables and kept live
+// with Postgres change subscriptions. Everything here mutates the same plain
+// state objects the single-player systems already read.
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { db, FORGOTTEN_SCHEMA } from "./db";
 import { authState } from "./authState";
 import { PLAYER_GANG, GANGS, type GangId } from "./gangs";
 import type { District } from "./worldData";
@@ -19,7 +20,7 @@ import { applyRemoteBankGuards, registerBankGuardsClearedHook } from "./guardSta
 import { broadcastAlert } from "./presence";
 import { pushAlert } from "./alertState";
 
-const TERRITORY_CHANNEL = "gang-wars-world";
+const TERRITORY_CHANNEL = "forgotten-world";
 
 let channel: RealtimeChannel | null = null;
 
@@ -78,8 +79,8 @@ async function openWorldSync() {
   if (channel) return;
 
   const [{ data: terr }, { data: banks }] = await Promise.all([
-    supabase.from("territory").select("district, owner, lock_until, captured_by"),
-    supabase.from("bank_state").select("bank_id, robbery_lock_until, guards_respawn_at"),
+    db().from("territory").select("district, owner, lock_until, captured_by"),
+    db().from("bank_state").select("bank_id, robbery_lock_until, guards_respawn_at"),
   ]);
   for (const row of (terr ?? []) as TerritoryRow[]) applyTerritoryRow(row);
   for (const row of (banks ?? []) as BankRow[]) applyBankRow(row);
@@ -94,7 +95,7 @@ async function openWorldSync() {
     .channel(TERRITORY_CHANNEL)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "territory" },
+      { event: "*", schema: FORGOTTEN_SCHEMA, table: "territory" },
       (payload) => {
         const row = payload.new as TerritoryRow | null;
         if (row?.district) applyTerritoryRow(row);
@@ -102,7 +103,7 @@ async function openWorldSync() {
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "bank_state" },
+      { event: "*", schema: FORGOTTEN_SCHEMA, table: "bank_state" },
       (payload) => {
         const row = payload.new as BankRow | null;
         if (row && typeof row.bank_id === "number") applyBankRow(row);
@@ -113,7 +114,7 @@ async function openWorldSync() {
   // ---- Push local outcomes to the shared world ---------------------------
   registerTerritoryHooks({
     onCaptured: (district, owner, lockUntilMs) => {
-      void supabase
+      void db()
         .from("territory")
         .upsert(
           {
@@ -130,14 +131,14 @@ async function openWorldSync() {
       broadcastAlert(owner, `${districtName(district)} reclaimed by ${authState.username}`, "info");
     },
     onRobbed: (bankId, lockUntilMs) => {
-      void supabase
+      void db()
         .from("bank_state")
         .upsert(
           { bank_id: bankId, robbery_lock_until: new Date(lockUntilMs).toISOString() },
           { onConflict: "bank_id" },
         )
         .then(({ error }) => {
-          if (error) console.error("[worldSync] robbery push failed", error);
+          if (error) console.error("[worldSync] raid push failed", error);
         });
     },
     onAttackStarted: (district, defendingGang) => {
@@ -151,7 +152,7 @@ async function openWorldSync() {
 
   registerBankGuardsClearedHook((bankId) => {
     const respawnAt = Date.now() + GUARD_RESPAWN * 1000;
-    void supabase
+    void db()
       .from("bank_state")
       .upsert(
         { bank_id: bankId, guards_respawn_at: new Date(respawnAt).toISOString() },
