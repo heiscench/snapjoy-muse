@@ -1,7 +1,8 @@
 // Load + save player_profiles row. Called on login, on an interval, and on
 // page unload. Never touches React state directly — mutates the shared
 // game-state objects imperatively (same pattern as npcState / vehicleState).
-import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
+import { db } from "./db";
 import type { GangId } from "./gangs";
 import { setPlayerGang } from "./gangs";
 import { playerState } from "./playerState";
@@ -24,7 +25,7 @@ export type ProfileRow = {
 };
 
 export async function loadProfile(userId: string): Promise<ProfileRow | null> {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from("player_profiles")
     .select("*")
     .eq("user_id", userId)
@@ -36,12 +37,11 @@ export async function loadProfile(userId: string): Promise<ProfileRow | null> {
   return (data as ProfileRow | null) ?? null;
 }
 
-// Username rules — kept in sync with the DB trigger/unique index that enforce
+// Name rules — kept in sync with the DB trigger/unique index that enforce
 // the same thing server-side (client checks can be bypassed).
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 24;
 const USERNAME_PATTERN = /^[A-Za-z0-9 ._-]+$/;
-const GMAIL_DOMAIN = "@gmail.com";
 
 export function validateUsername(raw: string): string {
   const name = raw.trim();
@@ -54,10 +54,11 @@ export function validateUsername(raw: string): string {
   return name;
 }
 
+// Any valid email can begin an awakening.
 export function validateSignupEmail(raw: string): string {
   const email = raw.trim().toLowerCase();
-  if (!email.endsWith(GMAIL_DOMAIN)) {
-    throw new Error("This email cannot begin an awakening.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Enter a valid email address.");
   }
   return email;
 }
@@ -65,10 +66,10 @@ export function validateSignupEmail(raw: string): string {
 export async function createProfile(
   userId: string, username: string, gang: GangId,
 ): Promise<ProfileRow | null> {
-  // New accounts start at their gang's HQ — this is the only case position
+  // New accounts start at their faction's HQ — this is the only case position
   // should default rather than resume, since there's nothing to resume yet.
   const hq = GANG_HQ[gang];
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from("player_profiles")
     .insert({
       user_id: userId,
@@ -83,15 +84,23 @@ export async function createProfile(
     if (error.code === "23505" || /duplicate key/i.test(error.message)) {
       throw new Error("That name is already remembered. Choose another.");
     }
-    if (/gmail\.com/i.test(error.message)) {
-      throw new Error("This email cannot begin an awakening.");
-    }
-    if (/Username/i.test(error.message)) throw new Error(error.message);
+    if (/Name must|Name may only/i.test(error.message)) throw new Error(error.message);
     return null;
   }
   return data as ProfileRow;
 }
 
+/** Returns the user's profile, creating it from signup metadata if it does
+ * not exist yet (happens when email confirmation delayed the first insert). */
+export async function ensureProfile(user: User): Promise<ProfileRow | null> {
+  const existing = await loadProfile(user.id);
+  if (existing) return existing;
+  const meta = (user.user_metadata ?? {}) as { username?: string; gang?: number };
+  if (!meta.username) return null;
+  const g = Number(meta.gang);
+  const gang = (g >= 0 && g <= 3 ? g : 0) as GangId;
+  return createProfile(user.id, validateUsername(meta.username), gang);
+}
 
 // Hydrate in-memory game state from a loaded row. Called once on login.
 export function applyProfileToGameState(row: ProfileRow) {
@@ -126,7 +135,7 @@ export async function syncProfileToServer(): Promise<void> {
     last_position_x: playerState.pos.x,
     last_position_z: playerState.pos.z,
   };
-  const { error } = await supabase.from("player_profiles").update(payload).eq("user_id", uid);
+  const { error } = await db().from("player_profiles").update(payload).eq("user_id", uid);
   if (error) console.error("[profileSync] save failed", error);
 }
 
