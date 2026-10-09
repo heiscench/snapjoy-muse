@@ -17,26 +17,39 @@ export function RuneGlyph({ color = RELIC_PALETTE.rune }: { color?: string }) {
   </group>;
 }
 
+/** Relic Skiff. FRONT is local +Z. The hull is an elongated shard with a pointed
+ * nose, aligned straight with the direction of travel (no diagonal rotation). */
 export function RelicSkiff({ color }: { color: string }) {
   const rings = useRef<THREE.Group>(null);
   useFrame((_, dt) => { if (rings.current) rings.current.rotation.y += dt * RUNE_RING_SPEED; });
   return <group>
-    <mesh position={[0, 1.3, -0.2]} scale={[1, 0.7, 2.5]} rotation={[0, Math.PI / 4, 0]}><octahedronGeometry args={[1.4, 0]} /><meshStandardMaterial color={RELIC_PALETTE.ink} roughness={0.96} /></mesh>
-    {[-1, 1].map((x) => <group key={x} position={[x * 0.7, 1.65, -0.3]}>
+    {/* hull: long axis = Z, nose forward */}
+    <mesh position={[0, 1.3, -0.2]} scale={[0.9, 0.7, 2.4]}>
+      <octahedronGeometry args={[1.4, 0]} />
+      <meshStandardMaterial color={RELIC_PALETTE.ink} roughness={0.96} />
+    </mesh>
+    {/* swept shard wings */}
+    {[-1, 1].map((x) => <group key={x} position={[x * 0.75, 1.55, -0.6]}>
       <mesh rotation={[0.12, 0, x * -0.2]}><coneGeometry args={[0.35, 2.8, 4]} /><meshStandardMaterial color={RELIC_PALETTE.stone} roughness={1} /></mesh>
       <mesh position={[0, 0.05, 0.25]}><boxGeometry args={[0.035, 1.5, 0.03]} /><meshBasicMaterial color={RELIC_PALETTE.violet} toneMapped={false} /></mesh>
     </group>)}
-    <mesh position={[0, 1.25, 1.1]} rotation={[0.25, Math.PI / 4, 0]}><octahedronGeometry args={[0.55, 0]} /><meshStandardMaterial color={color} emissive={RELIC_PALETTE.violet} emissiveIntensity={0.35} roughness={0.7} /></mesh>
+    {/* glowing core on the deck, visible from above and behind */}
+    <mesh position={[0, 2.05, 0.4]} rotation={[0, Math.PI / 4, 0]}>
+      <octahedronGeometry args={[0.45, 0]} />
+      <meshStandardMaterial color={color} emissive={RELIC_PALETTE.violet} emissiveIntensity={0.5} roughness={0.7} />
+    </mesh>
     <group ref={rings} position={[0, 0.65, -0.2]}>
       {[1.3, 1.8].map((r, i) => <group key={r} rotation={[i * 0.22, 0, i * 0.15]}>
         <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[r, 0.025, 4, 32]} /><meshBasicMaterial color={RELIC_PALETTE.violet} transparent opacity={0.4} toneMapped={false} /></mesh>
         {Array.from({ length: 8 }, (_, j) => { const a = j * Math.PI / 4; return <mesh key={j} position={[Math.cos(a) * r, 0, Math.sin(a) * r]} rotation={[0, -a, 0]}><boxGeometry args={[0.06, 0.16, 0.025]} /><meshBasicMaterial color={RELIC_PALETTE.violet} transparent opacity={0.55} /></mesh>; })}
       </group>)}
     </group>
-    <group position={[0, 1.45, 1.6]} scale={0.45}><RuneGlyph color={color} /></group>
+    {/* rune glyph just ahead of the nose so you can read which way it faces */}
+    <group position={[0, 1.3, 3.35]} scale={0.5}><RuneGlyph color={color} /></group>
   </group>;
 }
 
+/** Husk hover sled. FRONT is local +Z, matching the driving direction. */
 export function HuskModel({ color, variant = "sedan" }: { color: string; variant?: "sedan" | "suv" | "sport" }) {
   const body = useRef<THREE.Group>(null);
   const width = variant === "suv" ? 1.85 : 1.6;
@@ -44,12 +57,17 @@ export function HuskModel({ color, variant = "sedan" }: { color: string; variant
   useFrame(({ clock }) => { if (body.current) body.current.position.y = Math.sin(clock.elapsedTime * HOVER_RATE) * HOVER_HEIGHT; });
   return <group ref={body}>
     <mesh position={[0, 0.55, 0]}><boxGeometry args={[width, 0.42, length]} /><meshStandardMaterial color={RELIC_PALETTE.ink} roughness={1} /></mesh>
-    <mesh position={[0, 0.8, -0.3]} scale={[width * 0.65, variant === "suv" ? 0.6 : 0.3, length * 0.38]} rotation={[0, Math.PI / 4, 0]}><octahedronGeometry args={[1, 0]} /><meshStandardMaterial color={RELIC_PALETTE.stone} roughness={0.95} /></mesh>
+    {/* cabin: elongated along Z, no diagonal rotation */}
+    <mesh position={[0, 0.8, -0.3]} scale={[width * 0.5, variant === "suv" ? 0.6 : 0.3, length * 0.38]}>
+      <octahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color={RELIC_PALETTE.stone} roughness={0.95} />
+    </mesh>
     {[-1, 1].map((s) => <group key={s}>
       <mesh position={[s * width / 2, 0.4, 0]}><boxGeometry args={[0.035, 0.045, length * 0.82]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>
       {[-1, 0, 1].map((z) => <mesh key={z} position={[s * width / 2, 0.6, z]} rotation={[s * 0.35, 0, 0]}><boxGeometry args={[0.035, 0.22, 0.04]} /><meshBasicMaterial color={color} /></mesh>)}
       <mesh position={[s * width * 0.32, 0.2, 0]}><boxGeometry args={[0.24, 0.08, length * 0.72]} /><meshBasicMaterial color={color} transparent opacity={0.16} /></mesh>
     </group>)}
+    {/* front rune glyph */}
     <group position={[0, 0.58, length / 2 + 0.015]} scale={0.6}><RuneGlyph color={color} /></group>
   </group>;
 }
