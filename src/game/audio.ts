@@ -82,8 +82,8 @@ export function startEngine() {
   if (!ctx || engineOsc) return;
   engineOsc = ctx.createOscillator();
   engineGain = ctx.createGain();
-  engineOsc.type = "sawtooth";
-  engineOsc.frequency.value = 60;
+  engineOsc.type = "sine";
+  engineOsc.frequency.value = 110;
   engineGain.gain.value = 0.0001;
   const filter = ctx.createBiquadFilter();
   filter.type = "lowpass";
@@ -95,7 +95,7 @@ export function startEngine() {
 export function updateEngine(speedFraction: number) {
   if (!engineOsc || !engineGain || !ctx) return;
   const clamped = Math.max(0, Math.min(1, speedFraction));
-  engineOsc.frequency.setTargetAtTime(55 + clamped * 140, now(), 0.08);
+  engineOsc.frequency.setTargetAtTime(110 + clamped * 55, now(), 0.08);
   engineGain.gain.setTargetAtTime(0.05 + clamped * 0.09, now(), 0.08);
 }
 
@@ -118,17 +118,17 @@ let heliLFOGain: GainNode | null = null;
 export function startHeliEngine() {
   if (!ctx || heliOsc) return;
   heliOsc = ctx.createOscillator();
-  heliOsc.type = "sawtooth";
-  heliOsc.frequency.value = 90;
+  heliOsc.type = "sine";
+  heliOsc.frequency.value = 146.8;
 
   heliGain = ctx.createGain();
   heliGain.gain.value = 0.0001;
 
   heliLFO = ctx.createOscillator();
   heliLFO.type = "sine";
-  heliLFO.frequency.value = 9; // rotor blade-pass rate
+  heliLFO.frequency.value = 0.6; // slow relic resonance
   heliLFOGain = ctx.createGain();
-  heliLFOGain.gain.value = 0.06;
+  heliLFOGain.gain.value = 0.01;
   heliLFO.connect(heliLFOGain);
   heliLFOGain.connect(heliGain.gain);
 
@@ -144,9 +144,9 @@ export function startHeliEngine() {
 export function updateHeliEngine(intensity: number) {
   if (!heliOsc || !heliGain || !heliLFO || !ctx) return;
   const clamped = Math.max(0, Math.min(1, intensity));
-  heliOsc.frequency.setTargetAtTime(80 + clamped * 60, now(), 0.15);
+  heliOsc.frequency.setTargetAtTime(146.8 + clamped * 36.7, now(), 0.15);
   heliGain.gain.setTargetAtTime(0.05 + clamped * 0.05, now(), 0.15);
-  heliLFO.frequency.setTargetAtTime(7 + clamped * 4, now(), 0.2);
+  heliLFO.frequency.setTargetAtTime(0.6 + clamped * 0.4, now(), 0.2);
 }
 
 export function stopHeliEngine() {

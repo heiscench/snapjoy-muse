@@ -21,6 +21,7 @@ import { resolveCollision } from "./worldData";
 import { pilotState, damageHeli, damageCar } from "./vehicleState";
 import { carPilot } from "./carState";
 import { spawnTracer } from "./tracerState";
+import { CHARACTER_PALETTE } from "./characterAppearance";
 
 const SECURITY_UNIFORM = "#14111c";
 const SECURITY_ACCENT = "#b49a60";
@@ -48,7 +49,7 @@ export function Guards() {
 function GuardUnit({ guard }: { guard: GuardState }) {
   const refs = useRef<CharacterRefs>(null!);
   const walkPhase = useRef(0);
-  const hitCol = useMemo(() => new THREE.Color("#ff5050"), []);
+  const hitCol = useMemo(() => new THREE.Color(CHARACTER_PALETTE.drip), []);
   const workCol = useMemo(() => new THREE.Color("#ffffff"), []);
 
   useFrame((_, dt) => {
@@ -149,8 +150,7 @@ function GuardUnit({ guard }: { guard: GuardState }) {
         guard.hitFlash -= dtc;
         r.torsoMat.color.copy(hitCol);
       } else {
-        const target = guard.gang !== null ? GANGS[guard.gang].color : SECURITY_UNIFORM;
-        r.torsoMat.color.copy(workCol.set(target));
+        r.torsoMat.color.copy(workCol.set(SECURITY_UNIFORM));
       }
     }
   });

@@ -10,6 +10,7 @@ import { broadcastHit } from "./presence";
 import { earnMoney, KILL_BOUNTY } from "./playerState";
 import { onPlayerKill } from "./territoryState";
 import { PLAYER_GANG } from "./gangs";
+import { RELIC_PALETTE } from "./RelicVisuals";
 
 const GRAVITY = -22;
 
@@ -76,14 +77,14 @@ export function Grenades() {
     <group>
       {GRENADES.map((g) =>
         g.exploded ? (
-          <mesh key={g.id} position={g.pos}>
-            <sphereGeometry args={[g.splash * (1 - g.explodeT / 0.35), 12, 12]} />
-            <meshBasicMaterial color="#ff9a3c" transparent opacity={g.explodeT / 0.35 * 0.6} />
-          </mesh>
+          <group key={g.id} position={g.pos}>
+            <mesh><sphereGeometry args={[g.splash * (1 - g.explodeT / 0.35), 12, 12]} /><meshBasicMaterial color={RELIC_PALETTE.violet} transparent opacity={g.explodeT / 0.35 * 0.6} toneMapped={false} /></mesh>
+            <mesh><sphereGeometry args={[g.splash * (1 - g.explodeT / 0.35) * 0.45, 8, 8]} /><meshBasicMaterial color={RELIC_PALETTE.pale} transparent opacity={g.explodeT / 0.35 * 0.8} toneMapped={false} /></mesh>
+          </group>
         ) : (
           <mesh key={g.id} position={g.pos}>
             <sphereGeometry args={[0.14, 8, 8]} />
-            <meshStandardMaterial color="#2a3a1a" roughness={0.6} />
+            <meshStandardMaterial color={RELIC_PALETTE.ink} emissive={RELIC_PALETTE.violet} emissiveIntensity={0.3} roughness={0.6} />
           </mesh>
         ),
       )}

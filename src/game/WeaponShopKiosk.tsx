@@ -1,5 +1,6 @@
 import { GANGS } from "./gangs";
 import { WEAPON_SHOPS } from "./worldData";
+import { RELIC_PALETTE, RuneGlyph } from "./RelicVisuals";
 
 function Kiosk({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
   const gang = GANGS[gangId];
@@ -8,7 +9,7 @@ function Kiosk({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
     <group position={[pos.x, 0, pos.z]}>
       <mesh position={[0, 1.1, 0]}>
         <boxGeometry args={[3, 2.2, 2.2]} />
-        <meshStandardMaterial color="#181818" roughness={0.8} />
+        <meshStandardMaterial color={RELIC_PALETTE.stone} roughness={1} />
       </mesh>
       <mesh position={[0, 2.3, 0]}>
         <boxGeometry args={[3.6, 0.2, 2.6]} />
@@ -16,8 +17,9 @@ function Kiosk({ gangId }: { gangId: 0 | 1 | 2 | 3 }) {
       </mesh>
       <mesh position={[0, 1.3, 1.12]}>
         <boxGeometry args={[2.2, 1, 0.05]} />
-        <meshBasicMaterial color="#ffd66a" transparent opacity={0.8} />
+        <meshBasicMaterial color={RELIC_PALETTE.ink} />
       </mesh>
+      <group position={[0, 1.3, 1.17]} scale={0.8}><RuneGlyph color={gang.accent} /></group>
       <mesh position={[0, 2.6, 0]}>
         <boxGeometry args={[1.6, 0.4, 0.05]} />
         <meshBasicMaterial color={gang.accent} />

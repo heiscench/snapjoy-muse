@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useState } from "react";
 import * as THREE from "three";
 import { TRACERS, TRACER_LIFETIME } from "./tracerState";
+import { RELIC_PALETTE } from "./RelicVisuals";
 
 const LENGTH = 45;
 const UP = new THREE.Vector3(0, 0, 1);
@@ -28,10 +29,10 @@ export function Tracers() {
         const quat = new THREE.Quaternion().setFromUnitVectors(UP, t.dir);
         const opacity = Math.max(0, t.life / TRACER_LIFETIME) * 0.9;
         return (
-          <mesh key={t.id} position={mid} quaternion={quat}>
-            <boxGeometry args={[0.035, 0.035, LENGTH]} />
-            <meshBasicMaterial color="#fff2b0" transparent opacity={opacity} />
-          </mesh>
+          <group key={t.id} position={mid} quaternion={quat}>
+            <mesh><boxGeometry args={[0.07, 0.07, LENGTH]} /><meshBasicMaterial color={RELIC_PALETTE.violet} transparent opacity={opacity * 0.4} toneMapped={false} /></mesh>
+            <mesh><boxGeometry args={[0.025, 0.025, LENGTH]} /><meshBasicMaterial color={RELIC_PALETTE.rune} transparent opacity={opacity} toneMapped={false} /></mesh>
+          </group>
         );
       })}
     </group>
