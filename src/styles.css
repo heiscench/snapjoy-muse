@@ -150,7 +150,9 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 70% center;
+  object-position: 76% center;
+  transform-origin: 76% 36%;
+  animation: awakening-drift 60s ease-in-out infinite;
   z-index: 0;
 }
 
@@ -361,7 +363,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .awakening-clock { animation: none; }
+   .awakening-clock, .awakening-image { animation: none; }
+}
+
+@keyframes awakening-drift {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@media (orientation: landscape) {
+  .awakening-image { object-position: 80% center; }
+  .awakening-screen { padding-left: calc(var(--sa-left) + clamp(20px, 4vw, 64px)); }
+  .intro-content { max-width: min(30rem, 48%); }
 }
 
 /* Short landscape phones: tighten the intro so nothing is cut off */

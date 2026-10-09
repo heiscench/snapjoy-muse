@@ -1,4 +1,5 @@
 - [x] Make daytime longer than night and brighten night visibility.
+- [ ] Replace opening artwork with the supplied NFT, widen without distortion, and verify subtle motion and framing.
 - [ ] Restyle every humanoid from the five NFT references, with deterministic variants and shared cel-shaded resources.
 - [ ] Replace vehicle visuals/sounds and dress the world as ruins; preserve all gameplay identifiers and footprints.
 - [ ] Finish Forgotten HUD copy and violet/gold effects.

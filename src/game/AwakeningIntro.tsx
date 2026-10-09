@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import awakening from "@/assets/forgotten-awakening.jpg";
 
 export function AwakeningBackdrop() {
-  return <><img className="awakening-image" src={awakening} width={1536} height={1024} alt="A fractured being among the ruins of a forgotten world" /><div className="awakening-shade" /></>;
+  return <><img className="awakening-image" src={awakening} width={1920} height={1080} alt="A crimson-eyed Forgotten samurai before the ruins of an ancient temple" /><div className="awakening-shade" /></>;
 }
 
 export function AwakeningIntro({ onContinue }: { onContinue: () => void }) {
