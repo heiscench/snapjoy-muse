@@ -1,33 +1,126 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { CYCLE_SECONDS, daylightWeight, MIN_AMBIENT_INTENSITY, MIN_HEMISPHERE_INTENSITY, MIN_SUN_INTENSITY, MAX_SUN_INTENSITY } from "./dayNightConfig";
+import {
+  CYCLE_SECONDS,
+  daylightWeight,
+  MIN_AMBIENT_INTENSITY,
+  MIN_HEMISPHERE_INTENSITY,
+  MIN_SUN_INTENSITY,
+  MAX_SUN_INTENSITY,
+} from "./dayNightConfig";
+import { PLAYER_GANG } from "./gangs";
+import { playerState } from "./playerState";
+import { territoryState } from "./territoryState";
+import { districtAt } from "./worldData";
 
-const DAY_SKY = "#afbdb7";
-const DUSK_SKY = "#686178";
-const DAY_FOG = "#bbc7bd";
-const DUSK_FOG = "#7d7289";
-const DAY_SUN = "#fff0cc";
-const DUSK_SUN = "#d6b8ec";
+// Extra light on top of the config values so nothing reads as black.
+const BOOST_AMBIENT = 0.35;
+const BOOST_HEMI = 0.35;
+const BOOST_SUN = 0.3;
+
+type Pal = {
+  daySky: THREE.Color;
+  dayFog: THREE.Color;
+  duskSky: THREE.Color;
+  duskFog: THREE.Color;
+  daySun: THREE.Color;
+  duskSun: THREE.Color;
+};
+const KEYS = ["daySky", "dayFog", "duskSky", "duskFog", "daySun", "duskSun"] as const;
+
+function pal(v: [string, string, string, string, string, string]): Pal {
+  return {
+    daySky: new THREE.Color(v[0]),
+    dayFog: new THREE.Color(v[1]),
+    duskSky: new THREE.Color(v[2]),
+    duskFog: new THREE.Color(v[3]),
+    daySun: new THREE.Color(v[4]),
+    duskSun: new THREE.Color(v[5]),
+  };
+}
+
+// Pale lavender used where no kingdom holds the land.
+const NEUTRAL = pal(["#cfc9dc", "#d9d4e3", "#8f84ad", "#a095ba", "#fff4dc", "#e0ccff"]);
+
+// Each kingdom's sky: daySky, dayFog, duskSky, duskFog, daySun, duskSun.
+const FACTION: Pal[] = [
+  // 0 The Kings: gold
+  pal(["#f3dc9c", "#f1e0b2", "#b8905a", "#c9a56e", "#fff1c4", "#ffc978"]),
+  // 1 The Warriors: crimson
+  pal(["#f0a6ab", "#f2bcc0", "#a34758", "#b8606f", "#ffd9d6", "#ff8a8f"]),
+  // 2 The Outcasts: acid green
+  pal(["#c9e58a", "#d6eca6", "#6f9a3e", "#86ad55", "#f4ffd0", "#d2ff7a"]),
+  // 3 The Monsters: violet
+  pal(["#c2a4f0", "#d0b8f5", "#6c4aa8", "#8460bd", "#eadcff", "#b992ff"]),
+];
 
 export function DayNight() {
   const dirRef = useRef<THREE.DirectionalLight>(null);
   const hemiRef = useRef<THREE.HemisphereLight>(null);
   const ambRef = useRef<THREE.AmbientLight>(null);
   const { scene } = useThree();
-  const colors = useMemo(() => ({ sky: new THREE.Color(), fog: new THREE.Color(), sun: new THREE.Color(), daySky: new THREE.Color(DAY_SKY), duskSky: new THREE.Color(DUSK_SKY), dayFog: new THREE.Color(DAY_FOG), duskFog: new THREE.Color(DUSK_FOG), daySun: new THREE.Color(DAY_SUN), duskSun: new THREE.Color(DUSK_SUN) }), []);
-  useFrame(({ clock }) => {
+
+  const state = useMemo(() => {
+    const cur = pal(["#cfc9dc", "#d9d4e3", "#8f84ad", "#a095ba", "#fff4dc", "#e0ccff"]);
+    const tgt = pal(["#cfc9dc", "#d9d4e3", "#8f84ad", "#a095ba", "#fff4dc", "#e0ccff"]);
+    return { cur, tgt, sky: new THREE.Color(), fog: new THREE.Color(), sun: new THREE.Color() };
+  }, []);
+
+  useFrame(({ clock }, dt) => {
+    // Atmosphere takes the color of the kingdom that holds the land you stand on.
+    // On unclaimed land it blends toward your own kingdom's color.
+    const district = districtAt(playerState.pos.x, playerState.pos.z);
+    const owner = territoryState.owners[district];
+    const blend = 1 - Math.exp(-Math.min(dt, 0.1) * 1.4);
+    for (const k of KEYS) {
+      if (owner !== null && owner !== undefined) {
+        state.tgt[k].copy(FACTION[owner][k]);
+      } else {
+        state.tgt[k].copy(NEUTRAL[k]).lerp(FACTION[PLAYER_GANG][k], 0.5);
+      }
+      state.cur[k].lerp(state.tgt[k], blend);
+    }
+
     const weight = daylightWeight((clock.elapsedTime / CYCLE_SECONDS + 0.35) % 1);
-    colors.sky.copy(colors.duskSky).lerp(colors.daySky, weight);
-    colors.fog.copy(colors.duskFog).lerp(colors.dayFog, weight);
-    colors.sun.copy(colors.duskSun).lerp(colors.daySun, weight);
-    const intensity = MIN_SUN_INTENSITY + weight * (MAX_SUN_INTENSITY - MIN_SUN_INTENSITY);
-    if (scene.background instanceof THREE.Color) scene.background.copy(colors.sky);
-    else scene.background = colors.sky.clone();
-    if (scene.fog && "color" in scene.fog) (scene.fog as THREE.Fog).color.copy(colors.fog);
-    if (dirRef.current) { dirRef.current.color.copy(colors.sun); dirRef.current.intensity = intensity; }
-    if (hemiRef.current) { hemiRef.current.intensity = MIN_HEMISPHERE_INTENSITY + weight * 0.3; hemiRef.current.color.copy(colors.sky); }
-    if (ambRef.current) ambRef.current.intensity = MIN_AMBIENT_INTENSITY + weight * 0.2;
+    state.sky.copy(state.cur.duskSky).lerp(state.cur.daySky, weight);
+    state.fog.copy(state.cur.duskFog).lerp(state.cur.dayFog, weight);
+    state.sun.copy(state.cur.duskSun).lerp(state.cur.daySun, weight);
+
+    const intensity =
+      MIN_SUN_INTENSITY + weight * (MAX_SUN_INTENSITY - MIN_SUN_INTENSITY) + BOOST_SUN;
+
+    if (scene.background instanceof THREE.Color) scene.background.copy(state.sky);
+    else scene.background = state.sky.clone();
+    if (scene.fog && "color" in scene.fog) (scene.fog as THREE.Fog).color.copy(state.fog);
+
+    if (dirRef.current) {
+      dirRef.current.color.copy(state.sun);
+      dirRef.current.intensity = intensity;
+    }
+    if (hemiRef.current) {
+      hemiRef.current.intensity = MIN_HEMISPHERE_INTENSITY + weight * 0.3 + BOOST_HEMI;
+      hemiRef.current.color.copy(state.sky);
+    }
+    if (ambRef.current) {
+      ambRef.current.intensity = MIN_AMBIENT_INTENSITY + weight * 0.2 + BOOST_AMBIENT;
+      ambRef.current.color.copy(state.sun);
+    }
   });
-  return <><ambientLight ref={ambRef} intensity={MIN_AMBIENT_INTENSITY} /><hemisphereLight ref={hemiRef} args={[DAY_SKY, "#343332", MIN_HEMISPHERE_INTENSITY]} /><directionalLight ref={dirRef} position={[40, 70, 20]} intensity={MAX_SUN_INTENSITY} color={DAY_SUN} /></>;
+
+  return (
+    <>
+      <ambientLight ref={ambRef} intensity={MIN_AMBIENT_INTENSITY + BOOST_AMBIENT} />
+      <hemisphereLight
+        ref={hemiRef}
+        args={["#cfc9dc", "#8c8579", MIN_HEMISPHERE_INTENSITY + BOOST_HEMI]}
+      />
+      <directionalLight
+        ref={dirRef}
+        position={[40, 70, 20]}
+        intensity={MAX_SUN_INTENSITY}
+        color="#fff4dc"
+      />
+    </>
+  );
 }
