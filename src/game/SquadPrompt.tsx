@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { NPCS } from "./npcState";
 import { PLAYER_GANG } from "./gangs";
@@ -100,54 +101,54 @@ export function SquadPrompt() {
     <>
       {prompt && (
         <div className="fixed z-30" style={{ left: prompt.x - 60, top: prompt.y }}>
-          <div className="flex flex-col gap-1 rounded bg-black/80 p-1 backdrop-blur">
+          <div className="flex flex-col gap-1 rounded bg-background/90 p-1 backdrop-blur">
             {prompt.kind === "human" ? (
-              <button
+              <Button
                 onClick={(e) => { e.stopPropagation(); sendRequest(prompt.userId, prompt.username); }}
-                className="rounded bg-cyan-600/80 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white active:bg-cyan-500"
+                className="rounded bg-secondary px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-foreground active:bg-secondary"
               >
                 {squadState.humanFollowers.has(prompt.userId)
                   ? `Remove ${prompt.username}`
                   : `Invite ${prompt.username}`}
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 onClick={(e) => { e.stopPropagation(); toggleFollow(prompt.npcId); setPrompt(null); }}
-                className="rounded bg-green-600/70 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white active:bg-green-500"
+                className="rounded bg-secondary px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-foreground active:bg-secondary"
               >
-                {isFollowing(prompt.npcId) ? "Stop follow" : "Follow me"}
-              </button>
+                {isFollowing(prompt.npcId) ? "Part ways" : "Walk with me"}
+              </Button>
             )}
-            <button
+            <Button
               onClick={(e) => { e.stopPropagation(); setPrompt(null); }}
-              className="rounded bg-white/10 px-3 py-1 text-[10px] uppercase tracking-widest text-white/80"
+              className="rounded bg-muted px-3 py-1 text-[10px] uppercase tracking-widest text-foreground"
             >
               Close
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {outgoing && (
-        <div className="pointer-events-none fixed left-1/2 top-24 z-30 -translate-x-1/2 rounded bg-black/70 px-3 py-1 text-[11px] text-white/80 backdrop-blur">
+        <div className="pointer-events-none fixed left-1/2 top-24 z-30 -translate-x-1/2 rounded bg-background/90 px-3 py-1 text-[11px] text-foreground backdrop-blur">
           Waiting for {outgoing.toUsername}…
         </div>
       )}
 
       {humanReq && (
-        <div className="fixed left-1/2 top-32 z-40 -translate-x-1/2 rounded bg-black/85 p-3 text-center backdrop-blur">
-          <div className="text-xs text-white">
-            {humanReq.fromUsername} wants you in their squad
+        <div className="fixed left-1/2 top-32 z-40 -translate-x-1/2 rounded bg-background/90 p-3 text-center backdrop-blur">
+          <div className="text-xs text-foreground">
+            {humanReq.fromUsername} calls you to their circle
           </div>
           <div className="mt-2 flex gap-2">
-            <button
+            <Button
               onClick={() => answer(true)}
-              className="rounded bg-green-600 px-3 py-1 text-[11px] font-bold text-white"
-            >Accept</button>
-            <button
+              className="rounded bg-secondary px-3 py-1 text-[11px] font-bold text-foreground"
+            >Accept</Button>
+            <Button
               onClick={() => answer(false)}
-              className="rounded bg-white/10 px-3 py-1 text-[11px] text-white/80"
-            >Decline</button>
+              className="rounded bg-muted px-3 py-1 text-[11px] text-foreground"
+            >Decline</Button>
           </div>
         </div>
       )}

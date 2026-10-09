@@ -80,7 +80,7 @@ export function Minimap() {
   }, []);
 
   return (
-    <div className="fixed right-4 top-16 z-20 overflow-hidden rounded-lg border border-white/20 shadow-lg">
+    <div className="game-minimap">
       <canvas ref={canvasRef} width={SIZE} height={SIZE} />
     </div>
   );

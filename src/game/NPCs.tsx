@@ -13,6 +13,7 @@ import { isFollowing, FOLLOW_RADIUS, FOLLOW_MAX_SPEED } from "./squadState";
 import { pilotState, damageHeli, damageCar } from "./vehicleState";
 import { nearestHostile } from "./targets";
 import { carPilot } from "./carState";
+import { CHARACTER_PALETTE } from "./characterAppearance";
 
 const DETECT_RANGE = 22;
 const NPC_FIRE_RATE = 0.9;
@@ -58,7 +59,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
   const refs = useRef<CharacterRefs>(null!);
   const gang = GANGS[npc.gang];
   const baseColor = useMemo(() => new THREE.Color(gang.color), [gang.color]);
-  const hitColor = useMemo(() => new THREE.Color("#ff5050"), []);
+  const hitColor = useMemo(() => new THREE.Color(CHARACTER_PALETTE.drip), []);
   const walkPhase = useRef(0);
   const marker = useRef<THREE.Mesh>(null!);
   const { camera, size } = useThree();
