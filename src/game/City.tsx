@@ -1268,13 +1268,15 @@ function Headquarters({ b }: { b: BuildingBox }) {
         size={[b.w, 0.7, b.d]}
         color="#202422"
       />
-      <mesh position={[0, b.h * 0.45, 0]} rotation={[0, Math.PI / 4, 0]}>
-        <cylinderGeometry={[
-          Math.max(0.25, b.w * 0.1),
-          Math.max(0.35, b.w * 0.19),
-          b.h * 0.85,
-          4,
-        ]} />
+            <mesh position={[0, b.h * 0.45, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <cylinderGeometry
+          args={[
+            Math.max(0.25, b.w * 0.1),
+            Math.max(0.35, b.w * 0.19),
+            b.h * 0.85,
+            4,
+          ]}
+        />
         <meshStandardMaterial
           ref={bodyMat}
           map={stoneTextureFor(b)}
