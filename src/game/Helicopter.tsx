@@ -40,11 +40,15 @@ function ParkedHelicopter({ index }: { index: number }) {
     lastPos.current.set(h.pos.x, h.pos.y, h.pos.z);
 
     group.current.position.set(h.pos.x, h.pos.y, h.pos.z);
+    // Model front is +Z; the flight direction is (-sin yaw, -cos yaw), so +PI.
     group.current.rotation.y = h.yaw + Math.PI;
-    const localX = Math.cos(-h.yaw) * vx - Math.sin(-h.yaw) * vz;
+
+    // Sideways speed relative to the pilot's right-hand direction (cos yaw, -sin yaw).
+    // Forward flight gives ~0, so the Skiff stays level; strafing banks into the move.
+    const lateral = (vx * Math.cos(h.yaw) - vz * Math.sin(h.yaw)) / Math.max(dt, 0.001);
     group.current.rotation.z = THREE.MathUtils.lerp(
       group.current.rotation.z,
-      THREE.MathUtils.clamp(-localX * 6, -0.35, 0.35),
+      THREE.MathUtils.clamp(lateral * 0.025, -0.3, 0.3),
       Math.min(1, dt * 4),
     );
   });
