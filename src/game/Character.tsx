@@ -14,7 +14,7 @@ export const CHARACTER_SCALE = 1.15;
 const BOX = new RoundedBoxGeometry(1, 1, 1, 2, 0.12);
 const FACE = new THREE.PlaneGeometry(0.43, 0.46);
 const CHEST = new THREE.PlaneGeometry(0.68, 0.84);
-const GRADIENT = new THREE.DataTexture(new Uint8Array([85, 85, 85, 175, 175, 175, 255, 255, 255]), 3, 1, THREE.RGBFormat);
+const GRADIENT = new THREE.DataTexture(new Uint8Array([110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
 GRADIENT.minFilter = GRADIENT.magFilter = THREE.NearestFilter;
 GRADIENT.needsUpdate = true;
 const OUTLINE = new THREE.MeshBasicMaterial({ color: P.outline, side: THREE.BackSide });
