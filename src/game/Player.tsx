@@ -492,4 +492,177 @@ export function Player() {
     }
 
     
-    
+        // ---- Normal on-foot movement ----
+    yaw.current -= lookX * 2.6 * dtc;
+    pitch.current = THREE.MathUtils.clamp(pitch.current + lookY * 1.4 * dtc, -0.3, 1.0);
+
+    const running = input.run || input.keys.has("ShiftLeft");
+    const aiming = input.aim;
+    const holding = aiming || input.fire;
+    const speedBase = aiming ? AIM_SPEED : running ? RUN_SPEED : WALK_SPEED;
+    const speed = speedBase * mag;
+
+    recoil.current = Math.max(0, recoil.current - dtc * RECOIL_DECAY);
+
+    const forward = new THREE.Vector3(-Math.sin(yaw.current), 0, -Math.cos(yaw.current));
+    const right = new THREE.Vector3(-forward.z, 0, forward.x);
+    const dir = new THREE.Vector3();
+    if (mag > 0.01) {
+      dir.addScaledVector(forward, -my / (mag || 1));
+      dir.addScaledVector(right, mx / (mag || 1));
+      dir.normalize().multiplyScalar(speed);
+    }
+    vel.current.x = THREE.MathUtils.lerp(vel.current.x, dir.x, Math.min(1, dtc * 12));
+    vel.current.z = THREE.MathUtils.lerp(vel.current.z, dir.z, Math.min(1, dtc * 12));
+
+    vel.current.y -= 22 * dtc;
+    if (input.jump && grounded.current) {
+      vel.current.y = 8.5;
+      grounded.current = false;
+    }
+    input.jump = false;
+
+    const p = r.root.position;
+    const prevX = p.x, prevZ = p.z;
+    const nx = p.x + vel.current.x * dtc;
+    const nz = p.z + vel.current.z * dtc;
+    // Height-aware collision: standing on a roof doesn't treat that building's
+    // footprint as a wall; below the roof it behaves like ground collision.
+    const resolved = resolveHeliCollision(prevX, prevZ, nx, nz, p.y, 0.6);
+    p.x = resolved.x;
+    p.z = resolved.z;
+
+    for (const h of HELICOPTERS) {
+      if (h.pos.y > 1.5) continue;
+      const dx = p.x - h.pos.x, dz = p.z - h.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < HELI_BODY_RADIUS && d > 0.0001) {
+        p.x = h.pos.x + (dx / d) * HELI_BODY_RADIUS;
+        p.z = h.pos.z + (dz / d) * HELI_BODY_RADIUS;
+      }
+    }
+
+    p.y += vel.current.y * dtc;
+    const floor = rooftopHeightAt(p.x, p.z);
+    if (p.y <= floor) {
+      p.y = floor;
+      vel.current.y = 0;
+      grounded.current = true;
+    }
+
+    // ---- Unstick safety net ----
+    // Pushing but barely moving for STUCK_SECONDS (wedged in a corner, a roof
+    // edge or a vehicle exit) moves the player to the nearest open ground.
+    const movedD = Math.hypot(p.x - prevX, p.z - prevZ);
+    const wantedD = speed * dtc;
+    if (mag > 0.4 && wantedD > 0 && movedD < wantedD * 0.12) {
+      stuckFor.current += dtc;
+    } else {
+      stuckFor.current = Math.max(0, stuckFor.current - dtc * 2);
+    }
+    if (stuckFor.current > STUCK_SECONDS) {
+      stuckFor.current = 0;
+      const spot = findFreeSpot(p.x, p.z);
+      p.set(spot.x, 0, spot.z);
+      vel.current.set(0, 0, 0);
+      grounded.current = true;
+    }
+
+    playerState.pos.x = p.x;
+    playerState.pos.z = p.z;
+    playerState.yaw = yaw.current;
+
+    let bestHeliD = Infinity;
+    let bestHeliI = -1;
+    for (const hi of gangHeliIndices(PLAYER_GANG)) {
+      const h = HELICOPTERS[hi];
+      const d = Math.hypot(p.x - h.pos.x, p.z - h.pos.z);
+      if (d < HELI_ENTER_RADIUS && d < bestHeliD) { bestHeliD = d; bestHeliI = hi; }
+    }
+    pilotState.nearHeliIndex = bestHeliI;
+
+    const shop = WEAPON_SHOPS[PLAYER_GANG];
+    shopState.nearOwnShop = Math.hypot(p.x - shop.x, p.z - shop.z) < SHOP_RADIUS;
+
+    let bestCarD = Infinity;
+    let bestCarI = -1;
+    for (let i = 0; i < CAR_LIVE.length; i++) {
+      if (carDestroyed[i]) continue;
+      const d = Math.hypot(p.x - CAR_LIVE[i].x, p.z - CAR_LIVE[i].z);
+      if (d < CAR_ENTER_RADIUS && d < bestCarD) { bestCarD = d; bestCarI = i; }
+    }
+    carPilot.nearIndex = bestCarI;
+
+    if (nearestHospitalDistance(p.x, p.z) < HEAL_RADIUS) {
+      healPlayer(HEAL_RATE * dtc);
+    }
+
+    if (handleDeathAt(p.x, p.z, (x, y, z) => { p.set(x, y, z); vel.current.set(0, 0, 0); })) {
+      // handled
+    }
+
+    tickTerritory(dtc, p.x, p.z);
+
+    if (aiming) {
+      r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, yaw.current, Math.min(1, dtc * 18));
+    } else if (mag > 0.05) {
+      const targetRot = Math.atan2(dir.x, dir.z);
+      r.root.rotation.y = THREE.MathUtils.lerp(r.root.rotation.y, targetRot, Math.min(1, dtc * 14));
+    }
+
+    const step = running ? 13 : 8;
+    const prevPhase = walkPhase.current;
+    walkPhase.current += dtc * step * (mag > 0.05 && !holding ? 1 : 0);
+    if (mag > 0.05 && !holding && Math.floor(walkPhase.current / Math.PI) !== Math.floor(prevPhase / Math.PI)) {
+      playFootstep(running);
+    }
+    const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
+    if (r.legL && r.legR && r.armL && r.armR && r.body) {
+      r.legL.rotation.x = swing;
+      r.legR.rotation.x = -swing;
+      const armSwing = holding ? 0 : swing * 0.8;
+      r.armL.rotation.x = -armSwing;
+      r.armR.rotation.x = holding ? -1.4 - recoil.current * 0.1 : armSwing;
+      r.armL.rotation.z = holding ? 0.15 : 0;
+      r.body.position.y = 1.05 + Math.abs(Math.sin(walkPhase.current)) * 0.06 * mag;
+    }
+    if (r.head) r.head.rotation.x = THREE.MathUtils.lerp(r.head.rotation.x, pitch.current * 0.4, 0.2);
+
+    const targetDist = aiming ? 2.6 : 5.8;
+    const shoulderX = aiming ? 0.7 : 0;
+    const camHeight = 2.0 + Math.sin(pitch.current) * 2.4;
+    const back = new THREE.Vector3(Math.sin(yaw.current), 0, Math.cos(yaw.current));
+    const sideV = new THREE.Vector3(-back.z, 0, back.x);
+    const targetOffset = new THREE.Vector3(
+      back.x * targetDist + sideV.x * shoulderX,
+      camHeight + recoil.current * 0.12,
+      back.z * targetDist + sideV.z * shoulderX,
+    );
+    camOffset.current.lerp(targetOffset, Math.min(1, dtc * 8));
+    camera.position.set(p.x + camOffset.current.x, p.y + camOffset.current.y, p.z + camOffset.current.z);
+    camera.lookAt(
+      p.x + sideV.x * shoulderX * 0.6,
+      p.y + 1.5 + recoil.current * 0.35,
+      p.z + sideV.z * shoulderX * 0.6,
+    );
+
+    fireCd.current = Math.max(0, fireCd.current - dtc);
+    if (input.fire && fireCd.current === 0) {
+      const w = currentWeapon();
+      fireCd.current = w.fireRate;
+      const origin = camera.position.clone();
+      const forwardV = new THREE.Vector3();
+      camera.getWorldDirection(forwardV);
+      fireWeapon(origin, forwardV);
+    }
+  });
+
+  return (
+    <Character
+      ref={refs}
+      color={gang.color}
+      accent={gang.accent}
+      showWeaponSlot={weaponNode}
+    />
+  );
+}
