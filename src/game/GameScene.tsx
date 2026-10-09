@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -34,7 +35,7 @@ import { syncProfileToServer, syncProfileToServerBeacon } from "./profileSync";
 
 const TOUCH_LOOK_SENSITIVITY = 0.22;
 const MAX_DRAG_STEP = 50;
-const JOYSTICK_RADIUS = 55;
+const JOYSTICK_TRAVEL_RATIO = 0.36;
 const AUTOSAVE_MS = 12000;
 
 type Zone = "move" | "look" | "aim" | "jump" | "run" | "fire" | null;
@@ -71,7 +72,7 @@ function snapshot(): HudState {
     carDriving: carPilot.driving,
     nearCar: carPilot.nearIndex >= 0,
     error: pilotState.lastError,
-    captureLabel: capturing ? "Capturing district" : robbing ? "Robbing vault" : territoryState.captureMessage,
+    captureLabel: capturing ? "Reclaiming memory" : robbing ? "Relic raid" : territoryState.captureMessage,
     capturePct: capturing
       ? (territoryState.captureProgress / CAPTURE_TIME) * 100
       : robbing
@@ -151,7 +152,7 @@ export function GameScene() {
   useMultiplayerSession();
   const inVehicleMode = piloting || nearHeli || carDriving || nearCar;
   const healthPct = Math.max(0, Math.min(100, (health / playerState.maxHealth) * 100));
-  const healthColor = healthPct > 50 ? "#5cff8a" : healthPct > 20 ? "#ffd66a" : "#ff5a5a";
+  const healthTone = healthPct > 50 ? "healthy" : healthPct > 20 ? "wounded" : "critical";
 
   const moveRef = useRef<HTMLDivElement>(null);
   const aimRef = useRef<HTMLButtonElement>(null);
@@ -222,11 +223,12 @@ export function GameScene() {
     } else if (t.zone === "move") {
       const dx = e.clientX - t.startX;
       const dy = e.clientY - t.startY;
-      const mag = Math.min(1, Math.hypot(dx, dy) / JOYSTICK_RADIUS);
+      const radius = (moveRef.current?.getBoundingClientRect().width ?? 128) * JOYSTICK_TRAVEL_RATIO;
+      const mag = Math.min(1, Math.hypot(dx, dy) / radius);
       const ang = Math.atan2(dy, dx);
       const kx = Math.cos(ang) * mag;
       const ky = Math.sin(ang) * mag;
-      setMoveKnob({ x: kx * JOYSTICK_RADIUS, y: ky * JOYSTICK_RADIUS });
+      setMoveKnob({ x: kx * radius, y: ky * radius });
       input.move.x = kx;
       input.move.y = ky;
     }
@@ -263,7 +265,7 @@ export function GameScene() {
 
   return (
     <div
-      className="fixed inset-0 bg-black"
+      className="game-viewport"
       style={{ touchAction: "none" }}
       onPointerDown={onDown}
       onPointerMove={onMove}
@@ -292,63 +294,14 @@ export function GameScene() {
         <Tracers />
       </Canvas>
 
-      <div className="pointer-events-none fixed left-4 top-4 z-20 flex flex-col gap-2">
-        <div className="flex gap-2">
-          <div
-            className="rounded border px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white/90 backdrop-blur"
-            style={{ backgroundColor: `${gang.color}cc`, borderColor: gang.accent }}
-          >
-            {gang.name}
-          </div>
-          <div className="rounded bg-black/50 px-3 py-1 text-xs font-bold text-green-300 backdrop-blur">
-            ${money}
-          </div>
-          <div className="rounded bg-black/50 px-3 py-1 text-xs font-bold text-amber-300 backdrop-blur">
-            REP {reputation}
-          </div>
-        </div>
-        <div className="w-32 rounded-full bg-black/50 p-1 backdrop-blur">
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full" style={{ width: `${healthPct}%`, backgroundColor: healthColor }} />
-          </div>
-        </div>
-        {piloting && (
-          <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
-            Piloting — Jump: climb · Run: descend
-          </div>
-        )}
-        {carDriving && (
-          <div className="rounded bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-cyan-300 backdrop-blur">
-            Driving — Move stick: steer + throttle
-          </div>
-        )}
+      <div className="game-status" data-faction={PLAYER_GANG}>
+        <div className="game-status-values"><span className="game-faction">{gang.name}</span><span className="game-echoes">◈ {money} Echoes</span><span className="game-remembered">REMEMBERED {reputation}</span></div>
+        <div className="game-health"><div data-tone={healthTone} style={{ width: `${healthPct}%` }} /></div>
+        {piloting && <span className="game-vehicle-label">Relic Skiff</span>}
+        {carDriving && <span className="game-vehicle-label">Husk</span>}
       </div>
-
-      {captureLabel && (
-        <div className="pointer-events-none fixed left-1/2 top-16 z-20 w-56 -translate-x-1/2 rounded bg-black/70 p-2 text-center backdrop-blur">
-          <div className="text-[10px] uppercase tracking-widest text-white/80">{captureLabel}</div>
-          {capturePct > 0 && (
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-cyan-400" style={{ width: `${capturePct}%` }} />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* District entry / capture / attack toasts — top-center, above and
-          clear of the minimap so they're never hidden behind it. */}
-      <div className="pointer-events-none fixed left-1/2 top-4 z-30 flex -translate-x-1/2 flex-col items-center gap-1">
-        {alerts.map((a) => (
-          <div
-            key={a.id}
-            className={`rounded px-3 py-1 text-[11px] backdrop-blur ${
-              a.tone === "warn" ? "bg-red-900/80 text-white" : "bg-black/70 text-cyan-200"
-            }`}
-          >
-            {a.text}
-          </div>
-        ))}
-      </div>
+      {captureLabel && <div className="game-capture"><span>{captureLabel}</span>{capturePct > 0 && <div className="game-progress"><div style={{ width: `${capturePct}%` }} /></div>}</div>}
+      <div className="game-alerts">{alerts.map(a => <div key={a.id} data-tone={a.tone}>{a.text}</div>)}</div>
 
       <Minimap />
       <WeaponShop />
@@ -356,71 +309,19 @@ export function GameScene() {
       <StatsPanel />
       <AmmoHud />
 
-      {error && (
-        <button
-          onClick={() => { pilotState.lastError = null; }}
-          className="fixed left-1/2 top-24 z-30 max-w-[80vw] -translate-x-1/2 rounded bg-red-900/90 px-3 py-2 text-xs text-white shadow-lg"
-        >
-          Vehicle error (tap to dismiss): {error}
-        </button>
-      )}
-
+      {error && <Button className="game-error" onClick={() => { pilotState.lastError = null; }}>{error}</Button>}
       {!inVehicleMode && <Crosshair />}
-
-      <div ref={moveRef} className="fixed bottom-6 left-6 z-20 h-32 w-32 select-none">
-        <div className="absolute inset-0 rounded-full border border-white/25 bg-white/5" />
-        <div
-          className="absolute h-14 w-14 rounded-full bg-white/70"
-          style={{ left: `calc(50% + ${moveKnob.x}px - 28px)`, top: `calc(50% + ${moveKnob.y}px - 28px)` }}
-        />
-        <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-widest text-white/50">
-          Move
-        </span>
+      <div ref={moveRef} className="game-joystick" aria-label="Move">
+        <div className="game-joystick-ring" />
+        <div className="game-joystick-knob" style={{ transform: `translate(${moveKnob.x}px, ${moveKnob.y}px)` }} />
       </div>
-
-      <div className="fixed bottom-40 left-8 z-20 flex flex-col gap-3">
-        <button
-          ref={aimRef}
-          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
-            aimLabel === "EXIT"
-              ? "border-red-300 bg-red-500/40"
-              : aimLabel === "ENTER"
-              ? "border-green-300 bg-green-500/40"
-              : aiming
-              ? "border-cyan-300 bg-cyan-500/40"
-              : "border-white/20 bg-black/40"
-          }`}
-        >
-          {aimLabel}
-        </button>
+      <div className="game-aim"><Button ref={aimRef} className="game-control" data-active={aiming} aria-label={aimLabel}>{aimLabel}</Button></div>
+      <div className="game-actions">
+        <Button ref={jumpRef} className="game-control" aria-label={piloting ? "Up" : "Jump"}>{piloting ? "Up" : "Jump"}</Button>
+        <Button ref={runRef} className="game-control" data-active={running} aria-label={piloting ? "Down" : "Run"}>{piloting ? "Down" : "Run"}</Button>
+        <Button ref={fireRef} className="game-control game-fire" aria-label="Fire">Fire</Button>
       </div>
-
-      <div className="fixed bottom-40 right-8 z-20 flex flex-col gap-3">
-        <button
-          ref={jumpRef}
-          className="h-14 w-14 rounded-full border border-white/20 bg-black/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-white/20"
-        >
-          {piloting ? "Up" : "Jump"}
-        </button>
-        <button
-          ref={runRef}
-          className={`h-14 w-14 rounded-full border text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur ${
-            running ? "border-yellow-300 bg-yellow-500/40" : "border-white/20 bg-black/40"
-          }`}
-        >
-          {piloting ? "Down" : "Run"}
-        </button>
-        <button
-  ref={fireRef}
-  className="h-14 w-14 rounded-full border border-red-400/60 bg-red-600/40 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur active:bg-red-500/60"
->
-  Fire
-</button>
-      </div>
-
-      <div className="pointer-events-none fixed right-4 top-4 z-20 rounded bg-black/50 px-3 py-1 text-[10px] text-white/60 backdrop-blur">
-        Drag anywhere to look
-      </div>
+      <div className="game-portrait-gate"><span className="game-rotate-symbol" aria-hidden="true">↻</span><h2>Rotate your device</h2><p>The world awaits.</p></div>
     </div>
   );
 }
