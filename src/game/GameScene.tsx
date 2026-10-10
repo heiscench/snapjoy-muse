@@ -16,6 +16,7 @@ import { Grenades } from "./Grenades";
 import { Crosshair } from "./Crosshair";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
+import { Atmosphere } from "./Atmosphere";
 import { WeaponShop } from "./WeaponShop";
 import { SquadPrompt } from "./SquadPrompt";
 import { AmmoHud } from "./AmmoHud";
