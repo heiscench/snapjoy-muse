@@ -1,11 +1,30 @@
 import { Button } from "@/components/ui/button";
 import awakening from "@/assets/forgotten-awakening.jpg";
+import { unlockAudio, startMenuMusic } from "./audio";
 
 export function AwakeningBackdrop() {
-  return <><img className="awakening-image" src={awakening} width={1920} height={1080} alt="A crimson-eyed Forgotten samurai before the ruins of an ancient temple" /><div className="awakening-shade" /></>;
+  return (
+    <>
+      <img
+        className="awakening-image"
+        src={awakening}
+        width={1536}
+        height={1024}
+        decoding="async"
+        alt="A fractured being among the ruins of a forgotten world"
+      />
+      <div className="awakening-shade" />
+    </>
+  );
 }
 
 export function AwakeningIntro({ onContinue }: { onContinue: () => void }) {
+  function enter() {
+    unlockAudio();      // browsers only allow sound after a tap
+    startMenuMusic();   // start song keeps playing through the login screen
+    onContinue();
+  }
+
   return (
     <main className="awakening-screen">
       <AwakeningBackdrop />
@@ -15,7 +34,7 @@ export function AwakeningIntro({ onContinue }: { onContinue: () => void }) {
         <p className="lore-eyebrow">THE HOUR OF AWAKENING</p>
         <h1>FORGOTTEN</h1>
         <div className="intro-lore"><p>1,111 beings. Lost to time.</p><p>At 11:11, something stirred.</p><p>Our memories remain fractured.</p><p>Some hide. Some awaken.</p><p>Who will remember you?</p></div>
-        <Button className="awakening-cta" onClick={onContinue}>Enter the awakening <span aria-hidden="true">↗</span></Button>
+        <Button className="awakening-cta" onClick={enter}>Enter the awakening <span aria-hidden="true">↗</span></Button>
         <p className="awakening-tagline">Remain forgotten.. or become remembered.</p>
       </section>
       <div className="awakening-footer"><span>THE FORGOTTEN PROJECT</span><span>NOT EVERYTHING LOST IS GONE.</span></div>
