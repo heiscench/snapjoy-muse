@@ -52,7 +52,7 @@ function writeMuted(muted: boolean) {
   try {
     window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
   } catch {
-    // Storage unavailable (private mode) — mute still works for this session.
+    // Storage unavailable (private mode): mute still works for this session.
   }
 }
 
@@ -157,7 +157,6 @@ function useMultiplayerSession() {
     };
   }, []);
 }
-
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [muted, setMuted] = useState(readMuted);
@@ -229,8 +228,8 @@ export function GameScene() {
         input.run = !input.run;
         setRunning(input.run);
       } else if (zone === "fire") {
-  input.fire = true;
-   } else if (zone === "move") {
+        input.fire = true;
+      } else if (zone === "move") {
         setMoveKnob({ x: 0, y: 0 });
       }
     },
@@ -304,10 +303,10 @@ export function GameScene() {
     >
       <Canvas
         dpr={[1, 1.25]}
-        camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 400 }}
+        camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 2600 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
-        <fog attach="fog" args={["#05060a", 60, 260]} />
+        <fog attach="fog" args={["#05060a", 70, 320]} />
         <DayNight />
         <Atmosphere />
         <Stars radius={220} depth={30} count={220} factor={3} fade speed={0.2} />
