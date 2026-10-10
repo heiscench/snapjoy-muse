@@ -1,3 +1,4 @@
+import { hash01 } from "../city/palette";
 import * as THREE from "three";
 
 const cache = new Map<string, THREE.CanvasTexture>();
@@ -94,4 +95,92 @@ export function borderTexture() {
     },
     true,
   );
+}
+/** Soft cloud-shadow mask (white = shadow). Tiles seamlessly. */
+export function cloudNoiseTexture() {
+  const t = make(
+    "cloudNoise",
+    256,
+    256,
+    (c) => {
+      c.fillStyle = "#000000";
+      c.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 9; i++) {
+        const x = hash01(i, 1, 51) * 256;
+        const y = hash01(i, 2, 52) * 256;
+        const r = 28 + hash01(i, 3, 53) * 28;
+        for (const ox of [-256, 0, 256]) {
+          for (const oy of [-256, 0, 256]) {
+            const g = c.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+            g.addColorStop(0, "rgba(255,255,255,0.9)");
+            g.addColorStop(1, "rgba(255,255,255,0)");
+            c.fillStyle = g;
+            c.beginPath();
+            c.arc(x + ox, y + oy, r, 0, Math.PI * 2);
+            c.fill();
+          }
+        }
+      }
+    },
+    true,
+  );
+  if (t) {
+    t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3, 3);
+  }
+  return t;
+}
+
+/** Ground detail: mottled patches, cracks and debris. Multiplies the tile color. */
+export function groundTexture() {
+  const t = make(
+    "ground",
+    256,
+    256,
+    (c) => {
+      c.fillStyle = "#dcdcdc";
+      c.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 46; i++) {
+        const x = hash01(i, 1, 61) * 256;
+        const y = hash01(i, 2, 62) * 256;
+        const r = 14 + hash01(i, 3, 63) * 32;
+        const dark = hash01(i, 4, 64) > 0.45;
+        for (const ox of [-256, 0, 256]) {
+          for (const oy of [-256, 0, 256]) {
+            const g = c.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+            g.addColorStop(0, dark ? "rgba(0,0,0,0.14)" : "rgba(255,255,255,0.12)");
+            g.addColorStop(1, "rgba(0,0,0,0)");
+            c.fillStyle = g;
+            c.beginPath();
+            c.arc(x + ox, y + oy, r, 0, Math.PI * 2);
+            c.fill();
+          }
+        }
+      }
+      c.strokeStyle = "rgba(40,30,50,0.35)";
+      c.lineWidth = 1.4;
+      for (let i = 0; i < 12; i++) {
+        let x = hash01(i, 1, 71) * 256;
+        let y = hash01(i, 2, 72) * 256;
+        c.beginPath();
+        c.moveTo(x, y);
+        for (let s = 0; s < 5; s++) {
+          x += (hash01(i, s, 73) - 0.5) * 36;
+          y += (hash01(i, s, 74) - 0.5) * 36;
+          c.lineTo(x, y);
+        }
+        c.stroke();
+      }
+      for (let i = 0; i < 160; i++) {
+        c.fillStyle = hash01(i, 1, 75) > 0.5 ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.2)";
+        c.fillRect(hash01(i, 2, 76) * 256, hash01(i, 3, 77) * 256, 2 + hash01(i, 4, 78) * 2, 2);
+      }
+    },
+    true,
+  );
+  if (t) {
+    t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(6, 6);
+  }
+  return t;
 }
