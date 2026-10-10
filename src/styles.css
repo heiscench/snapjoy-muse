@@ -420,6 +420,26 @@
 .game-vehicle-label { font-size: 10px; color: var(--f-violet-soft); }
 .game-minimap { position: fixed; right: var(--hud-right); top: var(--hud-top); width: var(--hud-map); height: var(--hud-map); z-index: 20; border: 1px solid var(--hud-line); border-radius: 4px; overflow: hidden; pointer-events: none; }
 .game-minimap canvas { display: block; width: 100%; height: 100%; }
+.game-mute {
+  position: fixed;
+  right: calc(var(--hud-right) + var(--hud-map) + var(--hud-gap));
+  top: var(--hud-top);
+  width: 44px;
+  height: 44px;
+  z-index: 21;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--hud-text, #e8e4da);
+  background: rgba(5, 6, 10, 0.72);
+  border: 1px solid var(--hud-line);
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.game-mute:active { transform: scale(0.94); }
 .game-stats-button { position: fixed; right: var(--hud-right); top: calc(var(--hud-top) + var(--hud-map) + 6px); z-index: 30; min-height: 32px; height: auto; padding: 6px 12px; background: var(--hud-surface); color: var(--f-bone); border: 1px solid var(--hud-line); font-size: 10px; text-transform: uppercase; }
 .game-joystick { position: fixed; left: var(--hud-left); bottom: var(--hud-bottom); width: var(--hud-stick); height: var(--hud-stick); z-index: 20; user-select: none; }
 .game-joystick-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--hud-line); background: var(--hud-surface); }
