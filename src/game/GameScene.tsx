@@ -303,7 +303,7 @@ export function GameScene() {
     >
       <Canvas
         dpr={[1, 1.25]}
-        camera={{ fov: 66, position: [0, 5, 10], near: 0.1, far: 2600 }}
+        camera={{ fov: 66, position: [0, 5, 10], near: 0.3, far: 2600 }}
         gl={{ antialias: false, powerPreference: "high-performance" }}
       >
         <fog attach="fog" args={["#05060a", 70, 320]} />
