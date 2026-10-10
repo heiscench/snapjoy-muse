@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
-import { unlockAudio } from "./audio";
+import { unlockAudio, setMasterVolume } from "./audio";
 import { Guards } from "./Guards";
 import { Civilians } from "./Civilians";
 import { RemotePlayers } from "./RemotePlayers";
@@ -37,6 +37,23 @@ const TOUCH_LOOK_SENSITIVITY = 0.22;
 const MAX_DRAG_STEP = 50;
 const JOYSTICK_TRAVEL_RATIO = 0.36;
 const AUTOSAVE_MS = 12000;
+const MUTE_KEY = "forgotten-muted";
+
+function readMuted(): boolean {
+  try {
+    return window.localStorage.getItem(MUTE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeMuted(muted: boolean) {
+  try {
+    window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
+  } catch {
+    // Storage unavailable (private mode) — mute still works for this session.
+  }
+}
 
 type Zone = "move" | "look" | "aim" | "jump" | "run" | "fire" | null;
 
