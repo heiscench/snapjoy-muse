@@ -1,4 +1,3 @@
-
 // FORGOTTEN sound engine (Web Audio). Plays real files from /public/audio when
 // they exist and falls back to the original procedural sounds when they don't,
 // so a missing file never breaks the game. Browsers block audio until a user
@@ -61,7 +60,7 @@ async function fetchDecode(c: AudioContext, name: string): Promise<AudioBuffer |
     try {
       const res = await fetch(`${SOUND_BASE}${name}.${ext}`);
       if (!res.ok) continue;
-      // SPA hosts answer unknown paths with index.html (status 200) — skip those.
+      // SPA hosts answer unknown paths with index.html (status 200): skip those.
       if ((res.headers.get("content-type") ?? "").includes("text/html")) continue;
       return await c.decodeAudioData(await res.arrayBuffer());
     } catch {
@@ -77,7 +76,11 @@ function loadSound(key: string): Promise<AudioBuffer | null> {
   if (pending) return pending;
   if (!ctx || !SOUND_NAMES[key]) return Promise.resolve(null);
   const p = fetchDecode(ctx, SOUND_NAMES[key])
-    .then((b) => { buffers.set(key, b); return b; })
+    .then((b) => {
+      buffers.set(key, b);
+      if (key === "step" && b) analyseSteps(b);
+      return b;
+    })
     .finally(() => loading.delete(key));
   loading.set(key, p);
   return p;
@@ -124,7 +127,7 @@ function stopLoop(l: Loop, fade = 0.25) {
   }, fade * 1000 + 120);
 }
 
-// Short filtered noise burst — procedural fallback for shots, hits, steps.
+// Short filtered noise burst: procedural fallback for shots, hits, steps.
 function noiseBurst(duration: number, filterFreq: number, gainAmt: number) {
   if (!ctx) return;
   const bufferSize = ctx.sampleRate * duration;
@@ -180,12 +183,70 @@ export function playHitMarker() {
   osc.stop(now() + 0.09);
 }
 
-export function playFootstep(running: boolean) {
-  if (!ctx) return;
-  if (playSample("step", running ? 0.55 : 0.38, running ? 1.18 : 1, 0.08)) return;
-  noiseBurst(running ? 0.05 : 0.045, running ? 900 : 600, running ? 0.12 : 0.08);
+// ---- Footsteps: slice single steps out of a long recording --------------
+const stepOnsets: number[] = []; // start time (seconds) of each footstep in the file
+let stepIndex = 0;
+
+/** Finds the loud hits in the footstep recording so each one can be played alone. */
+function analyseSteps(buf: AudioBuffer) {
+  stepOnsets.length = 0;
+  if (buf.duration < 1.2) return; // already a single step, play it whole
+  const data = buf.getChannelData(0);
+  const win = Math.max(1, Math.floor(buf.sampleRate * 0.01)); // 10 ms windows
+  const env: number[] = [];
+  for (let i = 0; i + win < data.length; i += win) {
+    let s = 0;
+    for (let j = 0; j < win; j++) s += data[i + j] * data[i + j];
+    env.push(Math.sqrt(s / win));
+  }
+  let max = 0;
+  for (const v of env) if (v > max) max = v;
+  if (max <= 0) return;
+  const thr = max * 0.35;
+  const minGap = 25; // 0.25 s between detected steps
+  let last = -minGap;
+  for (let i = 1; i < env.length && stepOnsets.length < 60; i++) {
+    if (env[i] >= thr && env[i - 1] < thr && i - last >= minGap) {
+      stepOnsets.push(i * 0.01);
+      last = i;
+    }
+  }
+  // Too few hits found: fall back to evenly spaced slices.
+  if (stepOnsets.length < 3) {
+    stepOnsets.length = 0;
+    for (let t = 0; t + 0.4 < buf.duration && stepOnsets.length < 24; t += 0.6) stepOnsets.push(t);
+  }
 }
 
+export function playFootstep(running: boolean) {
+  if (!ctx) return;
+  const vol = running ? 0.55 : 0.4;
+  const rate = running ? 1.2 : 1;
+  const buf = bufferNow("step");
+
+  if (buf && buf.duration < 1.2) {
+    playSample("step", vol, rate, 0.08); // short single-step file: play it whole
+    return;
+  }
+
+  if (buf && stepOnsets.length >= 2) {
+    const start = Math.max(0, stepOnsets[stepIndex % stepOnsets.length] - 0.03);
+    stepIndex++;
+    const dur = running ? 0.22 : 0.3;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * 0.05);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, now());
+    g.gain.setTargetAtTime(0.0001, now() + dur * 0.6, dur * 0.12); // quick fade-out of the tail
+    src.connect(g).connect(out());
+    src.start(0, start, dur); // only this one step, never the whole recording
+    return;
+  }
+
+  // No file: original synthesized step.
+  noiseBurst(running ? 0.05 : 0.045, running ? 900 : 600, running ? 0.12 : 0.08);
+}
 // ------------------------------------------------- Husk engine (vehicles)
 let engineWanted = false;
 let engineLoop: Loop | null = null;
@@ -338,6 +399,28 @@ export function stopMenuMusic(fade = 1.4) {
   }
 }
 
+// ------------------------------------------------------------ In-game music
+let gameWanted = false;
+let gameLoop: Loop | null = null;
+
+/** Quiet background loop for the game world. Plays public/audio/game-theme.* if it exists. */
+export function startGameMusic() {
+  if (!ctx || gameWanted) return;
+  gameWanted = true;
+  void loadSound("game").then((buf) => {
+    if (!gameWanted || !ctx || !buf || gameLoop) return;
+    gameLoop = startLoop(buf, 0.3, 2.5);
+  });
+}
+
+export function stopGameMusic(fade = 1.2) {
+  gameWanted = false;
+  if (gameLoop) {
+    stopLoop(gameLoop, fade);
+    gameLoop = null;
+  }
+}
+
 // ------------------------------------------------------ Driving radio
 // Uses radio-loop if present, otherwise the original procedural loop.
 let radioWanted = false;
@@ -423,25 +506,4 @@ export function stopRadio() {
     setTimeout(() => { try { bus.disconnect(); } catch { /* already gone */ } }, 700);
   }
   radioBus = null;
-}
-// ------------------------------------------------------------ In-game music
-let gameWanted = false;
-let gameLoop: Loop | null = null;
-
-/** Quiet background loop for the game world. Plays public/audio/game-theme.* if it exists. */
-export function startGameMusic() {
-  if (!ctx || gameWanted) return;
-  gameWanted = true;
-  void loadSound("game").then((buf) => {
-    if (!gameWanted || !ctx || !buf || gameLoop) return;
-    gameLoop = startLoop(buf, 0.3, 2.5);
-  });
-}
-
-export function stopGameMusic(fade = 1.2) {
-  gameWanted = false;
-  if (gameLoop) {
-    stopLoop(gameLoop, fade);
-    gameLoop = null;
-  }
 }
