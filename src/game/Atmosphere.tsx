@@ -4,6 +4,7 @@ import { Smoke } from "./fx/Smoke";
 import { Border } from "./fx/Border";
 import { SkyDome, Sun, Wasteland, Mountains, CloudBanks } from "./fx/Horizon";
 import { Islands, CloudShadows, Birds } from "./fx/Life";
+import { KingdomClouds, KingdomEntry } from "./fx/KingdomBorders";
 
 // Set any of these to false if a part is too heavy on your phone.
 const SHOW_CLOUDS = true;
@@ -15,6 +16,7 @@ const SHOW_HORIZON = true; // sky gradient, sun, mountains, wasteland, horizon c
 const SHOW_ISLANDS = true;
 const SHOW_SHADOWS = true;
 const SHOW_BIRDS = true;
+const SHOW_KINGDOM_CLOUDS = true; // cloud walls on kingdom borders
 
 export function Atmosphere() {
   return (
@@ -36,6 +38,8 @@ export function Atmosphere() {
       {SHOW_BORDER && <Border />}
       {SHOW_SHADOWS && <CloudShadows />}
       {SHOW_BIRDS && <Birds />}
+      {SHOW_KINGDOM_CLOUDS && <KingdomClouds />}
+      <KingdomEntry />
     </>
   );
 }
