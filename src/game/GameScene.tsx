@@ -331,6 +331,20 @@ export function GameScene() {
       {captureLabel && <div className="game-capture"><span>{captureLabel}</span>{capturePct > 0 && <div className="game-progress"><div style={{ width: `${capturePct}%` }} /></div>}</div>}
       <div className="game-alerts">{alerts.map(a => <div key={a.id} data-tone={a.tone}>{a.text}</div>)}</div>
 
+      <button
+        type="button"
+        className="game-mute"
+        aria-label={muted ? "Unmute sound" : "Mute sound"}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleMute();
+        }}
+      >
+        {muted ? "🔇" : "🔊"}
+      </button>
       <Minimap />
       <WeaponShop />
       <SquadPrompt />
