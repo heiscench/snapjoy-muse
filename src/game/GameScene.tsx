@@ -313,6 +313,7 @@ export function GameScene() {
         <Atmosphere />
         <Stars radius={220} depth={30} count={220} factor={3} fade speed={0.2} />
         <City />
+        <MemoryFragments />
         <Vehicles />
         <Helicopters />
         <WeaponShopKiosks />
@@ -349,6 +350,7 @@ export function GameScene() {
         {muted ? "🔇" : "🔊"}
       </button>
       <Minimap />
+      <MemoryJournal />
       <WeaponShop />
       <SquadPrompt />
       <StatsPanel />
