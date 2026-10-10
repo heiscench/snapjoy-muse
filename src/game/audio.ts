@@ -424,3 +424,24 @@ export function stopRadio() {
   }
   radioBus = null;
 }
+// ------------------------------------------------------------ In-game music
+let gameWanted = false;
+let gameLoop: Loop | null = null;
+
+/** Quiet background loop for the game world. Plays public/audio/game-theme.* if it exists. */
+export function startGameMusic() {
+  if (!ctx || gameWanted) return;
+  gameWanted = true;
+  void loadSound("game").then((buf) => {
+    if (!gameWanted || !ctx || !buf || gameLoop) return;
+    gameLoop = startLoop(buf, 0.3, 2.5);
+  });
+}
+
+export function stopGameMusic(fade = 1.2) {
+  gameWanted = false;
+  if (gameLoop) {
+    stopLoop(gameLoop, fade);
+    gameLoop = null;
+  }
+}
