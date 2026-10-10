@@ -159,6 +159,7 @@ function useMultiplayerSession() {
 
 export function GameScene() {
   const [running, setRunning] = useState(false);
+  const [muted, setMuted] = useState(readMuted);
   const [aiming, setAiming] = useState(false);
   const [moveKnob, setMoveKnob] = useState({ x: 0, y: 0 });
   const gang = GANGS[PLAYER_GANG];
