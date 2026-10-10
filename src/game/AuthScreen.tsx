@@ -63,6 +63,7 @@ export function AuthScreen({ onReady }: Props) {
         if (!row) throw new Error("This account has no remembered being yet. Sign up first.");
         applyProfileToGameState(row);
       }
+      stopMenuMusic(); // fade the start song out as the game begins
       onReady();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
