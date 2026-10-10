@@ -1,6 +1,5 @@
 import { Text } from "@react-three/drei";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { groundTexture } from "./fx/fxTextures";
 import * as THREE from "three";
 import {
   BUILDINGS,
@@ -11,6 +10,9 @@ import {
   districtFor,
 } from "./worldData";
 import { themeOf } from "./city/palette";
+import { groundTexture } from "./fx/fxTextures";
+import { Roads } from "./city/Roads";
+import { Lamps, Lots, Props } from "./city/Street";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -42,7 +44,7 @@ function GroundTiles() {
     if (!mesh) return;
     const dummy = new THREE.Object3D();
     tiles.forEach((t, i) => {
-      dummy.position.set(t.x, 0.004, t.z);
+      dummy.position.set(t.x, 0.01, t.z);
       dummy.rotation.set(-Math.PI / 2, 0, 0);
       dummy.scale.set(BLOCK_SIZE, BLOCK_SIZE, 1);
       dummy.updateMatrix();
@@ -55,14 +57,12 @@ function GroundTiles() {
 
   return (
     <instancedMesh ref={ref} args={[GROUND_PLANE, undefined, tiles.length]} frustumCulled={false}>
-            <meshStandardMaterial color="#ffffff" roughness={1} map={groundTexture() ?? undefined} />
+      <meshStandardMaterial color="#ffffff" roughness={1} map={groundTexture() ?? undefined} />
     </instancedMesh>
   );
 }
 
 export function City() {
-  const roadCount = GRID * 2 + 1;
-
   const rendered = useMemo(() => {
     return BUILDINGS.map((b, i) => {
       switch (b.type) {
@@ -90,7 +90,6 @@ export function City() {
   }, []);
 
   const groundExtent = (GRID * 2 + 2) * BLOCK_SIZE;
-  const roadLen = groundExtent;
 
   return (
     <group>
@@ -100,36 +99,16 @@ export function City() {
       </mesh>
 
       <GroundTiles />
+      <Lots />
+      <Roads />
+      <Lamps />
+      <Props />
 
       {/* The Black Tide: violet harbor water. */}
       <mesh position={[0, 0.03, HARBOR_Z - BLOCK_SIZE * 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[groundExtent, BLOCK_SIZE * 1.4]} />
         <meshStandardMaterial color="#6b52b8" emissive="#3a2a80" emissiveIntensity={0.35} roughness={0.4} />
       </mesh>
-
-      {Array.from({ length: roadCount }).map((_, i) => {
-        const p = (i - (roadCount - 1) / 2) * BLOCK_SIZE;
-        return (
-          <group key={i}>
-            <mesh position={[p, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[10, roadLen]} />
-              <meshStandardMaterial color="#55505c" roughness={0.95} />
-            </mesh>
-            <mesh position={[0, 0.02, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
-              <planeGeometry args={[10, roadLen]} />
-              <meshStandardMaterial color="#55505c" roughness={0.95} />
-            </mesh>
-            <mesh position={[p, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[0.16, roadLen]} />
-              <meshBasicMaterial color="#d8c27a" transparent opacity={0.5} />
-            </mesh>
-            <mesh position={[0, 0.03, p]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
-              <planeGeometry args={[0.16, roadLen]} />
-              <meshBasicMaterial color="#d8c27a" transparent opacity={0.5} />
-            </mesh>
-          </group>
-        );
-      })}
 
       {rendered}
 
