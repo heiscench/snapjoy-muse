@@ -55,7 +55,7 @@ function GroundTiles() {
 
   return (
     <instancedMesh ref={ref} args={[GROUND_PLANE, undefined, tiles.length]} frustumCulled={false}>
-      <meshStandardMaterial color="#ffffff" roughness={1} />
+            <meshStandardMaterial color="#ffffff" roughness={1} map={groundTexture() ?? undefined} />
     </instancedMesh>
   );
 }
