@@ -1,5 +1,6 @@
 import { Text } from "@react-three/drei";
 import { useLayoutEffect, useMemo, useRef } from "react";
+import { groundTexture } from "./fx/fxTextures";
 import * as THREE from "three";
 import {
   BUILDINGS,
