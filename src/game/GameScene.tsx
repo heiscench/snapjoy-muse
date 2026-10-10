@@ -309,6 +309,7 @@ export function GameScene() {
       >
         <fog attach="fog" args={["#05060a", 60, 260]} />
         <DayNight />
+        <Atmosphere />
         <Stars radius={220} depth={30} count={220} factor={3} fade speed={0.2} />
         <City />
         <Vehicles />
