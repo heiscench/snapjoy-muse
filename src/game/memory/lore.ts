@@ -1,0 +1,30 @@
+export type LorePage = { title: string; text: string };
+
+// Twenty-five pages, in the order the truth comes apart.
+export const LORE: LorePage[] = [
+  { title: "The Counting", text: "Before the names were erased, someone counted us. One thousand one hundred and eleven. Whoever kept the tally also tore it from every record." },
+  { title: "The Erasing", text: "They did not burn us in a day. They forgot us a little each year, until forgetting was all that was left." },
+  { title: "Ash Archives", text: "The halls of records stand empty. The shelves are intact. Only the pages are gone, as if the words simply walked away." },
+  { title: "The Last Name", text: "Someone scratched a name into this stone. The scratches are deep, but the letters mean nothing to me now. I am sorry, whoever you were." },
+  { title: "What Walls Remember", text: "Stone keeps what paper cannot. Press your hand to the wall and you may feel us breathing on the other side." },
+  { title: "The Hiding Place", text: "We were not lost. We chose the silence, and we sealed ourselves inside it. The question is what we were hiding from." },
+  { title: "The Signal", text: "It crossed the Solana chain like a held breath let go. No sender. No message. Only a time stamped into every block." },
+  { title: "11:11", text: "At exactly that moment the seals cracked. A thousand sleepers opened their eyes and none of them knew why they were crying." },
+  { title: "First Waking", text: "I woke with dust in my mouth and a feeling that I had stood in this street before. The street disagreed. It had a different name." },
+  { title: "Fractured", text: "I remember a staircase, a red door and a song. I cannot remember who sang it. Perhaps that was me." },
+  { title: "The Throne of Dust", text: "The Kings found their halls and no crowns. They still sit upright, because a king who forgets how to stand is only a stranger." },
+  { title: "A Warrior's Oath", text: "The Warriors swore to fight a war that no record admits happened. They fight anyway. The fighting is the only thing that feels true." },
+  { title: "The Outcast's Map", text: "The Outcasts drew maps of places that were never built. Half of them led here. Nobody asked why that did not frighten them." },
+  { title: "What They Were", text: "The Monsters were not born that way. Each of them was a being no one could bear to remember, so the world made them unrecognizable." },
+  { title: "The Ink Eye", text: "A black socket and a violet light. They say the eye that weeps ink saw what we hid from. They also say it forgot on purpose." },
+  { title: "The Silent Choir", text: "At dusk you can hear them, a hundred voices holding one note. It is not singing. It is a count, still going, still unfinished." },
+  { title: "Archive of Nothing", text: "The most guarded room in the city holds nothing at all. That is how we know it was important." },
+  { title: "Echoes", text: "What we leave behind does not fade the way we do. Hold enough Echoes and a stranger's memory begins to feel like your own." },
+  { title: "Borrowed Names", text: "I answer to a name I found carved on a doorframe. It fits well enough. I try not to wonder whose it was." },
+  { title: "The Mist Between", text: "Each realm ends in cloud. Cross it and the air changes, the colors shift, and for a moment you forget which side you came from." },
+  { title: "A Door That Isn't", text: "There is a doorway at the edge of the world with nothing behind it. Something knocks from the other side at 11:11." },
+  { title: "The Watcher", text: "The shard islands do not drift by chance. Something moves them. Something keeps looking down at the city, and counting." },
+  { title: "What We Hid From", text: "We did not hide from men or from time. We hid from something that feeds on being remembered, and forgot it so it would forget us." },
+  { title: "It Is Coming Back", text: "The signal woke us, but it also woke it. Listen to the ground at dusk. Something large is walking toward every kingdom." },
+  { title: "Become Remembered", text: "You cannot fight what you cannot face, and you cannot face it alone. Remain forgotten, or stand together and be remembered." },
+];
