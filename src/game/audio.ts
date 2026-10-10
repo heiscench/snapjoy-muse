@@ -15,6 +15,7 @@ const EXTENSIONS = ["mp3", "ogg", "wav"];
 // key -> file name (without extension) in /public/audio
 const SOUND_NAMES: Record<string, string> = {
   menu: "menu-theme",
+  game: "game-theme",
   husk: "husk-engine",
   skiff: "skiff-hover",
   step: "footstep",
