@@ -184,6 +184,16 @@ export function GameScene() {
 
   useEffect(() => {
     unlockAudio();
+    setMasterVolume(readMuted() ? 0 : 1);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      const next = !m;
+      setMasterVolume(next ? 0 : 1);
+      writeMuted(next);
+      return next;
+    });
   }, []);
 
   const zoneOf = useCallback((x: number, y: number): Zone => {
