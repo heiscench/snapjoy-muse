@@ -19,6 +19,8 @@ import { DayNight } from "./DayNight";
 import { Atmosphere } from "./Atmosphere";
 import { WeaponShop } from "./WeaponShop";
 import { SquadPrompt } from "./SquadPrompt";
+import { MemoryFragments } from "./memory/MemoryFragments";
+import { MemoryJournal } from "./memory/MemoryJournal";
 import { AmmoHud } from "./AmmoHud";
 import { StatsPanel } from "./StatsPanel";
 import { GANGS, PLAYER_GANG } from "./gangs";
