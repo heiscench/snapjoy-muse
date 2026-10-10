@@ -1,6 +1,7 @@
 // Signup / login gate shown before the game mounts.
 import { Button } from "@/components/ui/button";
 import { AwakeningBackdrop } from "./AwakeningIntro";
+import { stopMenuMusic } from "./audio";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GANGS, type GangId } from "./gangs";
