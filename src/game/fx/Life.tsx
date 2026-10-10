@@ -121,7 +121,7 @@ export function CloudShadows() {
     if (!mesh.current || !tex) return;
     const px = playerState.pos.x;
     const pz = playerState.pos.z;
-    mesh.current.position.set(px, 0.09, pz);
+    mesh.current.position.set(px, 0.22, pz);
     // Keep the pattern fixed to the world, then drift it with the wind.
     tex.offset.set((px / SHADOW_SIZE) * SHADOW_REPEAT + clock.elapsedTime * 0.004, -(pz / SHADOW_SIZE) * SHADOW_REPEAT);
   });
