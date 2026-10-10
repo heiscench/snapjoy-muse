@@ -1,8 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef, useState } from "react";
 import * as THREE from "three";
-import { input } from "./input";
-import { currentWeapon, weaponState, type WeaponId } from "./weaponState";
+import { weaponState, type WeaponId } from "./weaponState";
+import { shotFeedback } from "./shotFeedback";
 
 type Proportions = {
   bodyColor: string;
@@ -40,13 +40,14 @@ export function Weapon() {
   const flashLight = useRef<THREE.PointLight>(null!);
   const [flash, setFlash] = useState(0);
   const [wid, setWid] = useState<WeaponId>(weaponState.current);
-  const cooldown = useRef(0);
+  const lastShot = useRef(shotFeedback.shotAt);
   const kick = useRef(0);
 
   useFrame(({ clock }, dt) => {
     if (weaponState.current !== wid) setWid(weaponState.current);
 
-        if (shotFeedback.shotAt !== lastShot.current) {
+    // Flash and kick only when a bullet was actually fired.
+    if (shotFeedback.shotAt !== lastShot.current) {
       lastShot.current = shotFeedback.shotAt;
       setFlash(1);
       kick.current = 1;
@@ -82,7 +83,7 @@ export function Weapon() {
 
   return (
     <group ref={group} rotation={[0, 0, 0]}>
-      {/* Grip — dark wrapped stone */}
+      {/* Grip: dark wrapped stone */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[0.08, 0.22, 0.1]} />
         <meshStandardMaterial color="#0d0c12" roughness={0.9} />
@@ -102,7 +103,7 @@ export function Weapon() {
         </group>
       ) : (
         <>
-          {/* Body — carved stone */}
+          {/* Body: carved stone */}
           <mesh position={[0, 0.12, 0.18]}>
             <boxGeometry args={p.bodySize} />
             <meshStandardMaterial color={p.bodyColor} metalness={0.15} roughness={0.9} />
