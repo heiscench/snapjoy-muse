@@ -25,7 +25,7 @@ type Cluster = {
 const clusters: Cluster[] = Array.from({ length: CLUSTERS }, (_, i) => ({
   bx: (hash01(i, 1, 1) - 0.5) * AREA,
   bz: (hash01(i, 2, 2) - 0.5) * AREA,
-  y: 95 + hash01(i, 3, 3) * 55,
+    y: 50 + hash01(i, 3, 3) * 80,
   speed: 1.5 + hash01(i, 4, 4) * 2.5,
   puffs: Array.from({ length: PUFFS }, (_, j) => ({
     dx: (hash01(i, j, 5) - 0.5) * 70,
