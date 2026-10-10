@@ -10,6 +10,8 @@ import { carPilot } from "./carState";
 import { NPCS } from "./npcState";
 import { remotePlayers } from "./remotePlayerState";
 import { themeOf } from "./city/palette";
+import { FRAGMENTS } from "./memory/fragments";
+import { memoryState } from "./memory/memoryState";
 import { ROAD_LINES, ROAD_W, KINGDOM_EDGES } from "./city/layout";
 
 const WORLD = (GRID + 1) * BLOCK_SIZE;
@@ -163,6 +165,36 @@ export function Minimap() {
         ctx.arc(mx(rp.x), mz(rp.z), 2.8, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      }
+      
+            // Unfound memories pulse; the nearest one off the radar shows a pointer on the rim.
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+      let nearest: { x: number; z: number; d: number } | null = null;
+      for (const f of FRAGMENTS) {
+        if (memoryState.found.has(f.id)) continue;
+        const d = Math.hypot(f.x - px, f.z - pz);
+        if (!nearest || d < nearest.d) nearest = { x: f.x, z: f.z, d };
+        if (!inView(f.x, f.z)) continue;
+        ctx.fillStyle = "#fff3b0";
+        ctx.beginPath();
+        ctx.arc(mx(f.x), mz(f.z), 2.2 + pulse * 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (nearest && !inView(nearest.x, nearest.z)) {
+        const a = Math.atan2(nearest.z - pz, nearest.x - px);
+        const rr = SIZE / 2 - 7;
+        ctx.save();
+        ctx.translate(SIZE / 2 + Math.cos(a) * rr, SIZE / 2 + Math.sin(a) * rr);
+        ctx.rotate(a);
+        ctx.fillStyle = "#fff3b0";
+        ctx.globalAlpha = 0.6 + pulse * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(5, 0);
+        ctx.lineTo(-3, -3.6);
+        ctx.lineTo(-3, 3.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
 
       // You: the arrow points the way you are heading (cars use the opposite yaw convention).
