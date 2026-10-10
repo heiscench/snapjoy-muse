@@ -46,10 +46,8 @@ export function Weapon() {
   useFrame(({ clock }, dt) => {
     if (weaponState.current !== wid) setWid(weaponState.current);
 
-    cooldown.current = Math.max(0, cooldown.current - dt);
-    const w = currentWeapon();
-    if (input.fire && cooldown.current === 0) {
-      cooldown.current = w.fireRate;
+        if (shotFeedback.shotAt !== lastShot.current) {
+      lastShot.current = shotFeedback.shotAt;
       setFlash(1);
       kick.current = 1;
       setTimeout(() => setFlash(0), 55);
