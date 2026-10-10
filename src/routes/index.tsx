@@ -6,6 +6,7 @@ import { AuthScreen } from "@/game/AuthScreen";
 import { applyProfileToGameState, loadProfile } from "@/game/profileSync";
 import { AwakeningIntro } from "@/game/AwakeningIntro";
 import { authState } from "@/game/authState";
+import { stopMenuMusic, startGameMusic } from "@/game/audio";
 
 const GameScene = lazy(() =>
   import("@/game/GameScene").then((m) => ({ default: m.GameScene })),
@@ -67,6 +68,15 @@ function IndexGate() {
     });
     return () => { cancelled = true; sub.subscription.unsubscribe(); };
   }, []);
+
+  // The start song belongs to the landing and login screens only.
+  // As soon as the game world is shown, fade it out and start the game music.
+  useEffect(() => {
+    if (introComplete && status === "authed") {
+      stopMenuMusic();
+      startGameMusic();
+    }
+  }, [introComplete, status]);
 
   if (!introComplete) return <AwakeningIntro onContinue={() => setIntroComplete(true)} />;
   if (status === "checking") return <div className="fixed inset-0 bg-background" />;
