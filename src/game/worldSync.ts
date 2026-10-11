@@ -129,28 +129,40 @@ async function openWorldSync() {
         .then(({ error }) => {
           if (error) console.error("[worldSync] capture push failed", error);
         });
-      broadcastAlert(owner, `${districtName(district)} reclaimed by ${authState.username}`, "info");  
-warRecord("capture");
-    },
-    onRobbed: (bankId, lockUntilMs) => {
-      void db()
-     warRecord("raid");
-        .from("bank_state")
-        .upsert(
-          { bank_id: bankId, robbery_lock_until: new Date(lockUntilMs).toISOString() },
-          { onConflict: "bank_id" },
-        )
-        .then(({ error }) => {
-          if (error) console.error("[worldSync] raid push failed", error);
-        });
-    },
-    onAttackStarted: (district, defendingGang) => {
-      broadcastAlert(
-        defendingGang,
-        `${districtName(district)} is fracturing!`,
-        "warn",
-      );
-    },
+     broadcastAlert(
+    owner,
+    `${districtName(district)} reclaimed by ${authState.username}`,
+    "info",
+  );
+
+  warRecord("capture");
+},
+
+onRobbed: (bankId, lockUntilMs) => {
+  warRecord("raid");
+
+  void db()
+    .from("bank_state")
+    .upsert(
+      {
+        bank_id: bankId,
+        robbery_lock_until: new Date(lockUntilMs).toISOString(),
+      },
+      { onConflict: "bank_id" },
+    )
+    .then(({ error }) => {
+      if (error) console.error("[worldSync] raid push failed", error);
+    });
+},
+
+onAttackStarted: (district, defendingGang) => {
+  broadcastAlert(
+    defendingGang,
+    `${districtName(district)} is fracturing!`,
+    "warn",
+  );
+},
+
   });
 
   registerBankGuardsClearedHook((bankId) => {
