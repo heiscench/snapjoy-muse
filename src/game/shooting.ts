@@ -6,6 +6,7 @@ import { GUARDS, damageGuard } from "./guardState";
 import { HELICOPTERS, pilotState, damageHeli, carDestroyed, damageCar } from "./vehicleState";
 import { CAR_LIVE, carPilot } from "./carState";
 import { remotePlayers } from "./remotePlayerState";
+import { monsterTarget, damageMonster } from "./monster/monsterState";
 import { broadcastHit } from "./presence";
 import { earnMoney, KILL_BOUNTY } from "./playerState";
 import { onPlayerKill } from "./territoryState";
@@ -145,6 +146,7 @@ export function fireShot(
     let tRemote: string | null = null;
     let tCar = -1;
     let tHeli = -1;
+    let tMonster = false;
 
     for (const n of NPCS) {
       if (n.dead || n.boarded || n.gang === PLAYER_GANG) continue;
