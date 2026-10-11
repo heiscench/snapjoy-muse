@@ -22,7 +22,7 @@ import {
 import { findFreeSpot } from "./unstick";
 import { fireShot } from "./shooting";
 import {
-  playerState, healPlayer, revivePlayer, spendMoney, DEATH_COST,
+    playerState, healPlayer, revivePlayer, spendMoney, deathTax,
 } from "./playerState";
 import { throwGrenade } from "./grenadeState";
 import { HELICOPTERS, gangHeliIndices, pilotState, carDestroyed } from "./vehicleState";
