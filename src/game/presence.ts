@@ -36,7 +36,7 @@ type PositionPayload = {
 };
 
 type HitPayload = { toUserId: string; fromUserId: string; fromUsername: string; amount: number };
-type DiedPayload = { userId: string; username: string; killerUserId: string | null };
+type DiedPayload = { userId: string; username: string; killerUserId: string | null; tax?: number };
 type SquadReqPayload = { fromUserId: string; fromUsername: string; toUserId: string };
 type SquadResPayload = { fromUserId: string; fromUsername: string; toUserId: string; accepted: boolean };
 type VehiclePayload = {
