@@ -130,8 +130,8 @@ async function openWorldSync() {
           if (error) console.error("[worldSync] capture push failed", error);
         });
       broadcastAlert(owner, `${districtName(district)} reclaimed by ${authState.username}`, "info");  
-    },
 warRecord("capture");
+    },
     onRobbed: warRecord("raid");
 (bankId, lockUntilMs) => {
       void db()
