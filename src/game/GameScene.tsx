@@ -13,7 +13,7 @@ import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
-import { FractureHud } from "./fracture/FractureHud"
+import { FractureHud } from "./fracture/FractureHud";
 import { Grenades } from "./Grenades";
 import { Crosshair } from "./Crosshair";
 import { Monster } from "./monster/Monster";
