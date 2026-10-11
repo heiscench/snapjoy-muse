@@ -233,7 +233,7 @@ export function fireShot(
         const d = Math.hypot(n.pos.x - point.x, 1 - point.y, n.pos.z - point.z);
         if (d < sp) {
           damageNPC(n, w.damage * 0.6 * (1 - d / sp));
-          if (n.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+        if (n.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); warRecord("npc_kill"); }
         }
       }
       for (const g of GUARDS) {
