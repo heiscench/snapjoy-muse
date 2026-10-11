@@ -476,3 +476,6 @@
   .game-status-values .game-remembered { flex-basis: 100%; font-size: 9px; }
   .game-cache-hint { top: calc(var(--hud-top) + 54px); }
 }
+/* Make room for the monster banner at the top centre. */
+.game-capture { top: calc(var(--hud-top) + 140px); }
+.game-alerts { top: calc(var(--hud-top) + 172px); }
