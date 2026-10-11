@@ -10,6 +10,7 @@ import { carPilot } from "./carState";
 import { NPCS } from "./npcState";
 import { remotePlayers } from "./remotePlayerState";
 import { themeOf } from "./city/palette";
+import { fracturePoints } from "./fracture/fractureState";
 import { FRAGMENTS } from "./memory/fragments";
 import { monsterTarget } from "./monster/monsterState";
 import { memoryState } from "./memory/memoryState";
@@ -218,6 +219,49 @@ export function Minimap() {
           ctx.translate(SIZE / 2 + Math.cos(a) * rr, SIZE / 2 + Math.sin(a) * rr);
           ctx.rotate(a);
           ctx.fillStyle = "#ff4d5e";
+          ctx.beginPath();
+          ctx.moveTo(6, 0);
+          ctx.lineTo(-4, -5);
+          ctx.lineTo(-4, 5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      // The Fracture: glyph stones as diamonds (white = ready, filled gold = lit, grey = sealed).
+      const fpts = fracturePoints();
+      if (fpts) {
+        const fp = 0.5 + 0.5 * Math.sin(performance.now() / 250);
+        let near: { x: number; z: number; d: number } | null = null;
+        for (const p of fpts) {
+          if (p.available) {
+            const d = Math.hypot(p.x - px, p.z - pz);
+            if (!near || d < near.d) near = { x: p.x, z: p.z, d };
+          }
+          if (!inView(p.x, p.z)) continue;
+          const col = p.lit ? "#f3e2b3" : p.available ? "#ffffff" : "#6a6478";
+          ctx.strokeStyle = col;
+          ctx.fillStyle = col;
+          ctx.lineWidth = 1.6;
+          const x = mx(p.x);
+          const z = mz(p.z);
+          const s = (p.heart ? 5 : 3.5) + (p.available ? fp * 1.5 : 0);
+          ctx.beginPath();
+          ctx.moveTo(x, z - s);
+          ctx.lineTo(x + s, z);
+          ctx.lineTo(x, z + s);
+          ctx.lineTo(x - s, z);
+          ctx.closePath();
+          if (p.lit) ctx.fill();
+          else ctx.stroke();
+        }
+        if (near && !inView(near.x, near.z)) {
+          const a = Math.atan2(near.z - pz, near.x - px);
+          const rr = SIZE / 2 - 8;
+          ctx.save();
+          ctx.translate(SIZE / 2 + Math.cos(a) * rr, SIZE / 2 + Math.sin(a) * rr);
+          ctx.rotate(a);
+          ctx.fillStyle = "#fff1b8";
           ctx.beginPath();
           ctx.moveTo(6, 0);
           ctx.lineTo(-4, -5);
