@@ -17,6 +17,7 @@ import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { Grenades } from "./Grenades";
 import { Crosshair } from "./Crosshair";
 import { Monster } from "./monster/Monster";
+import: import { WarPanel } from "./war/WarPanel";
 import { MonsterHud } from "./monster/MonsterHud";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
