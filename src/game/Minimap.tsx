@@ -11,6 +11,7 @@ import { NPCS } from "./npcState";
 import { remotePlayers } from "./remotePlayerState";
 import { themeOf } from "./city/palette";
 import { FRAGMENTS } from "./memory/fragments";
+import { monsterTarget } from "./monster/monsterState";
 import { memoryState } from "./memory/memoryState";
 import { ROAD_LINES, ROAD_W, KINGDOM_EDGES } from "./city/layout";
 
