@@ -7,10 +7,11 @@ import {
   monsterPose, monsterState, PULSE_DAMAGE, PULSE_R, PULSE_S, SCALE, schedule, serverNow, startMonsterSync,
 } from "./monsterState";
 
-const INK = "#120e1a";
 const TENDRILS = 6;
+const WHITE = new THREE.Color("#ffffff");
+const tmp = new THREE.Color();
 
-/** The Ashen Wraith: a colossal hooded shadow with one glowing ink eye. */
+/** The Ashen Wraith: a colossal hooded shadow rising from the ground, with one glowing ink eye. */
 export function Monster() {
   const root = useRef<THREE.Group>(null!);
   const armL = useRef<THREE.Group>(null!);
@@ -22,7 +23,12 @@ export function Monster() {
   const lastSlot = useRef(-1);
 
   const bodyMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: INK, emissive: "#3a2470", emissiveIntensity: 0.25, roughness: 1 }),
+    () => new THREE.MeshStandardMaterial({ color: "#1a1426", emissive: "#5a3aa8", emissiveIntensity: 0.55, roughness: 1 }),
+    [],
+  );
+  // A glowing rim around the body so it stands out against any sky.
+  const rimMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: "#ffffff", side: THREE.BackSide, toneMapped: false }),
     [],
   );
   const runeMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#cfb878", toneMapped: false }), []);
@@ -31,7 +37,7 @@ export function Monster() {
     [],
   );
   const beamMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false, blending: THREE.AdditiveBlending }),
+    () => new THREE.MeshBasicMaterial({ color: "#ff3b4d", transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false }),
     [],
   );
 
@@ -66,8 +72,8 @@ export function Monster() {
 
     const theme = THEMES[sc.kingdom];
     runeMat.color.set(theme.glow);
-    beamMat.color.set(theme.glow);
-    beam.current.position.set(pose.x, 80, pose.z);
+    rimMat.color.copy(tmp.set(theme.glow).lerp(WHITE, 0.55));
+    beam.current.position.set(pose.x, 170, pose.z);
 
     // A red shockwave grows for PULSE_S seconds, then hits everyone still inside it.
     const tt = (now - sc.startMs) / 1000;
@@ -95,47 +101,57 @@ export function Monster() {
   return (
     <group>
       <group ref={root} visible={false}>
+        {/* glowing rim shells (drawn behind the body) */}
+        <mesh position={[0, 6, 0]} scale={[6.5, 9.7, 5.5]} material={rimMat}><octahedronGeometry args={[1, 0]} /></mesh>
+        <mesh position={[0, -0.5, 0]} scale={1.07} material={rimMat}><coneGeometry args={[8, 14, 7]} /></mesh>
+        <mesh position={[0, 15, 1.5]} scale={[3.5, 4.4, 3.3]} material={rimMat}><octahedronGeometry args={[1, 0]} /></mesh>
+
         {/* body and flared cloak */}
         <mesh position={[0, 6, 0]} scale={[6, 9, 5]} material={bodyMat}><octahedronGeometry args={[1, 0]} /></mesh>
         <mesh position={[0, -0.5, 0]} material={bodyMat}><coneGeometry args={[8, 14, 7]} /></mesh>
+
         {/* glowing rune lines */}
-        <mesh position={[0, 6, 4.3]} scale={[0.3, 7, 0.2]} material={runeMat}><boxGeometry args={[1, 1, 1]} /></mesh>
+        <mesh position={[0, 6, 4.4]} scale={[0.4, 7, 0.25]} material={runeMat}><boxGeometry args={[1, 1, 1]} /></mesh>
         {[-1, 1].map((s) => (
-          <mesh key={s} position={[s * 2.2, 5, 3.1]} rotation={[0, 0, s * 0.25]} scale={[0.25, 6, 0.2]} material={runeMat}>
+          <mesh key={s} position={[s * 2.2, 5, 3.2]} rotation={[0, 0, s * 0.25]} scale={[0.35, 6, 0.25]} material={runeMat}>
             <boxGeometry args={[1, 1, 1]} />
           </mesh>
         ))}
-        {/* hood */}
+
+        {/* hood and horns */}
         <mesh position={[0, 15, 1.5]} scale={[3.2, 4, 3]} material={bodyMat}><octahedronGeometry args={[1, 0]} /></mesh>
         {[-1, 1].map((s) => (
           <mesh key={s} position={[s * 2, 18.6, 1]} rotation={[0, 0, -s * 0.4]} material={bodyMat}>
             <coneGeometry args={[0.7, 4.5, 5]} />
           </mesh>
         ))}
+
         {/* the ink eye: one glowing, one hollow socket that drips */}
-        <mesh position={[-1.1, 15.6, 4.5]}><sphereGeometry args={[0.75, 10, 10]} /><meshBasicMaterial color="#d6b8ff" toneMapped={false} /></mesh>
-        <mesh position={[1.1, 15.6, 4.5]}><sphereGeometry args={[0.85, 10, 10]} /><meshBasicMaterial color="#05040a" /></mesh>
+        <mesh position={[-1.1, 15.6, 4.5]}><sphereGeometry args={[1.05, 10, 10]} /><meshBasicMaterial color="#e6d2ff" toneMapped={false} /></mesh>
+        <mesh position={[1.1, 15.6, 4.5]}><sphereGeometry args={[1.1, 10, 10]} /><meshBasicMaterial color="#05040a" /></mesh>
         {[0, 1, 2].map((i) => (
-          <mesh key={i} position={[1.1 + (i - 1) * 0.35, 13.6 - i * 0.4, 4.6]}>
-            <boxGeometry args={[0.22, 3 - i * 0.5, 0.18]} />
-            <meshBasicMaterial color="#4a2d78" />
+          <mesh key={i} position={[1.1 + (i - 1) * 0.4, 13.4 - i * 0.4, 4.7]}>
+            <boxGeometry args={[0.3, 3.2 - i * 0.5, 0.2]} />
+            <meshBasicMaterial color="#6a3fb8" />
           </mesh>
         ))}
+
         {/* arms with claws */}
         <group ref={armL} position={[-6.2, 11, 0]}>
           <mesh position={[0, -6, 0]} scale={[1.2, 12, 1.2]} material={bodyMat}><boxGeometry args={[1, 1, 1]} /></mesh>
-          <mesh position={[0, -6, 0.65]} scale={[0.2, 11, 0.12]} material={runeMat}><boxGeometry args={[1, 1, 1]} /></mesh>
+          <mesh position={[0, -6, 0.65]} scale={[0.25, 11, 0.14]} material={runeMat}><boxGeometry args={[1, 1, 1]} /></mesh>
           {[-0.6, 0, 0.6].map((x) => (
             <mesh key={x} position={[x, -13.5, 0]} rotation={[Math.PI, 0, 0]} material={bodyMat}><coneGeometry args={[0.45, 3.4, 4]} /></mesh>
           ))}
         </group>
         <group ref={armR} position={[6.2, 11, 0]}>
           <mesh position={[0, -6, 0]} scale={[1.2, 12, 1.2]} material={bodyMat}><boxGeometry args={[1, 1, 1]} /></mesh>
-          <mesh position={[0, -6, 0.65]} scale={[0.2, 11, 0.12]} material={runeMat}><boxGeometry args={[1, 1, 1]} /></mesh>
+          <mesh position={[0, -6, 0.65]} scale={[0.25, 11, 0.14]} material={runeMat}><boxGeometry args={[1, 1, 1]} /></mesh>
           {[-0.6, 0, 0.6].map((x) => (
             <mesh key={x} position={[x, -13.5, 0]} rotation={[Math.PI, 0, 0]} material={bodyMat}><coneGeometry args={[0.45, 3.4, 4]} /></mesh>
           ))}
         </group>
+
         {/* tendrils hanging under the cloak */}
         {Array.from({ length: TENDRILS }, (_, i) => {
           const a = (i / TENDRILS) * Math.PI * 2;
@@ -153,7 +169,7 @@ export function Monster() {
         <ringGeometry args={[0.9, 1, 64]} />
       </mesh>
       <mesh ref={beam} visible={false} material={beamMat}>
-        <cylinderGeometry args={[1.4, 2.4, 180, 10, 1, true]} />
+        <cylinderGeometry args={[3, 5, 340, 10, 1, true]} />
       </mesh>
     </group>
   );
