@@ -212,7 +212,7 @@ export function fireShot(
             if (tNpc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); warRecord("npc_kill"); kind = "kill"; }
     } else if (tGuard) {
       damageGuard(tGuard, dmg);
-      if (tGuard.dead) kind = "kill";
+            if (tGuard.dead) { kind = "kill"; warRecord("npc_kill"); }
     } else if (tRemote) {
       broadcastHit(tRemote, dmg);
     } else if (tCar >= 0) {
