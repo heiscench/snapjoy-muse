@@ -64,12 +64,13 @@ export function broadcastHit(toUserId: string, amount: number) {
   } satisfies HitPayload);
 }
 
-export function broadcastDeath(killerUserId: string | null) {
+export function broadcastDeath(killerUserId: string | null, tax = 0) {
   if (!authState.userId) return;
   send("died", {
     userId: authState.userId,
     username: authState.username,
     killerUserId,
+    tax,
   } satisfies DiedPayload);
 }
 
