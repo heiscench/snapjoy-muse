@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { PLAYER_GANG } from "../gangs";
 import { THEMES } from "../city/palette";
-import { MONSTER_NAME, monsterState, schedule, serverNow } from "./monsterState";
+import { carPilot } from "../carState";
+import { playerState } from "../playerState";
+import { MONSTER_NAME, monsterPose, monsterState, schedule, serverNow } from "./monsterState";
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -40,6 +42,22 @@ export function MonsterHud() {
   const curse = monsterState.curseUntil[PLAYER_GANG] - now;
   const slain = monsterState.power[PLAYER_GANG];
 
+  // Arrow towards the Wraith, relative to the way you are facing (cars use the opposite yaw convention).
+  let angle = 0;
+  let dist = 0;
+  if (live && !monsterState.defeated) {
+    const p = monsterPose(now);
+    const vx = p.x - playerState.pos.x;
+    const vz = p.z - playerState.pos.z;
+    dist = Math.hypot(vx, vz);
+    const y = playerState.yaw;
+    const fx = carPilot.driving ? Math.sin(y) : -Math.sin(y);
+    const fz = carPilot.driving ? Math.cos(y) : -Math.cos(y);
+    const rx = -fz;
+    const rz = fx;
+    angle = Math.atan2(vx * rx + vz * rz, vx * fx + vz * fz);
+  }
+
   return (
     <div
       style={{
@@ -70,6 +88,15 @@ export function MonsterHud() {
               ? `${mmss(sc.msLeft)} left · your damage ${Math.floor(monsterState.myDamage)}`
               : `${mmss(sc.msLeft)} left · shoot it to join the fight`}
           </div>
+        </div>
+      )}
+
+      {live && !monsterState.defeated && (
+        <div style={{ ...chip, borderColor: "#ff4d5e", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "#ffd9d9" }}>
+          <span style={{ display: "inline-block", fontSize: 22, lineHeight: 1, color: "#ff4d5e", transform: `rotate(${angle}rad)` }}>▲</span>
+          <span style={{ fontWeight: 700 }}>
+            {dist < 50 ? "IT IS RIGHT HERE" : `WRAITH ${Math.round(dist)} m`}
+          </span>
         </div>
       )}
 
