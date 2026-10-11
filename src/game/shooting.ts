@@ -6,7 +6,6 @@ import { GUARDS, damageGuard } from "./guardState";
 import { HELICOPTERS, pilotState, damageHeli, carDestroyed, damageCar } from "./vehicleState";
 import { CAR_LIVE, carPilot } from "./carState";
 import { remotePlayers } from "./remotePlayerState";
-import { monsterTarget, damageMonster } from "./monster/monsterState";
 import { broadcastHit } from "./presence";
 import { earnMoney, KILL_BOUNTY } from "./playerState";
 import { onPlayerKill } from "./territoryState";
@@ -14,6 +13,7 @@ import { BUILDINGS } from "./worldData";
 import { canFire, consumeAmmo, currentWeapon, startReload } from "./weaponState";
 import { spawnTracer } from "./tracerState";
 import { markHit, markShot, type HitKind } from "./shotFeedback";
+import { monsterTarget, damageMonster } from "./monster/monsterState";
 
 type Npc = (typeof NPCS)[number];
 type Guard = (typeof GUARDS)[number];
@@ -106,133 +106,4 @@ function buildingDistance(o: THREE.Vector3, d: THREE.Vector3, maxDist: number): 
     if (S.ok && S.tmin < best) best = S.tmin;
   }
   return best;
-}
-
-/** Fires the current hitscan weapon. Returns camera kick, or null if no shot
- * was fired (empty magazine or reloading). */
-export function fireShot(
-  origin: THREE.Vector3,
-  forward: THREE.Vector3,
-  muzzle: THREE.Vector3,
-  aiming: boolean,
-): number | null {
-  const w = currentWeapon();
-  if (!canFire()) {
-    startReload();
-    return null;
-  }
-  consumeAmmo();
-  markShot();
-  playGunshot(w.id);
-
-  const tune = TUNING[w.id] ?? TUNING.pistol;
-  const inacc = aiming ? tune.aim : tune.hip;
-  const right = new THREE.Vector3().crossVectors(forward, WORLD_UP).normalize();
-  const up2 = new THREE.Vector3().crossVectors(right, forward).normalize();
-
-  for (let p = 0; p < w.pellets; p++) {
-    const dir = forward.clone();
-    if (inacc > 0) {
-      const ang = Math.random() * Math.PI * 2;
-      const rad = Math.sqrt(Math.random()) * inacc;
-      dir.addScaledVector(right, Math.cos(ang) * rad).addScaledVector(up2, Math.sin(ang) * rad).normalize();
-    }
-
-    const wall = buildingDistance(origin, dir, w.range);
-    let bestT = wall;
-    let isHead = false;
-    let tNpc: Npc | null = null;
-    let tGuard: Guard | null = null;
-    let tRemote: string | null = null;
-    let tCar = -1;
-    let tHeli = -1;
-    let tMonster = false;
-
-    for (const n of NPCS) {
-      if (n.dead || n.boarded || n.gang === PLAYER_GANG) continue;
-      if (testHumanoid(origin, dir, n.pos.x, n.pos.z, bestT, aiming) && H.t < bestT) {
-        bestT = H.t; isHead = H.head; tNpc = n; tGuard = null; tRemote = null; tCar = -1; tHeli = -1;
-      }
-    }
-    for (const g of GUARDS) {
-      if (g.dead || g.gang === PLAYER_GANG) continue;
-      if (testHumanoid(origin, dir, g.pos.x, g.pos.z, bestT, aiming) && H.t < bestT) {
-        bestT = H.t; isHead = H.head; tGuard = g; tNpc = null; tRemote = null; tCar = -1; tHeli = -1;
-      }
-    }
-    for (const rp of remotePlayers.values()) {
-      if (rp.health <= 0 || rp.inVehicle || rp.gang === PLAYER_GANG) continue;
-      if (testHumanoid(origin, dir, rp.x, rp.z, bestT, aiming) && H.t < bestT) {
-        bestT = H.t; isHead = H.head; tRemote = rp.userId; tNpc = null; tGuard = null; tCar = -1; tHeli = -1;
-      }
-    }
-    for (let ci = 0; ci < CAR_LIVE.length; ci++) {
-      if (carDestroyed[ci]) continue;
-      if (carPilot.driving && ci === carPilot.drivingIndex) continue;
-      const c = CAR_LIVE[ci];
-      if (testSphere(origin, dir, c.x, 0.9, c.z, 2.4, bestT) && H.t < bestT) {
-        bestT = H.t; isHead = false; tCar = ci; tNpc = null; tGuard = null; tRemote = null; tHeli = -1;
-      }
-    }
-    for (let hi = 0; hi < HELICOPTERS.length; hi++) {
-      const h = HELICOPTERS[hi];
-      if (h.destroyed) continue;
-      if (pilotState.piloting && hi === pilotState.heliIndex) continue;
-      if (testSphere(origin, dir, h.pos.x, h.pos.y + 1.4, h.pos.z, 3.2, bestT) && H.t < bestT) {
-        bestT = H.t; isHead = false; tHeli = hi; tNpc = null; tGuard = null; tRemote = null; tCar = -1;
-      }
-    }
-
-    const hitSomething = tNpc !== null || tGuard !== null || tRemote !== null || tCar >= 0 || tHeli >= 0;
-    const point = origin.clone().addScaledVector(dir, bestT);
-    const hitWorld = hitSomething || wall < w.range;
-
-    // Tracer runs from the gun to the impact point.
-    const td = point.clone().sub(muzzle);
-    const len = Math.max(0.5, td.length());
-    td.normalize();
-    spawnTracer(muzzle, td, len, hitWorld);
-
-    if (!hitSomething) continue;
-
-    const falloff = w.id === "shotgun" ? 1 - Math.min(0.7, (bestT / w.range) * 0.7) : 1;
-    const dmg = w.damage * falloff * (isHead ? HEAD_MULT : 1);
-    let kind: HitKind = isHead ? "head" : "body";
-
-    if (tNpc) {
-      damageNPC(tNpc, dmg);
-      if (tNpc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); kind = "kill"; }
-    } else if (tGuard) {
-      damageGuard(tGuard, dmg);
-      if (tGuard.dead) kind = "kill";
-    } else if (tRemote) {
-      broadcastHit(tRemote, dmg);
-    } else if (tCar >= 0) {
-      damageCar(tCar, dmg);
-    } else if (tHeli >= 0) {
-      damageHeli(tHeli, dmg, false);
-    }
-    markHit(kind);
-    playHitMarker();
-
-    // Explosive rounds (Oblivion): splash damage around the impact.
-    if (w.splash) {
-      const sp = w.splash;
-      for (const n of NPCS) {
-        if (n.dead || n === tNpc || n.gang === PLAYER_GANG) continue;
-        const d = Math.hypot(n.pos.x - point.x, 1 - point.y, n.pos.z - point.z);
-        if (d < sp) {
-          damageNPC(n, w.damage * 0.6 * (1 - d / sp));
-          if (n.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
-        }
-      }
-      for (const g of GUARDS) {
-        if (g.dead || g === tGuard || g.gang === PLAYER_GANG) continue;
-        const d = Math.hypot(g.pos.x - point.x, 1 - point.y, g.pos.z - point.z);
-        if (d < sp) damageGuard(g, w.damage * 0.6 * (1 - d / sp));
-      }
-    }
-  }
-
-  return tune.recoil;
 }
