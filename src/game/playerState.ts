@@ -15,8 +15,11 @@ export const playerState = {
   reputation: 0,
 };
 
+/** Set by the monster hunt: a blessed kingdom earns more and takes less damage; a cursed one earns less. */
+export const modifiers = { earn: 1, damageTaken: 1 };
+
 export function damagePlayer(amount: number) {
-  playerState.health = Math.max(0, playerState.health - amount);
+  playerState.health = Math.max(0, playerState.health - amount * modifiers.damageTaken);
 }
 
 export function healPlayer(amount: number) {
@@ -27,8 +30,10 @@ export function revivePlayer() {
   playerState.health = playerState.maxHealth;
 }
 
-export function earnMoney(amount: number) {
-  playerState.money = Math.max(0, playerState.money + Math.floor(amount));
+/** `raw` skips the blessing/curse multiplier (used for the monster reward itself). */
+export function earnMoney(amount: number, raw = false) {
+  const gained = raw ? amount : amount * modifiers.earn;
+  playerState.money = Math.max(0, playerState.money + Math.floor(gained));
 }
 
 export function spendMoney(amount: number): boolean {
