@@ -45,6 +45,11 @@ export function spendMoney(amount: number): boolean {
   playerState.money -= cost;
   return true;
 }
+/** What a death costs: 10% of your Echoes, at least 50 and at most 300 (never more than you have). */
+export function deathTax(): number {
+  const tax = Math.max(50, Math.min(300, Math.round(playerState.money * 0.1)));
+  return Math.min(tax, Math.floor(playerState.money));
+}
 
 export function addReputation(amount: number) {
   playerState.reputation = Math.max(0, playerState.reputation + amount);
