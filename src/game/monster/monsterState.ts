@@ -9,16 +9,23 @@ import { THEMES } from "../city/palette";
 // rotating through the four kingdoms, for a 4-minute window.
 export const SLOT_MS = 1_200_000;
 export const WINDOW_MS = 240_000;
-export const ARRIVE_S = 200; // seconds for it to walk from the edge to the Hall
+export const ARRIVE_S = 150; // seconds for it to walk from the edge to the Hall
 export const MONSTER_NAME = "The Ashen Wraith";
 export const PULSE_S = 3;
-export const PULSE_R = 26;
+export const PULSE_R = 30;
 export const PULSE_DAMAGE = 14;
-export const SCALE = 1.5;
-const HOVER = 14;
+export const SCALE = 2.2;
+const SPAWN_DIST = 230;
+const HOVER = 6; // it rises out of the ground, so players can reach it with normal aim
+const HIT_Y = 14; // hitbox centre height
+const HIT_R = 24; // hitbox radius
 
 const KINGDOM_NAME = THEMES.map((t) => t.name);
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+
+// Add ?monster=1 to the page address to preview the Wraith any time (nothing is saved).
+const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("monster");
+let previewStart = Date.now();
 
 export const monsterState = {
   synced: false,
@@ -56,6 +63,18 @@ export function serverNow() {
 }
 
 export function schedule(nowMs: number) {
+  if (PREVIEW) {
+    const t = nowMs - previewStart;
+    return {
+      slot: -999,
+      kingdom: PLAYER_GANG as number,
+      startMs: previewStart,
+      active: t < WINDOW_MS,
+      msLeft: Math.max(0, WINDOW_MS - t),
+      nextStartMs: previewStart + WINDOW_MS + 5000,
+      nextKingdom: PLAYER_GANG as number,
+    };
+  }
   const slot = Math.floor(nowMs / SLOT_MS);
   const startMs = slot * SLOT_MS;
   const t = nowMs - startMs;
@@ -73,13 +92,13 @@ export function schedule(nowMs: number) {
 
 /** Where the Wraith is: the same for everyone, worked out from the server clock. */
 export function monsterPose(nowMs: number) {
-  const slot = Math.floor(nowMs / SLOT_MS);
-  const kingdom = slot % 4;
+  const sc = schedule(nowMs);
+  const kingdom = sc.kingdom;
   const hq = GANG_HQ[kingdom as 0 | 1 | 2 | 3];
   const len = Math.hypot(hq.x, hq.z) || 1;
-  const sx = clamp(hq.x + (hq.x / len) * 300, -520, 520);
-  const sz = clamp(hq.z + (hq.z / len) * 300, -520, 520);
-  const t = Math.max(0, (nowMs - slot * SLOT_MS) / 1000);
+  const sx = clamp(hq.x + (hq.x / len) * SPAWN_DIST, -520, 520);
+  const sz = clamp(hq.z + (hq.z / len) * SPAWN_DIST, -520, 520);
+  const t = Math.max(0, (nowMs - sc.startMs) / 1000);
   const p = clamp(t / ARRIVE_S, 0, 1);
   const arrived = p >= 1;
   let x = sx + (hq.x - sx) * p;
@@ -92,7 +111,7 @@ export function monsterPose(nowMs: number) {
     z = hq.z + Math.sin(a) * r;
     yaw += Math.sin(t * 0.3) * 0.6;
   }
-  return { x, z, y: HOVER + Math.sin(t * 0.8) * 1.5, yaw, arrived, kingdom, t };
+  return { x, z, y: HOVER + Math.sin(t * 0.8) * 1.2, yaw, arrived, kingdom, t };
 }
 
 export function canFight(): boolean {
@@ -105,7 +124,7 @@ export function canFight(): boolean {
 export function monsterTarget(): { x: number; y: number; z: number; r: number; kingdom: number } | null {
   if (!canFight()) return null;
   const p = monsterPose(serverNow());
-  return { x: p.x, y: p.y + 6 * SCALE, z: p.z, r: 9 * SCALE, kingdom: p.kingdom };
+  return { x: p.x, y: HIT_Y, z: p.z, r: HIT_R, kingdom: p.kingdom };
 }
 
 /** Called by the shooting code whenever a bullet hits the Wraith. */
@@ -239,8 +258,41 @@ async function flush() {
   if (r.defeated) await poll(); // runs the victory messages and the reward claim
 }
 
+/** Preview mode: a local Wraith for testing. No server, nothing saved. */
+function startPreview(): () => void {
+  const respawn = () => {
+    previewStart = Date.now();
+    monsterState.defeated = false;
+    monsterState.hp = monsterState.maxHp = 5000;
+    monsterState.myDamage = 0;
+    monsterState.pending = 0;
+    monsterState.startMs = previewStart;
+  };
+  monsterState.synced = true;
+  monsterState.offsetMs = 0;
+  monsterState.slot = -999;
+  monsterState.kingdom = PLAYER_GANG;
+  respawn();
+  pushAlert("Monster preview: the Wraith appears now. Nothing is saved.", "warn");
+
+  const id = setInterval(() => {
+    monsterState.kingdom = PLAYER_GANG;
+    monsterState.pending = 0;
+    if (!monsterState.defeated && monsterState.hp <= 0) {
+      monsterState.defeated = true;
+      monsterState.defeatedSeenAt = performance.now();
+      pushAlert("Preview: the Wraith is destroyed. It returns in 8 seconds.");
+    }
+    if (monsterState.defeated && performance.now() - monsterState.defeatedSeenAt > 8000) respawn();
+    if (!monsterState.defeated && !schedule(Date.now()).active) respawn();
+    monsterState.version++;
+  }, 300);
+  return () => clearInterval(id);
+}
+
 /** Starts the hunt loop for the lifetime of the game scene. Returns a stop function. */
 export function startMonsterSync(): () => void {
+  if (PREVIEW) return startPreview();
   let stopped = false;
   let timer: ReturnType<typeof setTimeout>;
   const loop = async () => {
