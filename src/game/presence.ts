@@ -161,10 +161,13 @@ export function startPresence() {
     if (victim) victim.health = 0;
     squadState.humanFollowers.delete(p.userId);
     if (squadState.followingUserId === p.userId) squadState.followingUserId = null;
-    if (p.killerUserId && p.killerUserId === authState.userId) {
-      earnMoney(KILL_BOUNTY);
+        if (p.killerUserId && p.killerUserId === authState.userId) {
+      // The bounty plus half of the victim's death tax (capped, so a faked message can't pay much).
+      const share = Math.min(150, Math.floor(Math.max(0, p.tax ?? 0) / 2));
+      earnMoney(KILL_BOUNTY + share);
       onPlayerKill();
-      pushAlert(`You unmade ${p.username} — +◈ ${KILL_BOUNTY}`);
+      warRecord("player_kill");
+      pushAlert(`You unmade ${p.username} — +◈ ${KILL_BOUNTY + share}`);
     }
   });
 
