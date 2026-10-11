@@ -5,6 +5,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { db, FORGOTTEN_SCHEMA } from "./db";
+import { warRecord } from "./war/warState";
 import { authState } from "./authState";
 import { PLAYER_GANG, GANGS, type GangId } from "./gangs";
 import type { District } from "./worldData";
