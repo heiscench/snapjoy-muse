@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { PLAYER_GANG } from "../gangs";
 import { GANG_HQ } from "../worldData";
+import { warEffect } from "../war/warState";
 import { earnMoney, modifiers } from "../playerState";
 import { pushAlert } from "../alertState";
 import { THEMES } from "../city/palette";
