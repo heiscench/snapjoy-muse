@@ -8,6 +8,7 @@ import { CAR_LIVE, carPilot } from "./carState";
 import { remotePlayers } from "./remotePlayerState";
 import { broadcastHit } from "./presence";
 import { earnMoney, KILL_BOUNTY } from "./playerState";
+import { warRecord } from "./war/warState";
 import { onPlayerKill } from "./territoryState";
 import { BUILDINGS } from "./worldData";
 import { canFire, consumeAmmo, currentWeapon, startReload } from "./weaponState";
