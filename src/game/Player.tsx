@@ -77,10 +77,14 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
       ? lastAttacker.userId
       : null;
-  broadcastDeath(recent);
+    const tax = deathTax();
+  broadcastDeath(recent, recent ? tax : 0);
   lastAttacker.userId = null;
   revivePlayer();
-  spendMoney(DEATH_COST);
+  spendMoney(tax);
+  if (tax > 0) {
+    pushAlert(recent ? `You fell. ◈ ${tax} taken; half goes to your killer.` : `You fell. ◈ ${tax} lost.`, "warn");
+  }
   return true;
 }
 
