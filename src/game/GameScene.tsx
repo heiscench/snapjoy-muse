@@ -358,6 +358,7 @@ export function GameScene() {
       </button>
       <Minimap />
       <MemoryJournal />
+      <WarPanel />
       <MonsterHud />
       <FractureHud />
       <WeaponShop />
