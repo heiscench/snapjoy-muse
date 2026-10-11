@@ -8,6 +8,7 @@ import { playerState, damagePlayer, earnMoney, KILL_BOUNTY } from "./playerState
 import { remotePlayers, type RemotePlayer } from "./remotePlayerState";
 import { squadState } from "./squadState";
 import { pushAlert } from "./alertState";
+import { warRecord } from "./war/warState";
 import { pilotState, HELICOPTERS, applyRemoteVehicleDestroyed } from "./vehicleState";
 import { CAR_LIVE, carPilot, carRemote } from "./carState";
 import { onPlayerKill } from "./territoryState";
