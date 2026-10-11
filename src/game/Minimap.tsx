@@ -197,6 +197,36 @@ export function Minimap() {
         ctx.fill();
         ctx.restore();
       }
+            // The monster: a pulsing red marker, or a pointer on the rim when it is out of range.
+      const mon = monsterTarget();
+      if (mon) {
+        const mp = 0.5 + 0.5 * Math.sin(performance.now() / 200);
+        if (inView(mon.x, mon.z)) {
+          ctx.strokeStyle = "#ff4d5e";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(mx(mon.x), mz(mon.z), 5 + mp * 4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = "#ff4d5e";
+          ctx.beginPath();
+          ctx.arc(mx(mon.x), mz(mon.z), 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const a = Math.atan2(mon.z - pz, mon.x - px);
+          const rr = SIZE / 2 - 8;
+          ctx.save();
+          ctx.translate(SIZE / 2 + Math.cos(a) * rr, SIZE / 2 + Math.sin(a) * rr);
+          ctx.rotate(a);
+          ctx.fillStyle = "#ff4d5e";
+          ctx.beginPath();
+          ctx.moveTo(6, 0);
+          ctx.lineTo(-4, -5);
+          ctx.lineTo(-4, 5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
 
       // You: the arrow points the way you are heading (cars use the opposite yaw convention).
       const heading = carPilot.driving ? Math.PI - playerState.yaw : -playerState.yaw;
