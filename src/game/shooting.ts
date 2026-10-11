@@ -209,7 +209,7 @@ export function fireShot(
 
     if (tNpc) {
       damageNPC(tNpc, dmg);
-      if (tNpc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); kind = "kill"; }
+            if (tNpc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); warRecord("npc_kill"); kind = "kill"; }
     } else if (tGuard) {
       damageGuard(tGuard, dmg);
       if (tGuard.dead) kind = "kill";
