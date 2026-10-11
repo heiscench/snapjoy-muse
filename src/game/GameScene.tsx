@@ -14,6 +14,8 @@ import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
 import { Grenades } from "./Grenades";
 import { Crosshair } from "./Crosshair";
+import { Monster } from "./monster/Monster";
+import { MonsterHud } from "./monster/MonsterHud";
 import { Tracers } from "./Tracers";
 import { DayNight } from "./DayNight";
 import { Atmosphere } from "./Atmosphere";
@@ -314,6 +316,7 @@ export function GameScene() {
         <Stars radius={220} depth={30} count={220} factor={3} fade speed={0.2} />
         <City />
         <MemoryFragments />
+        <Monster />
         <Vehicles />
         <Helicopters />
         <WeaponShopKiosks />
@@ -351,6 +354,7 @@ export function GameScene() {
       </button>
       <Minimap />
       <MemoryJournal />
+      <MonsterHud />
       <WeaponShop />
       <SquadPrompt />
       <StatsPanel />
