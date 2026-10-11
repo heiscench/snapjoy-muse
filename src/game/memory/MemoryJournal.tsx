@@ -4,9 +4,6 @@ import { FRAGMENTS, FRAGMENT_COUNT } from "./fragments";
 import { LORE } from "./lore";
 import { memoryState } from "./memoryState";
 
-// Tune these two numbers if the button overlaps something on your screen.
-const BTN_RIGHT = 219;
-const BTN_TOP = 22;
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -55,8 +52,8 @@ export function MemoryJournal() {
         }}
         style={{
           position: "fixed",
-          top: `calc(env(safe-area-inset-top, 0px) + ${BTN_TOP}px)`,
-          right: `calc(env(safe-area-inset-right, 0px) + ${BTN_RIGHT}px)`,
+                    top: "var(--hud-top)",
+          right: "calc(var(--hud-right) + var(--hud-map) + var(--hud-gap) * 2 + 44px)",
           height: 44,
           minWidth: 44,
           padding: "0 10px",
