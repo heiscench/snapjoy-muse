@@ -132,9 +132,9 @@ async function openWorldSync() {
       broadcastAlert(owner, `${districtName(district)} reclaimed by ${authState.username}`, "info");  
 warRecord("capture");
     },
-    onRobbed: warRecord("raid");
-(bankId, lockUntilMs) => {
+    onRobbed: (bankId, lockUntilMs) => {
       void db()
+     warRecord("raid");
         .from("bank_state")
         .upsert(
           { bank_id: bankId, robbery_lock_until: new Date(lockUntilMs).toISOString() },
