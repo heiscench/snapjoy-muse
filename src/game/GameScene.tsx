@@ -4,7 +4,6 @@ import { Stars } from "@react-three/drei";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { City } from "./City";
 import { Fracture } from "./fracture/Fracture";
-import { FractureHud } from "./fracture/FractureHud";
 import { Player } from "./Player";
 import { NPCs } from "./NPCs";
 import { unlockAudio, setMasterVolume } from "./audio";
@@ -14,6 +13,7 @@ import { RemotePlayers } from "./RemotePlayers";
 import { Vehicles } from "./Vehicles";
 import { Helicopters } from "./Helicopter";
 import { WeaponShopKiosks } from "./WeaponShopKiosk";
+import { FractureHud } from "./fracture/FractureHud"
 import { Grenades } from "./Grenades";
 import { Crosshair } from "./Crosshair";
 import { Monster } from "./monster/Monster";
