@@ -62,7 +62,7 @@ export function MonsterHud() {
     <div
       style={{
         position: "fixed",
-        top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+        top: "var(--hud-top)",
         left: "50%",
         transform: "translateX(-50%)",
         width: "min(420px, 52vw)",
