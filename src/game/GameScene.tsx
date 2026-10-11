@@ -319,6 +319,7 @@ export function GameScene() {
         <City />
         <MemoryFragments />
         <Monster />
+        <Fracture />
         <Vehicles />
         <Helicopters />
         <WeaponShopKiosks />
@@ -357,6 +358,7 @@ export function GameScene() {
       <Minimap />
       <MemoryJournal />
       <MonsterHud />
+      <FractureHud />
       <WeaponShop />
       <SquadPrompt />
       <StatsPanel />
