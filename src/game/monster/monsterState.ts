@@ -156,6 +156,9 @@ function applyModifiers() {
     modifiers.earn = 1;
     modifiers.damageTaken = 1;
   }
+  const war = warEffect(PLAYER_GANG);
+  modifiers.earn *= war.earn;
+  modifiers.damageTaken *= war.damageTaken;
 }
 
 let announced = -1;
