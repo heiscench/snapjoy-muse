@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { GRENADES } from "./grenadeState";
 import { resolveCollision } from "./worldData";
 import { NPCS, damageNPC } from "./npcState";
+import { recordNpcKill } from "./economy";
 import { GUARDS, damageGuard } from "./guardState";
 import { remotePlayers } from "./remotePlayerState";
 import { broadcastHit } from "./presence";
