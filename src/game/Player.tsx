@@ -10,6 +10,7 @@ import {
 } from "./audio";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
+import { reportDeath } from "./economy";
 import { NPCS } from "./npcState";
 import { GUARDS } from "./guardState";
 import { shopState } from "./shopState";
