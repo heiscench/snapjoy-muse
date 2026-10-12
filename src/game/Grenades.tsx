@@ -21,7 +21,7 @@ function explode(g: (typeof GRENADES)[number]) {
     const d = g.pos.distanceTo(new THREE.Vector3(n.pos.x, 1, n.pos.z));
     if (d < g.splash) {
       damageNPC(n, g.damage * (1 - d / g.splash));
-      if (n.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); }
+            if (n.dead) { recordNpcKill(); onPlayerKill(); }
     }
   }
   for (const gd of GUARDS) {
