@@ -7,6 +7,7 @@ import { HELICOPTERS, pilotState, damageHeli, carDestroyed, damageCar } from "./
 import { CAR_LIVE, carPilot } from "./carState";
 import { remotePlayers } from "./remotePlayerState";
 import { broadcastHit } from "./presence";
+import { recordNpcKill } from "./economy";
 import { earnMoney, KILL_BOUNTY } from "./playerState";
 import { warRecord } from "./war/warState";
 import { onPlayerKill } from "./territoryState";
@@ -209,10 +210,10 @@ export function fireShot(
 
     if (tNpc) {
       damageNPC(tNpc, dmg);
-            if (tNpc.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); warRecord("npc_kill"); kind = "kill"; }
+                  if (tNpc.dead) { recordNpcKill(); onPlayerKill(); warRecord("npc_kill"); kind = "kill"; }
     } else if (tGuard) {
       damageGuard(tGuard, dmg);
-            if (tGuard.dead) { kind = "kill"; warRecord("npc_kill"); }
+                      if (n.dead) { recordNpcKill(); onPlayerKill(); warRecord("npc_kill"); }
     } else if (tRemote) {
       broadcastHit(tRemote, dmg);
     } else if (tCar >= 0) {
