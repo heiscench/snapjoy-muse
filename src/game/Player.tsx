@@ -78,11 +78,12 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
       ? lastAttacker.userId
       : null;
-    const tax = deathTax();
-  broadcastDeath(recent, recent ? tax : 0);
+      const tax = deathTax(); // what you expect to lose; the server takes the real amount
+  broadcastDeath(recent);
   lastAttacker.userId = null;
   revivePlayer();
-  spendMoney(tax);
+  spendMoney(tax); // shown at once
+  void reportDeath(recent); // the server takes the tax and pays your killer
   if (tax > 0) {
     pushAlert(recent ? `You fell. ◈ ${tax} taken; half goes to your killer.` : `You fell. ◈ ${tax} lost.`, "warn");
   }
