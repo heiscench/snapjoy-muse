@@ -1,12 +1,9 @@
 import { db } from "../db";
 import { authState } from "../authState";
-import { earnMoney } from "../playerState";
+import { setBalance } from "../economy";
 import { pushAlert } from "../alertState";
 import { FRAGMENT_COUNT } from "./fragments";
 import { LORE } from "./lore";
-
-export const FRAGMENT_REWARD = 40;
-export const COMPLETION_BONUS = 1000;
 
 export const memoryState = {
   found: new Set<number>(),
@@ -35,7 +32,7 @@ export async function loadMemories() {
   memoryState.version++;
 }
 
-/** Collect a memory: shown at once, confirmed by the server, rewarded only the first time. */
+/** Collect a memory: shown at once, confirmed and paid by the server, rewarded only the first time. */
 export async function collectFragment(id: number) {
   if (memoryState.found.has(id)) return;
   memoryState.found.add(id);
@@ -51,13 +48,10 @@ export async function collectFragment(id: number) {
     pushAlert("The memory slipped away. Try again.", "warn");
     return;
   }
-  const res = data as { newly: boolean; total: number };
+  const res = data as { newly: boolean; total: number; reward?: number; balance?: number };
+  if (typeof res.balance === "number") setBalance(res.balance);
   if (res.newly) {
-    earnMoney(FRAGMENT_REWARD);
-    pushAlert(`Memory recovered: ${LORE[id - 1].title} (${res.total}/${FRAGMENT_COUNT})`);
-    if (res.total >= FRAGMENT_COUNT) {
-      earnMoney(COMPLETION_BONUS);
-      pushAlert("Every memory recovered. The Forgotten remember you.");
-    }
+    pushAlert(`Memory recovered: ${LORE[id - 1].title} (${res.total}/${FRAGMENT_COUNT}) +◈ ${res.reward ?? 0}`);
+    if (res.total >= FRAGMENT_COUNT) pushAlert("Every memory recovered. The Forgotten remember you.");
   }
 }
