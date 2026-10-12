@@ -2,6 +2,7 @@ import { db } from "../db";
 import { PLAYER_GANG } from "../gangs";
 import { GANG_HQ } from "../worldData";
 import { warEffect } from "../war/warState";
+import { setBalance } from "../economy";
 import { earnMoney, modifiers } from "../playerState";
 import { pushAlert } from "../alertState";
 import { THEMES } from "../city/palette";
@@ -167,12 +168,20 @@ let failAnnounced = -1;
 let claimTried = -1;
 
 async function claim(slot: number) {
-  const { data, error } = await client().rpc("monster_claim", { p_slot: slot });
+  const { data, error } = await client().rpc("fracture_claim", { p_slot: slot });
   if (error) {
-    console.error("[monster] claim failed", error);
+    console.error("[fracture] claim failed", error);
     claimTried = -1;
     return;
   }
+  const r = data as { ok: boolean; reward: number; balance?: number };
+  if (r.ok && r.reward > 0) {
+    if (typeof r.balance === "number") setBalance(r.balance);
+    fractureState.claimed = true;
+    fractureState.version++;
+    pushAlert(`+${r.reward} Echoes from the Fracture`);
+  }
+}
   const r = data as { ok: boolean; reward: number };
   if (r.ok && r.reward > 0) {
     earnMoney(r.reward, true);
