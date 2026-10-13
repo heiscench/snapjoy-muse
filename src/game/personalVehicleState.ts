@@ -1,7 +1,10 @@
+
 // Personal (purchasable) vehicles. Unlike the street traffic cars, these are
 // owned by the player, cannot be taken by anyone else, and always respawn at
 // their gang HQ parking pad after being destroyed.
-import { spendMoney } from "./playerState";
+import { playerState } from "./playerState";
+import { serverBuy } from "./economy";
+import { pushAlert } from "./alertState";
 import { PLAYER_GANG } from "./gangs";
 import { GANG_HQ } from "./worldData";
 
@@ -50,9 +53,19 @@ export function ownedPersonalVehicles(): PersonalVehicleDef[] {
 
 export function purchasePersonalVehicle(id: PersonalVehicleId): boolean {
   if (personalVehicleState.owned.has(id)) return true;
-  if (!spendMoney(PERSONAL_VEHICLES[id].cost)) return false;
+  const cost = PERSONAL_VEHICLES[id].cost;
+  if (playerState.money < cost) return false;
+  // Shown at once; the server checks and undoes it if it refuses.
   personalVehicleState.owned.add(id);
   personalVehicleState.version++;
+  playerState.money -= cost;
+  void serverBuy("vehicle", id).then((r) => {
+    if (!r.ok) {
+      personalVehicleState.owned.delete(id);
+      personalVehicleState.version++;
+      pushAlert("The Cache refused that purchase.", "warn");
+    }
+  });
   return true;
 }
 
