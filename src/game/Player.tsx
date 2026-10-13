@@ -10,7 +10,6 @@ import {
 } from "./audio";
 import { GANGS, PLAYER_GANG } from "./gangs";
 import { input, readKeyboardMove } from "./input";
-import { reportDeath } from "./economy";
 import { NPCS } from "./npcState";
 import { GUARDS } from "./guardState";
 import { shopState } from "./shopState";
@@ -23,7 +22,7 @@ import {
 import { findFreeSpot } from "./unstick";
 import { fireShot } from "./shooting";
 import {
-    playerState, healPlayer, revivePlayer, spendMoney, deathTax,
+  playerState, healPlayer, revivePlayer, spendMoney, deathTax,
 } from "./playerState";
 import { throwGrenade } from "./grenadeState";
 import { HELICOPTERS, gangHeliIndices, pilotState, carDestroyed } from "./vehicleState";
@@ -35,6 +34,8 @@ import {
   lastAttacker,
   LAST_ATTACKER_WINDOW_MS,
 } from "./presence";
+import { pushAlert } from "./alertState";
+import { reportDeath } from "./economy";
 
 const HEAL_RADIUS = 22;
 const HEAL_RATE = 22;
@@ -78,7 +79,7 @@ function handleDeathAt(x: number, z: number, set: (x: number, y: number, z: numb
     lastAttacker.userId && Date.now() - lastAttacker.at < LAST_ATTACKER_WINDOW_MS
       ? lastAttacker.userId
       : null;
-      const tax = deathTax(); // what you expect to lose; the server takes the real amount
+  const tax = deathTax(); // what you expect to lose; the server takes the real amount
   broadcastDeath(recent);
   lastAttacker.userId = null;
   revivePlayer();
@@ -506,7 +507,7 @@ export function Player() {
     const step = running ? 13 : 8;
     const prevPhase = walkPhase.current;
     walkPhase.current += dtc * step * (mag > 0.05 && !holding ? 1 : 0);
-        if (mag > 0.05 && !holding && grounded.current && Math.floor(walkPhase.current / Math.PI) !== Math.floor(prevPhase / Math.PI)) {
+    if (mag > 0.05 && !holding && grounded.current && Math.floor(walkPhase.current / Math.PI) !== Math.floor(prevPhase / Math.PI)) {
       playFootstep(running);
     }
     const swing = Math.sin(walkPhase.current) * (running ? 1.0 : 0.65) * mag;
