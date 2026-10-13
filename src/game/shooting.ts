@@ -8,14 +8,13 @@ import { CAR_LIVE, carPilot } from "./carState";
 import { remotePlayers } from "./remotePlayerState";
 import { broadcastHit } from "./presence";
 import { recordNpcKill } from "./economy";
-import { earnMoney, KILL_BOUNTY } from "./playerState";
-import { warRecord } from "./war/warState";
 import { onPlayerKill } from "./territoryState";
 import { BUILDINGS } from "./worldData";
 import { canFire, consumeAmmo, currentWeapon, startReload } from "./weaponState";
 import { spawnTracer } from "./tracerState";
 import { markHit, markShot, type HitKind } from "./shotFeedback";
 import { monsterTarget, damageMonster } from "./monster/monsterState";
+import { warRecord } from "./war/warState";
 
 type Npc = (typeof NPCS)[number];
 type Guard = (typeof GUARDS)[number];
@@ -109,6 +108,7 @@ function buildingDistance(o: THREE.Vector3, d: THREE.Vector3, maxDist: number): 
   }
   return best;
 }
+
 /** Fires the current hitscan weapon. Returns camera kick, or null if no shot
  * was fired (empty magazine or reloading). */
 export function fireShot(
@@ -184,7 +184,7 @@ export function fireShot(
       }
     }
 
-    // The Ashen Wraith (monster hunt): a huge floating target, checked last so it wins when it is closest.
+    // The Ashen Wraith (monster hunt): a huge target, checked last so it wins when it is closest.
     const mon = monsterTarget();
     if (mon && testSphere(origin, dir, mon.x, mon.y, mon.z, mon.r, bestT) && H.t < bestT) {
       bestT = H.t; isHead = false; tMonster = true;
@@ -210,10 +210,18 @@ export function fireShot(
 
     if (tNpc) {
       damageNPC(tNpc, dmg);
-                  if (tNpc.dead) { recordNpcKill(); onPlayerKill(); warRecord("npc_kill"); kind = "kill"; }
+      if (tNpc.dead) {
+        recordNpcKill();
+        onPlayerKill();
+        warRecord("npc_kill");
+        kind = "kill";
+      }
     } else if (tGuard) {
       damageGuard(tGuard, dmg);
-                      if (n.dead) { recordNpcKill(); onPlayerKill(); warRecord("npc_kill"); }
+      if (tGuard.dead) {
+        kind = "kill";
+        warRecord("npc_kill");
+      }
     } else if (tRemote) {
       broadcastHit(tRemote, dmg);
     } else if (tCar >= 0) {
@@ -234,7 +242,11 @@ export function fireShot(
         const d = Math.hypot(n.pos.x - point.x, 1 - point.y, n.pos.z - point.z);
         if (d < sp) {
           damageNPC(n, w.damage * 0.6 * (1 - d / sp));
-        if (n.dead) { earnMoney(KILL_BOUNTY); onPlayerKill(); warRecord("npc_kill"); }
+          if (n.dead) {
+            recordNpcKill();
+            onPlayerKill();
+            warRecord("npc_kill");
+          }
         }
       }
       for (const g of GUARDS) {
