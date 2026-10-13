@@ -1,6 +1,9 @@
 // Load + save player_profiles row. Called on login, on an interval, and on
 // page unload. Never touches React state directly — mutates the shared
 // game-state objects imperatively (same pattern as npcState / vehicleState).
+//
+// Echoes, weapons and vehicles are owned by the SERVER now (see economy.ts):
+// they are loaded here, but never written back from the browser.
 import type { User } from "@supabase/supabase-js";
 import { db } from "./db";
 import type { GangId } from "./gangs";
@@ -9,7 +12,7 @@ import { playerState } from "./playerState";
 import { weaponState, WEAPON_ORDER, type WeaponId } from "./weaponState";
 import { authState } from "./authState";
 import { GANG_HQ } from "./worldData";
-import { personalVehicleState, setOwnedPersonalVehicles } from "./personalVehicleState";
+import { setOwnedPersonalVehicles } from "./personalVehicleState";
 
 export type ProfileRow = {
   user_id: string;
@@ -126,11 +129,10 @@ export function applyProfileToGameState(row: ProfileRow) {
 export async function syncProfileToServer(): Promise<void> {
   const uid = authState.userId;
   if (!uid) return;
+  // Position, reputation and the equipped weapon only. Echoes, weapons and
+  // vehicles are changed by the server alone.
   const payload = {
-    money: Math.floor(playerState.money),
     reputation: Math.floor(playerState.reputation),
-    owned_weapons: Array.from(weaponState.owned),
-    owned_vehicles: Array.from(personalVehicleState.owned),
     equipped_weapon: weaponState.current,
     last_position_x: playerState.pos.x,
     last_position_z: playerState.pos.z,
