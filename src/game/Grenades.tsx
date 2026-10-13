@@ -1,3 +1,4 @@
+
 import { useFrame } from "@react-three/fiber";
 import { useState } from "react";
 import * as THREE from "three";
@@ -8,20 +9,24 @@ import { recordNpcKill } from "./economy";
 import { GUARDS, damageGuard } from "./guardState";
 import { remotePlayers } from "./remotePlayerState";
 import { broadcastHit } from "./presence";
-import { earnMoney, KILL_BOUNTY } from "./playerState";
 import { onPlayerKill } from "./territoryState";
 import { PLAYER_GANG } from "./gangs";
 import { RELIC_PALETTE } from "./RelicVisuals";
+import { warRecord } from "./war/warState";
 
 const GRAVITY = -22;
 
 function explode(g: (typeof GRENADES)[number]) {
   for (const n of NPCS) {
-    if (n.dead) continue;
+    if (n.dead || n.gang === PLAYER_GANG) continue;
     const d = g.pos.distanceTo(new THREE.Vector3(n.pos.x, 1, n.pos.z));
     if (d < g.splash) {
       damageNPC(n, g.damage * (1 - d / g.splash));
-            if (n.dead) { recordNpcKill(); onPlayerKill(); }
+      if (n.dead) {
+        recordNpcKill();
+        onPlayerKill();
+        warRecord("npc_kill");
+      }
     }
   }
   for (const gd of GUARDS) {
