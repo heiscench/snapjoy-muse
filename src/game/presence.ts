@@ -4,17 +4,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { authState } from "./authState";
 import { PLAYER_GANG, GANGS, type GangId } from "./gangs";
-import { playerState, damagePlayer, earnMoney, KILL_BOUNTY } from "./playerState";
+import { playerState, damagePlayer } from "./playerState";
 import { remotePlayers, type RemotePlayer } from "./remotePlayerState";
 import { squadState } from "./squadState";
 import { pushAlert } from "./alertState";
-import { warRecord } from "./war/warState";
 import { pilotState, HELICOPTERS, applyRemoteVehicleDestroyed } from "./vehicleState";
 import { CAR_LIVE, carPilot, carRemote } from "./carState";
 import { onPlayerKill } from "./territoryState";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const CHANNEL_NAME = "gang-wars-presence";
+const CHANNEL_NAME = "forgotten-presence";
 export const PRESENCE_HZ = 8;
 export const VEHICLE_HZ = 8;
 export const REMOTE_STALE_MS = 5000;
@@ -36,7 +35,7 @@ type PositionPayload = {
 };
 
 type HitPayload = { toUserId: string; fromUserId: string; fromUsername: string; amount: number };
-type DiedPayload = { userId: string; username: string; killerUserId: string | null; tax?: number };
+type DiedPayload = { userId: string; username: string; killerUserId: string | null };
 type SquadReqPayload = { fromUserId: string; fromUsername: string; toUserId: string };
 type SquadResPayload = { fromUserId: string; fromUsername: string; toUserId: string; accepted: boolean };
 type VehiclePayload = {
@@ -64,13 +63,12 @@ export function broadcastHit(toUserId: string, amount: number) {
   } satisfies HitPayload);
 }
 
-export function broadcastDeath(killerUserId: string | null, tax = 0) {
+export function broadcastDeath(killerUserId: string | null) {
   if (!authState.userId) return;
   send("died", {
     userId: authState.userId,
     username: authState.username,
     killerUserId,
-    tax,
   } satisfies DiedPayload);
 }
 
@@ -161,13 +159,10 @@ export function startPresence() {
     if (victim) victim.health = 0;
     squadState.humanFollowers.delete(p.userId);
     if (squadState.followingUserId === p.userId) squadState.followingUserId = null;
-        if (p.killerUserId && p.killerUserId === authState.userId) {
-      // The bounty plus half of the victim's death tax (capped, so a faked message can't pay much).
-      const share = Math.min(150, Math.floor(Math.max(0, p.tax ?? 0) / 2));
-      earnMoney(KILL_BOUNTY + share);
+    if (p.killerUserId && p.killerUserId === authState.userId) {
+      // The server pays the bounty and the death tax share, and adds the war points.
       onPlayerKill();
-      warRecord("player_kill");
-      pushAlert(`You unmade ${p.username} — +◈ ${KILL_BOUNTY + share}`);
+      pushAlert(`You unmade ${p.username}`);
     }
   });
 
