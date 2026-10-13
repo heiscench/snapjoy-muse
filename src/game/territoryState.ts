@@ -4,6 +4,9 @@
 // Multiplayer note: ownership + lock timers are now SHARED state. Locks are
 // stored as absolute epoch-ms so they mean the same thing on every client.
 // Capture/robbery *progress* stays local to whoever is channeling.
+//
+// Economy note: passive income from the harbor and bank, and vault payouts, are
+// now paid by the server (see economy.ts). Nothing here adds Echoes by itself.
 import { PLAYER_GANG, type GangId, GANGS } from "./gangs";
 import {
   ALL_DISTRICTS,
@@ -17,11 +20,11 @@ import {
 } from "./worldData";
 import {
   playerState,
-  earnMoney,
   addReputation,
   STADIUM_REP_PER_KILL,
 } from "./playerState";
 import { pushAlert } from "./alertState";
+import { claimRaid } from "./economy";
 
 export const CAPTURE_TIME = 30;
 export const CAPTURE_LOCK = 5 * 60;
@@ -132,6 +135,7 @@ export function playerHolds(d: District): boolean {
   return territoryState.owners[d] === PLAYER_GANG;
 }
 
+/** Shown in the Cache. The server applies the real discount when you buy. */
 export function weaponDiscount(): number {
   return playerHolds("industrial") ? INDUSTRIAL_WEAPON_DISCOUNT : 0;
 }
@@ -179,8 +183,7 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
     if (s.captureMessageT === 0) s.captureMessage = null;
   }
 
-  if (playerHolds("harbor")) earnMoney(HARBOR_INCOME_PER_SEC * dt);
-  if (playerHolds("bank")) earnMoney(BANK_INCOME_PER_SEC * dt);
+  // Passive income from the harbor and bank is paid by the server (economy_sync).
   if (playerHolds("stadium")) addReputation(STADIUM_REP_TICK * dt);
 
   const damaged = playerState.health < s._lastHealth - 0.01;
@@ -260,17 +263,21 @@ export function tickTerritory(dt: number, playerX: number, playerZ: number) {
       if (damaged) s.robberyProgress = 0;
       else s.robberyProgress = Math.min(ROBBERY_TIME, s.robberyProgress + dt);
       if (s.robberyProgress >= ROBBERY_TIME) {
-        const payout = Math.floor(
-          ROBBERY_MIN_PAYOUT + Math.random() * (ROBBERY_MAX_PAYOUT - ROBBERY_MIN_PAYOUT),
-        );
-        earnMoney(payout);
+        const bankId = inVault.id;
         const lockUntilMs = nowMs + ROBBERY_COOLDOWN * 1000;
-        s.robberyLockUntil[inVault.id] = lockUntilMs;
-        setMessage(`Relic raid complete: +◈ ${payout}`);
-        pushAlert(`Memory unearthed — +◈ ${payout}`);
-        _onRobbed(inVault.id, lockUntilMs);
+        s.robberyLockUntil[bankId] = lockUntilMs;
         s.robberyBankId = null;
         s.robberyProgress = 0;
+        // The server picks the payout and enforces the cooldown.
+        void claimRaid(bankId).then((payout) => {
+          if (payout > 0) {
+            setMessage(`Relic raid complete: +◈ ${payout}`);
+            pushAlert(`Memory unearthed — +◈ ${payout}`);
+            _onRobbed(bankId, lockUntilMs);
+          } else {
+            setMessage("The relic crumbles to dust");
+          }
+        });
       }
     }
   } else if (s.robberyBankId !== null) {
