@@ -1,4 +1,6 @@
-import { spendMoney } from "./playerState";
+import { playerState } from "./playerState";
+import { serverBuy } from "./economy";
+import { pushAlert } from "./alertState";
 
 export type WeaponId = "pistol" | "smg" | "rifle" | "shotgun" | "sniper" | "grenade" | "tank";
 export type WeaponKind = "hitscan" | "grenade";
@@ -112,10 +114,19 @@ export function selectWeapon(id: WeaponId) {
 export function purchaseWeapon(id: WeaponId, discount = 0): boolean {
   if (weaponState.owned.has(id)) return true;
   const price = Math.max(0, Math.floor(WEAPONS[id].cost * (1 - discount)));
-  if (!spendMoney(price)) return false;
+  if (playerState.money < price) return false;
+  // Shown at once; the server checks the price and your Echoes, and undoes it if it refuses.
   weaponState.owned.add(id);
   ammoState.mag[id] = WEAPONS[id].magSize;
   cancelReload();
   weaponState.current = id;
+  playerState.money -= price;
+  void serverBuy("weapon", id).then((r) => {
+    if (!r.ok) {
+      weaponState.owned.delete(id);
+      if (weaponState.current === id) weaponState.current = "pistol";
+      pushAlert("The Cache refused that purchase.", "warn");
+    }
+  });
   return true;
 }
