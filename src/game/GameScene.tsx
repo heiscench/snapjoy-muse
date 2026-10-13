@@ -40,6 +40,7 @@ import { registerVehicleDestroyHook } from "./vehicleState";
 import { broadcastVehicleDestroyed, startPresence, stopPresence } from "./presence";
 import { startWorldSync, stopWorldSync } from "./worldSync";
 import { syncProfileToServer, syncProfileToServerBeacon } from "./profileSync";
+import { startEconomySync } from "./economy";
 
 const TOUCH_LOOK_SENSITIVITY = 0.22;
 const MAX_DRAG_STEP = 50;
@@ -143,11 +144,12 @@ function useHud(): HudState {
   return state;
 }
 
-/** Boots the multiplayer channel, shared world state, and profile autosave. */
+/** Boots the multiplayer channel, shared world state, the Echo ledger, and profile autosave. */
 function useMultiplayerSession() {
   useEffect(() => {
     startPresence();
     void startWorldSync();
+    const stopEconomy = startEconomySync();
     registerVehicleDestroyHook((kind, id) => broadcastVehicleDestroyed(kind, id));
 
     const save = setInterval(() => { void syncProfileToServer(); }, AUTOSAVE_MS);
@@ -155,6 +157,7 @@ function useMultiplayerSession() {
     window.addEventListener("pagehide", onHide);
 
     return () => {
+      stopEconomy();
       clearInterval(save);
       window.removeEventListener("pagehide", onHide);
       registerVehicleDestroyHook(() => {});
@@ -164,6 +167,7 @@ function useMultiplayerSession() {
     };
   }, []);
 }
+
 export function GameScene() {
   const [running, setRunning] = useState(false);
   const [muted, setMuted] = useState(readMuted);
@@ -374,7 +378,7 @@ export function GameScene() {
       </div>
       <div className="game-aim"><Button ref={aimRef} className="game-control" data-active={aiming} aria-label={aimLabel}>{aimLabel}</Button></div>
       <div className="game-actions">
-        <Button ref={jumpRef} className="game-control" aria-label={piloting ? "Up" : "Jump"}>{piloting ? "Up" : "Jump"}</Button>
+        <Button ref={jumpRef} className="game-control" data-active={running} aria-label={piloting ? "Up" : "Jump"}>{piloting ? "Up" : "Jump"}</Button>
         <Button ref={runRef} className="game-control" data-active={running} aria-label={piloting ? "Down" : "Run"}>{piloting ? "Down" : "Run"}</Button>
         <Button ref={fireRef} className="game-control game-fire" aria-label="Fire">Fire</Button>
       </div>
