@@ -378,7 +378,7 @@ export function GameScene() {
       </div>
       <div className="game-aim"><Button ref={aimRef} className="game-control" data-active={aiming} aria-label={aimLabel}>{aimLabel}</Button></div>
       <div className="game-actions">
-        <Button ref={jumpRef} className="game-control" data-active={running} aria-label={piloting ? "Up" : "Jump"}>{piloting ? "Up" : "Jump"}</Button>
+        <Button ref={jumpRef} className="game-control" aria-label={piloting ? "Up" : "Jump"}>{piloting ? "Up" : "Jump"}</Button>
         <Button ref={runRef} className="game-control" data-active={running} aria-label={piloting ? "Down" : "Run"}>{piloting ? "Down" : "Run"}</Button>
         <Button ref={fireRef} className="game-control game-fire" aria-label="Fire">Fire</Button>
       </div>
