@@ -18,6 +18,8 @@ const MARKER_SPIN = 3;
 const NAME_HEIGHT = 2.9;
 const NAME_SIZE = 0.34;
 const NAME_MAX_DIST = 90;
+const MAX_PREDICT_S = 0.3; // keep moving along the last velocity for at most this long
+const MAX_SPEED = 25;
 
 type Slot = {
   refs: React.MutableRefObject<CharacterRefs | null>;
@@ -26,6 +28,8 @@ type Slot = {
   name: string;
   phase: number;
 };
+
+type Track = { lx: number; lz: number; at: number; seen: number; vx: number; vz: number };
 
 const _screenV = new THREE.Vector3();
 
@@ -40,10 +44,12 @@ export function RemotePlayers() {
     })),
   );
   const active = useRef<RemotePlayer[]>([]);
+  const tracks = useRef(new Map<string, Track>());
   const { camera, size } = useThree();
 
   useFrame((_, dt) => {
     const dtc = Math.min(dt, 0.05);
+    const nowMs = performance.now();
     active.current = Array.from(remotePlayers.values()).slice(0, MAX_REMOTE);
 
     for (let i = 0; i < slots.current.length; i++) {
@@ -58,10 +64,36 @@ export function RemotePlayers() {
         continue;
       }
 
-      // Interpolate toward the latest broadcast position
+      // Work out how fast this player is moving from their last two updates.
+      let tr = tracks.current.get(p.userId);
+      if (!tr) {
+        tr = { lx: p.targetX, lz: p.targetZ, at: nowMs, seen: p.lastSeen, vx: 0, vz: 0 };
+        tracks.current.set(p.userId, tr);
+      }
+      if (p.lastSeen !== tr.seen) {
+        // A new packet arrived.
+        if (p.targetX !== tr.lx || p.targetZ !== tr.lz) {
+          const gap = Math.max(0.05, (nowMs - tr.at) / 1000);
+          tr.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, (p.targetX - tr.lx) / gap));
+          tr.vz = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, (p.targetZ - tr.lz) / gap));
+        } else {
+          tr.vx = 0; // a heartbeat from someone standing still
+          tr.vz = 0;
+        }
+        tr.lx = p.targetX;
+        tr.lz = p.targetZ;
+        tr.at = nowMs;
+        tr.seen = p.lastSeen;
+      }
+
+      // Dead reckoning: keep gliding along the last velocity until the next update.
+      const ahead = Math.min(MAX_PREDICT_S, (nowMs - tr.at) / 1000);
+      const px = p.targetX + tr.vx * ahead;
+      const pz = p.targetZ + tr.vz * ahead;
+
       const t = 1 - Math.exp(-LERP_RATE * dtc);
-      p.x += (p.targetX - p.x) * t;
-      p.z += (p.targetZ - p.z) * t;
+      p.x += (px - p.x) * t;
+      p.z += (pz - p.z) * t;
       let dy = p.targetYaw - p.yaw;
       while (dy > Math.PI) dy -= Math.PI * 2;
       while (dy < -Math.PI) dy += Math.PI * 2;
@@ -72,7 +104,7 @@ export function RemotePlayers() {
       r.root.position.set(p.x, 0, p.z);
       r.root.rotation.y = p.yaw;
 
-      const moving = Math.hypot(p.targetX - p.x, p.targetZ - p.z) > 0.05;
+      const moving = Math.hypot(px - p.x, pz - p.z) > 0.05;
       slot.phase += dtc * (moving ? WALK_SPEED_SCALE : 0);
       const swing = moving ? Math.sin(slot.phase * 2) * 0.6 : 0;
       if (r.legL) r.legL.rotation.x = swing;
