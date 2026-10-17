@@ -3,7 +3,8 @@
 // game-state objects imperatively (same pattern as npcState / vehicleState).
 //
 // Echoes, weapons and vehicles are owned by the SERVER now (see economy.ts):
-// they are loaded here, but never written back from the browser.
+// they are loaded here, but never written back from the browser. The kingdom is
+// assigned by the server too (create_profile).
 import type { User } from "@supabase/supabase-js";
 import { db } from "./db";
 import type { GangId } from "./gangs";
@@ -11,7 +12,6 @@ import { setPlayerGang } from "./gangs";
 import { playerState } from "./playerState";
 import { weaponState, WEAPON_ORDER, type WeaponId } from "./weaponState";
 import { authState } from "./authState";
-import { GANG_HQ } from "./worldData";
 import { setOwnedPersonalVehicles } from "./personalVehicleState";
 
 export type ProfileRow = {
@@ -66,22 +66,18 @@ export function validateSignupEmail(raw: string): string {
   return email;
 }
 
-export async function createProfile(
-  userId: string, username: string, gang: GangId,
-): Promise<ProfileRow | null> {
-  // New accounts start at their faction's HQ — this is the only case position
-  // should default rather than resume, since there's nothing to resume yet.
-  const hq = GANG_HQ[gang];
-  const { data, error } = await db()
-    .from("player_profiles")
-    .insert({
-      user_id: userId,
-      username: username.trim(),
-      gang,
-      last_position_x: hq.x + 14, last_position_z: hq.z,
-    })
-    .select("*")
-    .single();
+type RpcClient = {
+  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{
+    data: unknown;
+    error: { code?: string; message: string } | null;
+  }>;
+};
+
+/** Creates the profile on the server, which also decides the kingdom (balanced, or pre-assigned by you). */
+export async function createProfile(username: string): Promise<ProfileRow | null> {
+  const { data, error } = await (db() as unknown as RpcClient).rpc("create_profile", {
+    p_username: username.trim(),
+  });
   if (error) {
     console.error("[profileSync] create failed", error);
     if (error.code === "23505" || /duplicate key/i.test(error.message)) {
@@ -98,11 +94,9 @@ export async function createProfile(
 export async function ensureProfile(user: User): Promise<ProfileRow | null> {
   const existing = await loadProfile(user.id);
   if (existing) return existing;
-  const meta = (user.user_metadata ?? {}) as { username?: string; gang?: number };
+  const meta = (user.user_metadata ?? {}) as { username?: string };
   if (!meta.username) return null;
-  const g = Number(meta.gang);
-  const gang = (g >= 0 && g <= 3 ? g : 0) as GangId;
-  return createProfile(user.id, validateUsername(meta.username), gang);
+  return createProfile(validateUsername(meta.username));
 }
 
 // Hydrate in-memory game state from a loaded row. Called once on login.
@@ -129,8 +123,8 @@ export function applyProfileToGameState(row: ProfileRow) {
 export async function syncProfileToServer(): Promise<void> {
   const uid = authState.userId;
   if (!uid) return;
-  // Position, reputation and the equipped weapon only. Echoes, weapons and
-  // vehicles are changed by the server alone.
+  // Position, reputation and the equipped weapon only. Echoes, weapons,
+  // vehicles and the kingdom are changed by the server alone.
   const payload = {
     reputation: Math.floor(playerState.reputation),
     equipped_weapon: weaponState.current,
