@@ -4,7 +4,6 @@ import { AwakeningBackdrop } from "./AwakeningIntro";
 import { stopMenuMusic } from "./audio";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GANGS, type GangId } from "./gangs";
 import {
   applyProfileToGameState, createProfile, ensureProfile,
   validateSignupEmail, validateUsername, USERNAME_MIN, USERNAME_MAX,
@@ -19,7 +18,6 @@ export function AuthScreen({ onReady }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
-  const [gang, setGang] = useState<GangId>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,21 +33,20 @@ export function AuthScreen({ onReady }: Props) {
         const cleanEmail = validateSignupEmail(email);
         const { data, error: signErr } = await supabase.auth.signUp({
           email: cleanEmail, password,
-          options: { data: { username: cleanName, gang } },
+          options: { data: { username: cleanName } },
         });
         if (signErr) throw signErr;
-        const uid = data.user?.id;
-        if (!uid) throw new Error("Signup failed — no user id returned");
+        if (!data.user?.id) throw new Error("Signup failed — no user id returned");
 
-        // Email confirmation on: no session yet. The profile is created from
-        // the signup metadata at first login.
+        // Email confirmation on: no session yet. The profile is created
+        // (and the kingdom assigned) at first login.
         if (!data.session) {
           setNotice("Check your email to confirm, then log in to complete your awakening.");
           setMode("login");
           return;
         }
 
-        const row = await createProfile(uid, cleanName, gang);
+        const row = await createProfile(cleanName);
         if (!row) throw new Error("Your awakening could not be saved. Please try again.");
         applyProfileToGameState(row);
       } else {
@@ -137,23 +134,9 @@ export function AuthScreen({ onReady }: Props) {
           </label>
 
           {mode === "signup" && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-widest text-white/60">Choose your era</span>
-              <div className="grid grid-cols-2 gap-2">
-                {GANGS.map((g) => (
-                  <Button variant="ghost"
-                    type="button"
-                    key={g.id}
-                    onClick={() => setGang(g.id as GangId)}
-                    aria-pressed={gang === g.id}
-                    data-faction={g.id}
-                    className={`era-choice ${gang === g.id ? "selected" : ""}`}
-                  >
-                    {g.name}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <p className="text-[11px] italic text-white/60">
+              The Forgotten will place you in the realm where you are most needed.
+            </p>
           )}
 
           {notice && (
