@@ -52,7 +52,9 @@ function createSupabaseClient() {
       storage: brokeredPreviewStorage(),
       persistSession: true,
       autoRefreshToken: true,
-    }
+    },
+    // The default is 10 live messages per second, which dropped player and vehicle updates.
+    realtime: { params: { eventsPerSecond: 40 } },
   });
 }
 
@@ -66,4 +68,3 @@ export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>,
     return Reflect.get(_supabase, prop, receiver);
   },
 });
-
