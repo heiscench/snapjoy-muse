@@ -14,6 +14,7 @@ import { fracturePoints } from "./fracture/fractureState";
 import { FRAGMENTS } from "./memory/fragments";
 import { monsterTarget } from "./monster/monsterState";
 import { memoryState } from "./memory/memoryState";
+import { SKY_ISLANDS } from "./skyIslands";
 import { ROAD_LINES, ROAD_W, KINGDOM_EDGES } from "./city/layout";
 
 const WORLD = (GRID + 1) * BLOCK_SIZE;
@@ -77,7 +78,7 @@ function buildLayer(): HTMLCanvasElement {
     }
     g.stroke();
   }
-  return c;
+  return g.canvas;
 }
 
 export function Minimap() {
@@ -168,8 +169,8 @@ export function Minimap() {
         ctx.fill();
         ctx.stroke();
       }
-      
-            // Unfound memories pulse; the nearest one off the radar shows a pointer on the rim.
+
+      // Unfound memories pulse; the nearest one off the radar shows a pointer on the rim.
       const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
       let nearest: { x: number; z: number; d: number } | null = null;
       for (const f of FRAGMENTS) {
@@ -198,7 +199,8 @@ export function Minimap() {
         ctx.fill();
         ctx.restore();
       }
-            // The monster: a pulsing red marker, or a pointer on the rim when it is out of range.
+
+      // The monster: a pulsing red marker, or a pointer on the rim when it is out of range.
       const mon = monsterTarget();
       if (mon) {
         const mp = 0.5 + 0.5 * Math.sin(performance.now() / 200);
@@ -228,6 +230,7 @@ export function Minimap() {
           ctx.restore();
         }
       }
+
       // The Fracture: glyph stones as diamonds (white = ready, filled gold = lit, grey = sealed).
       const fpts = fracturePoints();
       if (fpts) {
@@ -270,6 +273,18 @@ export function Minimap() {
           ctx.fill();
           ctx.restore();
         }
+      }
+
+      // Sky Halls (floating islands): a dashed ring in each kingdom's colour.
+      for (const isl of SKY_ISLANDS) {
+        if (!inView(isl.x, isl.z, 30)) continue;
+        ctx.strokeStyle = GANGS[isl.kingdom].accent;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(mx(isl.x), mz(isl.z), isl.r * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
 
       // You: the arrow points the way you are heading (cars use the opposite yaw convention).
