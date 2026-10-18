@@ -10,6 +10,7 @@ export const playerState = {
   health: 100,
   maxHealth: 100,
   pos: { x: 24, z: 24 },
+  y: 0, // height above the ground: roofs, the Skiff and the Sky Halls
   yaw: 0,
   money: START_MONEY,
   reputation: 0,
@@ -45,6 +46,7 @@ export function spendMoney(amount: number): boolean {
   playerState.money -= cost;
   return true;
 }
+
 /** What a death costs: 10% of your Echoes, at least 50 and at most 300 (never more than you have). */
 export function deathTax(): number {
   const tax = Math.max(50, Math.min(300, Math.round(playerState.money * 0.1)));
