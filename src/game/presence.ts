@@ -1,6 +1,8 @@
 // Single Realtime channel for everything live: player positions/health, PvP
 // hits, squad requests, vehicle transforms + destruction, and HUD alerts.
-// Deliberately low-rate — see the *_HZ constants below.
+// Deliberately low-rate — see the *_HZ constants below. Updates are only sent
+// when something changed, with a slow heartbeat otherwise, so idle players cost
+// almost nothing and the free Realtime message budget lasts.
 import { supabase } from "@/integrations/supabase/client";
 import { authState } from "./authState";
 import { PLAYER_GANG, GANGS, type GangId } from "./gangs";
@@ -14,9 +16,10 @@ import { onPlayerKill } from "./territoryState";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const CHANNEL_NAME = "forgotten-presence";
-export const PRESENCE_HZ = 8;
-export const VEHICLE_HZ = 8;
+export const PRESENCE_HZ = 6;
+export const VEHICLE_HZ = 6;
 export const REMOTE_STALE_MS = 5000;
+const HEARTBEAT_MS = 1500; // standing still: just tell everyone we are still here
 
 let channel: RealtimeChannel | null = null;
 let posTimer: ReturnType<typeof setInterval> | null = null;
@@ -224,8 +227,21 @@ export function startPresence() {
 
   channel.subscribe();
 
+  // Position: only when we moved, turned, took damage or got in/out of a vehicle.
+  let lastSent = { x: 1e9, z: 1e9, yaw: 0, health: -1, veh: false, at: 0 };
   posTimer = setInterval(() => {
     if (!authState.userId) return;
+    const now = performance.now();
+    const inVeh = pilotState.piloting || carPilot.driving;
+    const moved = Math.hypot(playerState.pos.x - lastSent.x, playerState.pos.z - lastSent.z) > 0.25;
+    const turned = Math.abs(playerState.yaw - lastSent.yaw) > 0.06;
+    const changed = moved || turned || playerState.health !== lastSent.health || inVeh !== lastSent.veh;
+    // Standing still: only a heartbeat, so we are not marked as gone.
+    if (!changed && now - lastSent.at < HEARTBEAT_MS) return;
+    lastSent = {
+      x: playerState.pos.x, z: playerState.pos.z, yaw: playerState.yaw,
+      health: playerState.health, veh: inVeh, at: now,
+    };
     const payload: PositionPayload = {
       userId: authState.userId,
       username: authState.username,
@@ -234,14 +250,17 @@ export function startPresence() {
       z: playerState.pos.z,
       yaw: playerState.yaw,
       health: playerState.health,
-      inVehicle: pilotState.piloting || carPilot.driving,
+      inVehicle: inVeh,
     };
     send("pos", payload);
   }, 1000 / PRESENCE_HZ);
 
+  // Vehicle: only while driving or flying, and only when it moved (plus a heartbeat).
+  let lastVeh = { x: 1e9, y: 1e9, z: 1e9, at: 0 };
   vehTimer = setInterval(() => {
     if (!authState.userId) return;
     if (!carPilot.driving && !pilotState.piloting) return;
+    const now = performance.now();
     const car =
       carPilot.driving && CAR_LIVE[carPilot.drivingIndex]
         ? {
@@ -255,6 +274,12 @@ export function startPresence() {
     const heli = pilotState.piloting
       ? { gang: PLAYER_GANG, x: h.pos.x, y: h.pos.y, z: h.pos.z, yaw: h.yaw }
       : null;
+    const x = car ? car.x : h.pos.x;
+    const y = car ? 0 : h.pos.y;
+    const z = car ? car.z : h.pos.z;
+    const moved = Math.hypot(x - lastVeh.x, z - lastVeh.z) > 0.3 || Math.abs(y - lastVeh.y) > 0.3;
+    if (!moved && now - lastVeh.at < HEARTBEAT_MS) return;
+    lastVeh = { x, y, z, at: now };
     send("veh", { ownerId: authState.userId, car, heli } satisfies VehiclePayload);
   }, 1000 / VEHICLE_HZ);
 
