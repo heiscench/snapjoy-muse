@@ -16,9 +16,10 @@ import { shopState } from "./shopState";
 import { isFollowing } from "./squadState";
 import { Weapon } from "./Weapon";
 import {
-  resolveCollision, resolveHeliCollision, rooftopHeightAt,
+  resolveCollision, resolveHeliCollision,
   nearestHospitalDistance, GANG_HQ, WEAPON_SHOPS, SHOP_RADIUS, HELI_PADS,
 } from "./worldData";
+import { floorAt } from "./skyIslands";
 import { findFreeSpot } from "./unstick";
 import { fireShot } from "./shooting";
 import {
@@ -42,6 +43,7 @@ const HEAL_RATE = 22;
 const HELI_ENTER_RADIUS = 6;
 const HELI_BODY_RADIUS = 4.5;
 const HELI_EXIT_OFFSET = HELI_BODY_RADIUS + 4;
+const HELI_CEILING = 130; // high enough to reach the Sky Halls
 const RECOIL_DECAY = 6.5;
 const RECOIL_PER_SHOT = 0.75;
 const OTHER_OBJECT_RADIUS = 1.3;
@@ -277,6 +279,7 @@ export function Player() {
 
           playerState.pos.x = c.x;
           playerState.pos.z = c.z;
+          playerState.y = 0;
           playerState.yaw = c.rotY;
 
           const back = new THREE.Vector3(Math.sin(c.rotY), 0, Math.cos(c.rotY));
@@ -338,8 +341,9 @@ export function Player() {
         heli.pos.x = resolved.x;
         heli.pos.z = resolved.z;
 
-        const heliFloor = rooftopHeightAt(heli.pos.x, heli.pos.z);
-        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, heliFloor, 90);
+        // The surface below: the ground, a roof, or a Sky Hall if you are at or above it.
+        const heliFloor = floorAt(heli.pos.x, heli.pos.z, heli.pos.y);
+        heli.pos.y = THREE.MathUtils.clamp(heli.pos.y + heli.vy * dtc, heliFloor, HELI_CEILING);
         if (heli.pos.y <= heliFloor) {
           heli.pos.y = heliFloor;
           heli.vy = Math.max(0, heli.vy);
@@ -347,6 +351,7 @@ export function Player() {
 
         playerState.pos.x = heli.pos.x;
         playerState.pos.z = heli.pos.z;
+        playerState.y = heli.pos.y;
         playerState.yaw = heli.yaw;
 
         const camBack = new THREE.Vector3(Math.sin(heli.yaw), 0, Math.cos(heli.yaw));
@@ -437,7 +442,8 @@ export function Player() {
     }
 
     p.y += vel.current.y * dtc;
-    const floor = rooftopHeightAt(p.x, p.z);
+    // The surface under your feet at your current height: walking under a Sky Hall is safe.
+    const floor = floorAt(p.x, p.z, p.y);
     if (p.y <= floor) {
       p.y = floor;
       vel.current.y = 0;
@@ -464,6 +470,7 @@ export function Player() {
 
     playerState.pos.x = p.x;
     playerState.pos.z = p.z;
+    playerState.y = p.y;
     playerState.yaw = yaw.current;
 
     let bestHeliD = Infinity;
