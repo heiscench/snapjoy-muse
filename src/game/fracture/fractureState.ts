@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { PLAYER_GANG } from "../gangs";
 import { ALL_DISTRICTS, districtHQ, districtLabel, type District } from "../worldData";
-import { earnMoney } from "../playerState";
+import { setBalance } from "../economy";
 import { pushAlert } from "../alertState";
 import { hash01 } from "../city/palette";
 import { ROAD_LINES } from "../city/layout";
@@ -150,9 +150,9 @@ async function claim(slot: number) {
     claimTried = -1;
     return;
   }
-  const r = data as { ok: boolean; reward: number };
+  const r = data as { ok: boolean; reward: number; balance?: number };
   if (r.ok && r.reward > 0) {
-    earnMoney(r.reward, true);
+    if (typeof r.balance === "number") setBalance(r.balance); // the server has already paid you
     fractureState.claimed = true;
     fractureState.version++;
     pushAlert(`+${r.reward} Echoes from the Fracture`);
