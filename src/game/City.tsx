@@ -1,4 +1,4 @@
-import { Text } from "@react-three/drei";
+import { Detailed, Text } from "@react-three/drei";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
@@ -8,11 +8,14 @@ import {
   HARBOR_Z,
   DISTRICT_LABELS,
   districtFor,
+  type BuildingBox,
 } from "./worldData";
 import { themeOf } from "./city/palette";
 import { groundTexture } from "./fx/fxTextures";
 import { Roads } from "./city/Roads";
 import { Lamps, Lots, Props } from "./city/Street";
+import { BOX } from "./city/parts";
+import { solidMaterial } from "./city/textures";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -21,6 +24,38 @@ import {
 } from "./city/buildingsB";
 
 const GROUND_PLANE = new THREE.PlaneGeometry(1, 1);
+
+// Level of detail: the full building up close, one simple block at medium range, nothing beyond the fog.
+const LOD_BLOCK = 150;
+const LOD_HIDDEN = 340;
+
+/** The far version of a building: a single box in its kingdom's stone colour (one draw call). */
+function Silhouette({ b }: { b: BuildingBox }) {
+  const theme = themeOf(b.district);
+  return (
+    <mesh
+      geometry={BOX}
+      material={solidMaterial(theme.stone)}
+      position={[b.x, b.h / 2, b.z]}
+      scale={[b.w, b.h, b.d]}
+    />
+  );
+}
+
+/** Chooses the level of detail by distance from the camera, with no React re-rendering. */
+function WithLod({ b, children }: { b: BuildingBox; children: React.ReactNode }) {
+  // The LOD object sits at the building, so distance is measured to the building itself.
+  // The children already use world coordinates, so they are shifted back by the same amount.
+  return (
+    <Detailed distances={[0, LOD_BLOCK, LOD_HIDDEN]} position={[b.x, 0, b.z]}>
+      <group position={[-b.x, 0, -b.z]}>{children}</group>
+      <group position={[-b.x, 0, -b.z]}>
+        <Silhouette b={b} />
+      </group>
+      <group />
+    </Detailed>
+  );
+}
 
 /** One instanced mesh tints every block of land in its kingdom's color. */
 function GroundTiles() {
@@ -62,30 +97,40 @@ function GroundTiles() {
   );
 }
 
+function renderBuilding(b: BuildingBox, i: number) {
+  switch (b.type) {
+    case "tower": return <Tower key={i} b={b} />;
+    case "warehouse": return <Warehouse key={i} b={b} />;
+    case "silo": return <Silo key={i} b={b} />;
+    case "bank": return <Bank key={i} b={b} />;
+    case "lowrise": return <LowRise key={i} b={b} />;
+    case "mall": return <Mall key={i} b={b} />;
+    case "harbor": return <Harbor key={i} b={b} />;
+    case "crane": return <Crane key={i} b={b} />;
+    case "stadium": return <Stadium key={i} b={b} />;
+    case "hospital": return <Hospital key={i} b={b} />;
+    case "house": return <House key={i} b={b} />;
+    case "plaza": return <Plaza key={i} b={b} />;
+    case "hangar": return <Hangar key={i} b={b} />;
+    case "casino": return <Casino key={i} b={b} />;
+    case "pagoda": return <Pagoda key={i} b={b} />;
+    case "shanty": return <Shanty key={i} b={b} />;
+    case "brownstone": return <Brownstone key={i} b={b} />;
+    case "hq": return <Headquarters key={i} b={b} />;
+    default: return null;
+  }
+}
+
 export function City() {
   const rendered = useMemo(() => {
     return BUILDINGS.map((b, i) => {
-      switch (b.type) {
-        case "tower": return <Tower key={i} b={b} />;
-        case "warehouse": return <Warehouse key={i} b={b} />;
-        case "silo": return <Silo key={i} b={b} />;
-        case "bank": return <Bank key={i} b={b} />;
-        case "lowrise": return <LowRise key={i} b={b} />;
-        case "mall": return <Mall key={i} b={b} />;
-        case "harbor": return <Harbor key={i} b={b} />;
-        case "crane": return <Crane key={i} b={b} />;
-        case "stadium": return <Stadium key={i} b={b} />;
-        case "hospital": return <Hospital key={i} b={b} />;
-        case "house": return <House key={i} b={b} />;
-        case "plaza": return <Plaza key={i} b={b} />;
-        case "hangar": return <Hangar key={i} b={b} />;
-        case "casino": return <Casino key={i} b={b} />;
-        case "pagoda": return <Pagoda key={i} b={b} />;
-        case "shanty": return <Shanty key={i} b={b} />;
-        case "brownstone": return <Brownstone key={i} b={b} />;
-        case "hq": return <Headquarters key={i} b={b} />;
-        default: return null;
-      }
+      // Flat decorations (plazas) are cheap and have no height: no level of detail needed.
+      if (b.type === "plaza") return renderBuilding(b, i);
+      return (
+        <WithLod key={i} b={b}>
+          {renderBuilding(b, i)}
+        </WithLod>
+      );
     });
   }, []);
 
