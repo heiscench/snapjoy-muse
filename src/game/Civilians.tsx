@@ -4,7 +4,9 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
-import { characterVariant, hasMonsterEyes } from "./characterAppearance";
+import { characterVariant } from "./characterAppearance";
+import { lodLevel, PROXY_GEO, PROXY_Y } from "./characterLod";
+import { solidMaterial } from "./city/textures";
 import {
   CIVILIANS,
   CIVILIAN_TURN_SECS,
@@ -16,7 +18,7 @@ import { resolveCollision } from "./worldData";
 import { playerState } from "./playerState";
 
 /** Civilians further than this from the player skip their update entirely. */
-const CIVILIAN_ACTIVE_RANGE = 180;
+const CIVILIAN_ACTIVE_RANGE = 120;
 const CIVILIAN_COLLIDE_RADIUS = 0.5;
 
 export function Civilians() {
@@ -35,9 +37,10 @@ export function Civilians() {
 
 function CivilianUnit({ civ }: { civ: CivilianState }) {
   const refs = useRef<CharacterRefs>(null!);
+  const proxy = useRef<THREE.Mesh>(null!);
   const walkPhase = useRef(0);
 
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const dtc = Math.min(dt, 0.05);
     const r = refs.current;
     if (!r || !r.root) return;
@@ -45,9 +48,9 @@ function CivilianUnit({ civ }: { civ: CivilianState }) {
     const distToPlayer = Math.hypot(civ.pos.x - playerState.pos.x, civ.pos.z - playerState.pos.z);
     if (distToPlayer > CIVILIAN_ACTIVE_RANGE) {
       r.root.visible = false;
+      if (proxy.current) proxy.current.visible = false;
       return;
     }
-    r.root.visible = true;
 
     civ.phase += dtc;
     if (civ.phase > CIVILIAN_TURN_SECS) {
@@ -67,6 +70,15 @@ function CivilianUnit({ civ }: { civ: CivilianState }) {
       civ.dir.set(civ.home.x - civ.pos.x, 0, civ.home.z - civ.pos.z).normalize();
     }
 
+    // Level of detail: the full body up close, one simple figure further out.
+    const lvl = lodLevel(Math.hypot(civ.pos.x - camera.position.x, civ.pos.z - camera.position.z));
+    r.root.visible = lvl === 0;
+    if (proxy.current) {
+      proxy.current.visible = lvl === 1;
+      proxy.current.position.set(civ.pos.x, PROXY_Y, civ.pos.z);
+    }
+    if (lvl !== 0) return;
+
     r.root.position.set(civ.pos.x, 0, civ.pos.z);
     r.root.rotation.y = Math.atan2(civ.dir.x, civ.dir.z);
 
@@ -78,7 +90,10 @@ function CivilianUnit({ civ }: { civ: CivilianState }) {
     if (r.armR) r.armR.rotation.x = swing * 0.7;
   });
 
-  return <Character role="civilian" variant={characterVariant(civ.id)} ref={refs} color={civ.shirt} accent={civ.pants} />;
+  return (
+    <>
+      <Character role="civilian" variant={characterVariant(civ.id)} ref={refs} color={civ.shirt} accent={civ.pants} />
+      <mesh ref={proxy} geometry={PROXY_GEO} material={solidMaterial(civ.shirt)} visible={false} scale={1.15} />
+    </>
+  );
 }
-
-void THREE;
