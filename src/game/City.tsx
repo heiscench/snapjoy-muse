@@ -14,6 +14,7 @@ import { themeOf } from "./city/palette";
 import { groundTexture } from "./fx/fxTextures";
 import { Roads } from "./city/Roads";
 import { Lamps, Lots, Props } from "./city/Street";
+import { MergeStatic } from "./city/MergeStatic";
 import { BOX } from "./city/parts";
 import { solidMaterial } from "./city/textures";
 import {
@@ -26,7 +27,7 @@ import {
 const GROUND_PLANE = new THREE.PlaneGeometry(1, 1);
 
 // Level of detail: the full building up close, one simple block at medium range, nothing beyond the fog.
-const LOD_BLOCK = 150;
+const LOD_BLOCK = 100;
 const LOD_HIDDEN = 340;
 
 /** The far version of a building: a single box in its kingdom's stone colour (one draw call). */
@@ -42,13 +43,18 @@ function Silhouette({ b }: { b: BuildingBox }) {
   );
 }
 
-/** Chooses the level of detail by distance from the camera, with no React re-rendering. */
-function WithLod({ b, children }: { b: BuildingBox; children: React.ReactNode }) {
+/**
+ * Chooses the level of detail by distance from the camera, with no React re-rendering.
+ * The close version is baked into a few big meshes once, a moment after loading.
+ */
+function WithLod({ b, delay, children }: { b: BuildingBox; delay: number; children: React.ReactNode }) {
   // The LOD object sits at the building, so distance is measured to the building itself.
   // The children already use world coordinates, so they are shifted back by the same amount.
   return (
     <Detailed distances={[0, LOD_BLOCK, LOD_HIDDEN]} position={[b.x, 0, b.z]}>
-      <group position={[-b.x, 0, -b.z]}>{children}</group>
+      <group position={[-b.x, 0, -b.z]}>
+        <MergeStatic delayMs={delay}>{children}</MergeStatic>
+      </group>
       <group position={[-b.x, 0, -b.z]}>
         <Silhouette b={b} />
       </group>
@@ -127,7 +133,8 @@ export function City() {
       // Flat decorations (plazas) are cheap and have no height: no level of detail needed.
       if (b.type === "plaza") return renderBuilding(b, i);
       return (
-        <WithLod key={i} b={b}>
+        // Merging is spread over the first couple of seconds so the game does not freeze while loading.
+        <WithLod key={i} b={b} delay={60 + (i % 90) * 20}>
           {renderBuilding(b, i)}
         </WithLod>
       );
@@ -145,7 +152,9 @@ export function City() {
 
       <GroundTiles />
       <Lots />
-      <Roads />
+      <MergeStatic delayMs={150}>
+        <Roads />
+      </MergeStatic>
       <Lamps />
       <Props />
 
