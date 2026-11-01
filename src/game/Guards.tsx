@@ -2,8 +2,9 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
-import { characterVariant, hasMonsterEyes } from "./characterAppearance";
-import { GANGS } from "./gangs";
+import { characterVariant } from "./characterAppearance";
+import { lodLevel, PROXY_GEO, PROXY_Y } from "./characterLod";
+import { solidMaterial } from "./city/textures";
 import {
   GUARDS,
   GUARD_DAMAGE,
@@ -48,11 +49,12 @@ export function Guards() {
 
 function GuardUnit({ guard }: { guard: GuardState }) {
   const refs = useRef<CharacterRefs>(null!);
+  const proxy = useRef<THREE.Mesh>(null!);
   const walkPhase = useRef(0);
   const hitCol = useMemo(() => new THREE.Color(CHARACTER_PALETTE.drip), []);
   const workCol = useMemo(() => new THREE.Color("#ffffff"), []);
 
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const dtc = Math.min(dt, 0.05);
     const r = refs.current;
     if (!r || !r.root) return;
@@ -60,6 +62,7 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     if (guard.dead) {
       guard.respawn -= dtc;
       r.root.visible = false;
+      if (proxy.current) proxy.current.visible = false;
       if (guard.respawn <= 0) {
         guard.pos.copy(guard.home);
         guard.hp = guard.maxHp;
@@ -68,12 +71,11 @@ function GuardUnit({ guard }: { guard: GuardState }) {
       }
       return;
     }
-    r.root.visible = true;
 
     const pp = playerState.pos;
     const hostile = guard.gang !== null
-  ? nearestHostile(guard.pos.x, guard.pos.z, guard.gang, GUARD_DEAGGRO_RANGE, false)
-  : nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DEAGGRO_RANGE, true);
+      ? nearestHostile(guard.pos.x, guard.pos.z, guard.gang, GUARD_DEAGGRO_RANGE, false)
+      : nearestHostile(guard.pos.x, guard.pos.z, null, GUARD_DEAGGRO_RANGE, true);
     const nearestDist = hostile ? hostile.dist : Infinity;
 
     // Aggro timer counts down to zero (it used to be floored at 3, which meant
@@ -134,6 +136,15 @@ function GuardUnit({ guard }: { guard: GuardState }) {
       }
     }
 
+    // Level of detail: the full body up close, one simple figure further out.
+    const lvl = lodLevel(Math.hypot(guard.pos.x - camera.position.x, guard.pos.z - camera.position.z));
+    r.root.visible = lvl === 0;
+    if (proxy.current) {
+      proxy.current.visible = lvl === 1;
+      proxy.current.position.set(guard.pos.x, PROXY_Y, guard.pos.z);
+    }
+    if (lvl !== 0) return;
+
     const yaw = Math.atan2(guard.dir.x, guard.dir.z);
     r.root.position.set(guard.pos.x, 0, guard.pos.z);
     r.root.rotation.y = yaw;
@@ -155,5 +166,10 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     }
   });
 
-  return <Character role="guard" variant={characterVariant(guard.id)} ref={refs} color={SECURITY_UNIFORM} accent={SECURITY_ACCENT} />;
+  return (
+    <>
+      <Character role="guard" variant={characterVariant(guard.id)} ref={refs} color={SECURITY_UNIFORM} accent={SECURITY_ACCENT} />
+      <mesh ref={proxy} geometry={PROXY_GEO} material={solidMaterial(SECURITY_UNIFORM)} visible={false} scale={1.15} />
+    </>
+  );
 }
