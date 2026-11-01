@@ -31,7 +31,7 @@ export function PerfOverlay() {
       const i = gl.info;
       el.current.textContent =
         `${fps.toFixed(0)} fps\n${i.render.calls} draws\n${(i.render.triangles / 1000).toFixed(0)}k tris\n` +
-        `${i.memory.geometries} geo ${i.memory.textures} tex`;
+        `${i.memory.geometries} geo ${i.memory.textures} tex\nres ${gl.getPixelRatio().toFixed(2)}`;
       acc.current = { frames: 0, t: 0 };
     }
   });
