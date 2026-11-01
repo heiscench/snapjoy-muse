@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Character, type CharacterRefs } from "./Character";
 import { characterVariant, hasMonsterEyes } from "./characterAppearance";
+import { lodLevel, PROXY_GEO, PROXY_Y } from "./characterLod";
+import { solidMaterial } from "./city/textures";
 import { GANGS, PLAYER_GANG, type GangId } from "./gangs";
 import { NPCS, npcRoster, spawnNPC, respawnPosition, type NPCState } from "./npcState";
 import { resolveCollision, districtAt } from "./worldData";
@@ -57,6 +59,7 @@ const _screenV = new THREE.Vector3();
 
 function NPCUnit({ npc }: { npc: NPCState }) {
   const refs = useRef<CharacterRefs>(null!);
+  const proxy = useRef<THREE.Mesh>(null!);
   const gang = GANGS[npc.gang];
   const baseColor = useMemo(() => new THREE.Color(gang.color), [gang.color]);
   const hitColor = useMemo(() => new THREE.Color(CHARACTER_PALETTE.drip), []);
@@ -72,6 +75,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     if (npc.dead) {
       npc.respawn -= dtc;
       r.root.visible = false;
+      if (proxy.current) proxy.current.visible = false;
       npc.screenVisible = false;
       if (npc.respawn <= 0) {
         npc.pos.copy(respawnPosition(npc));
@@ -85,11 +89,10 @@ function NPCUnit({ npc }: { npc: NPCState }) {
 
     if (npc.boarded) {
       r.root.visible = false;
+      if (proxy.current) proxy.current.visible = false;
       npc.screenVisible = false;
       return;
     }
-
-    r.root.visible = true;
 
     const pp = playerState.pos;
     // Hostile can be the local player OR any remote human on another client —
@@ -210,27 +213,39 @@ function NPCUnit({ npc }: { npc: NPCState }) {
       }
     }
 
-    const yaw = Math.atan2(npc.dir.x, npc.dir.z);
-    r.root.position.set(npc.pos.x, 0, npc.pos.z);
-    r.root.rotation.y = yaw;
+    // Level of detail: the full body up close, one simple figure at mid range, nothing far away.
+    const lvl = lodLevel(Math.hypot(npc.pos.x - camera.position.x, npc.pos.z - camera.position.z));
+    r.root.visible = lvl === 0;
+    if (proxy.current) {
+      proxy.current.visible = lvl === 1;
+      proxy.current.position.set(npc.pos.x, PROXY_Y, npc.pos.z);
+    }
 
-    walkPhase.current += dtc * 8 * npc.speed * 0.5;
-    const swing = Math.sin(walkPhase.current) * 0.7;
-    if (r.legL) r.legL.rotation.x = swing;
-    if (r.legR) r.legR.rotation.x = -swing;
-    if (r.armL) r.armL.rotation.x = -swing * 0.7;
-    if (r.armR) r.armR.rotation.x = swing * 0.7;
+    if (lvl === 0) {
+      const yaw = Math.atan2(npc.dir.x, npc.dir.z);
+      r.root.position.set(npc.pos.x, 0, npc.pos.z);
+      r.root.rotation.y = yaw;
 
-    if (npc.hitFlash > 0) {
+      walkPhase.current += dtc * 8 * npc.speed * 0.5;
+      const swing = Math.sin(walkPhase.current) * 0.7;
+      if (r.legL) r.legL.rotation.x = swing;
+      if (r.legR) r.legR.rotation.x = -swing;
+      if (r.armL) r.armL.rotation.x = -swing * 0.7;
+      if (r.armR) r.armR.rotation.x = swing * 0.7;
+
+      if (npc.hitFlash > 0) {
+        npc.hitFlash -= dtc;
+        if (r.torsoMat) r.torsoMat.color.copy(hitColor);
+      } else if (r.torsoMat) {
+        r.torsoMat.color.copy(baseColor);
+      }
+    } else if (npc.hitFlash > 0) {
       npc.hitFlash -= dtc;
-      if (r.torsoMat) r.torsoMat.color.copy(hitColor);
-    } else if (r.torsoMat) {
-      r.torsoMat.color.copy(baseColor);
     }
 
     const isAlly = npc.gang === PLAYER_GANG;
     if (marker.current) {
-      marker.current.visible = isAlly;
+      marker.current.visible = isAlly && lvl < 2;
       marker.current.position.set(npc.pos.x, 2.4, npc.pos.z);
       if (isAlly) marker.current.rotation.y += dtc * 3;
     }
@@ -249,6 +264,7 @@ function NPCUnit({ npc }: { npc: NPCState }) {
   return (
     <group>
       <Character variant={characterVariant(npc.id)} monster={hasMonsterEyes(npc.id, npc.gang)} ref={refs} color={gang.color} accent={gang.accent} />
+      <mesh ref={proxy} geometry={PROXY_GEO} material={solidMaterial(gang.color)} visible={false} scale={1.15} />
       <mesh ref={marker} position={[0, 2.4, 0]} visible={false}>
         <coneGeometry args={[0.18, 0.35, 4]} />
         <meshBasicMaterial color={isFollowing(npc.id) ? "#5cff8a" : GANGS[PLAYER_GANG].accent} />
