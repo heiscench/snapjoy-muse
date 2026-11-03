@@ -87,6 +87,7 @@ function rng(seed: number) {
 export const BLOCK_SIZE = 64;
 export const ROAD_WIDTH = 20;
 export const GRID = 8; // widened from 6 to make room for the outer-ring districts
+export const KINGS_CASTLE_H = 16; // collision height of the Kings' castle
 
 export function districtFor(gx: number, gz: number): District {
   // Outer ring — the six newly-wired districts sit beyond the original
