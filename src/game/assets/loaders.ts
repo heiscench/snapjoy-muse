@@ -10,16 +10,10 @@
  */
 import { useGLTF, useFBX } from "@react-three/drei";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { mergeGeometries as mergeBufferGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import * as THREE from "three";
-import type { Object3DNode } from "@react-three/fiber";
-import { useMemo, useEffect, type JSX } from "react";
+import { useMemo, type JSX } from "react";
 import { getModel, type ModelEntry } from "./manifest";
-
-declare module "@react-three/fiber" {
-  interface ThreeElements {
-    instancedMesh: Object3DNode<THREE.InstancedMesh, typeof THREE.InstancedMesh>;
-  }
-}
 
 function entryOrThrow(id: string): ModelEntry {
   const entry = getModel(id);
@@ -61,7 +55,7 @@ export function cloneAnimated(source: THREE.Object3D): THREE.Object3D {
   return cloneSkeleton(source, true);
 }
 
-/** A static pose instance: position + optional Euler rotation + scale. */
+/** A static pose instance: position + optional Y rotation + scale. */
 export interface ModelInstance {
   position: [number, number, number];
   rotationY?: number;
@@ -98,7 +92,6 @@ export function InstancedModel({
     // Bake each source mesh's local transform into its geometry, then group
     // the baked geometries by material so each group becomes one InstancedMesh.
     const byMaterial = new Map<string, MeshGroup>();
-    const dummy = new THREE.Matrix4();
     const normalMatrix = new THREE.Matrix3();
 
     source.updateMatrixWorld(true);
@@ -116,13 +109,11 @@ export function InstancedModel({
         ? material.map((m) => m.uuid).join("|")
         : material.uuid;
       const existing = byMaterial.get(key);
-      if (existing) {
-        existing.geometry = mergeGeometries([existing.geometry, geometry]);
-      } else {
-        byMaterial.set(key, { geometry, material });
-      }
+      const baked = existing ? [existing.geometry, geometry] : [geometry];
+      const merged = mergeBufferGeometries(baked, false) ?? geometry;
+      if (existing) existing.geometry.dispose();
+      byMaterial.set(key, { geometry: merged, material });
     });
-    void dummy;
 
     const count = instances.length;
     const meshes: THREE.InstancedMesh[] = [];
@@ -151,12 +142,6 @@ export function InstancedModel({
     return meshes;
   }, [source, instances, castShadow, receiveShadow]);
 
-  useEffect(() => {
-    if (import.meta.env.DEV && entry.format === "fbx") {
-      // FBX is fine for static props too, just noting skinning is not instanced.
-    }
-  }, [entry]);
-
   if (!instancedMeshes) return null;
   return (
     <>
@@ -165,16 +150,4 @@ export function InstancedModel({
       ))}
     </>
   );
-}
-
-/** Merge buffer geometries, tolerating mismatched attribute sets. */
-function mergeGeometries(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const { mergeGeometries: merge } = require("three/examples/jsm/utils/BufferGeometryUtils.js") as {
-    mergeGeometries: (geos: THREE.BufferGeometry[], useGroups?: boolean) => THREE.BufferGeometry;
-  };
-  const merged = merge(list, false);
-  if (merged) return merged;
-  // Attributes didn't line up; fall back to the largest geometry so the
-  // instanced mesh still renders instead of throwing.
-  return list.reduce((a, b) => (a.attributes.position && b.attributes.position && a.attributes.position.count > b.attributes.position.count ? a : b));
 }
