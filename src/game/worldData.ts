@@ -204,7 +204,7 @@ export const BUILDINGS: BuildingBox[] = (() => {
 
       const hqDistrict = hqBlockFor(gx, gz);
       if (hqDistrict) {
-        list.push({ x: cx, z: cz, w: 16, d: 16, h: 11, type: "hq", district: d });
+        list.push({ x: cx, z: cz, w: 16, d: 16, h: d === "downtown" ? KINGS_CASTLE_H : 11, type: "hq", district: d });
         continue;
       }
 
