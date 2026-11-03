@@ -17,6 +17,7 @@ import { Lamps, Lots, Props } from "./city/Street";
 import { MergeStatic } from "./city/MergeStatic";
 import { BOX } from "./city/parts";
 import { solidMaterial } from "./city/textures";
+import { KingsCastle } from "./medieval/KingsCastle";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -132,6 +133,23 @@ export function City() {
     return BUILDINGS.map((b, i) => {
       // Flat decorations (plazas) are cheap and have no height: no level of detail needed.
       if (b.type === "plaza") return renderBuilding(b, i);
+
+      // The Kings' Hall is the first piece rebuilt from the real medieval models.
+      // It bakes itself into one mesh, and shows the old Hall while loading or if loading fails.
+      if (b.type === "hq" && b.district === "downtown") {
+        return (
+          <KingsCastle
+            key={i}
+            b={b}
+            fallback={
+              <WithLod b={b} delay={60 + (i % 90) * 20}>
+                {renderBuilding(b, i)}
+              </WithLod>
+            }
+          />
+        );
+      }
+
       return (
         // Merging is spread over the first couple of seconds so the game does not freeze while loading.
         <WithLod key={i} b={b} delay={60 + (i % 90) * 20}>
