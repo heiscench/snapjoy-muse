@@ -232,7 +232,7 @@ export const MODELS: ModelEntry[] = [
   { id: "stable-sword-inward-slash", url: "/models/animations/stable-sword-inward-slash.fbx", category: "animations", format: "fbx", sizeKb: 1869 },
   { id: "standing-draw-arrow", url: "/models/animations/standing-draw-arrow.fbx", category: "animations", format: "fbx", sizeKb: 1791 },
   { id: "walking", url: "/models/animations/walking.fbx", category: "animations", format: "fbx", sizeKb: 1807 },
-
+];
 
 const BY_ID = new Map(MODELS.map((m) => [m.id, m]));
 
