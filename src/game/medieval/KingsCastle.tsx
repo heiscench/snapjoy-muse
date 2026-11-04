@@ -82,67 +82,108 @@ function layout(heightOf: (id: string) => number): Placement[] {
 
 const uvTmp = new THREE.Vector2();
 
+type Bucket = { geoms: THREE.BufferGeometry[]; material: THREE.Material };
+type BakedMesh = { geometry: THREE.BufferGeometry; material: THREE.Material };
+
+/** Pieces that use the same texture land in the same bucket and become one mesh. */
+function materialKey(mat: THREE.Material) {
+  const m = mat as THREE.MeshBasicMaterial;
+  const img = m.map?.image as { width?: number; height?: number } | undefined;
+  return [mat.type, m.map?.name ?? "", img?.width ?? 0, img?.height ?? 0, m.color ? m.color.getHexString() : ""].join("|");
+}
+
+/** One material's share of a mesh. glTF files with several materials store them as index ranges (groups). */
+function sliceGroup(g: THREE.BufferGeometry, start: number, count: number) {
+  const out = g.clone();
+  out.clearGroups();
+  if (g.index) {
+    out.setIndex(Array.from(g.index.array as ArrayLike<number>).slice(start, start + count));
+  }
+  return out;
+}
+
 /**
- * Bakes every piece into ONE geometry that shares ONE plain material.
- * Each Kenney file can carry its own UV offset (KHR_texture_transform), so that offset is baked
- * into the UVs first. Otherwise sharing a material would show the wrong part of the colour palette.
+ * Bakes every piece into a few merged meshes, ONE PER TEXTURE.
+ * Wall pieces use tiled planks / cobblestone / brick textures while towers use the colour palette,
+ * so they cannot share one material. Each piece's own texture offset is baked into its UVs first.
  */
-function bake(scenes: Map<string, THREE.Object3D>, placements: Placement[]) {
-  const geoms: THREE.BufferGeometry[] = [];
-  const shared: { material?: THREE.MeshStandardMaterial } = {};
+function bake(scenes: Map<string, THREE.Object3D>, placements: Placement[]): BakedMesh[] {
+  const buckets = new Map<string, Bucket>();
   const placeM = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const axisY = new THREE.Vector3(0, 1, 0);
+
   for (const p of placements) {
     const scene = scenes.get(p.id);
     if (!scene) continue;
     q.setFromAxisAngle(axisY, p.rotY);
     placeM.compose(new THREE.Vector3(p.x, p.y, p.z), q, new THREE.Vector3(p.sx, p.sy, p.sz));
     scene.updateMatrixWorld(true);
+
     scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
-      const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
-      const g = mesh.geometry.clone();
-      for (const name of Object.keys(g.attributes)) {
-        if (name !== "position" && name !== "normal" && name !== "uv") g.deleteAttribute(name);
-      }
-      if (!g.attributes.normal) g.computeVertexNormals();
+      const base = mesh.geometry;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 
-      // Bake this piece's own texture offset/scale into its UVs.
-      const uv = g.attributes.uv;
-      if (uv && mat.map) {
-        mat.map.updateMatrix();
-        const out = new Float32Array(uv.count * 2);
-        for (let i = 0; i < uv.count; i++) {
-          uvTmp.set(uv.getX(i), uv.getY(i)).applyMatrix3(mat.map.matrix);
-          out[i * 2] = uvTmp.x;
-          out[i * 2 + 1] = uvTmp.y;
+      const parts: { geo: THREE.BufferGeometry; mat: THREE.Material }[] = [];
+      if (Array.isArray(mesh.material) && base.groups.length > 0) {
+        for (const grp of base.groups) {
+          parts.push({ geo: sliceGroup(base, grp.start, grp.count), mat: mats[grp.materialIndex ?? 0] });
         }
-        g.setAttribute("uv", new THREE.BufferAttribute(out, 2));
+      } else {
+        parts.push({ geo: base.clone(), mat: mats[0] });
       }
 
-      g.applyMatrix4(placeM.clone().multiply(mesh.matrixWorld));
-      geoms.push(g);
-
-      if (!shared.material) {
-        const m = mat.clone();
-        if (mat.map) {
-          m.map = mat.map.clone();
-          m.map.offset.set(0, 0);
-          m.map.repeat.set(1, 1);
-          m.map.rotation = 0;
-          m.map.center.set(0, 0);
-          m.map.needsUpdate = true;
+      for (const { geo: g, mat } of parts) {
+        for (const name of Object.keys(g.attributes)) {
+          if (name !== "position" && name !== "normal" && name !== "uv") g.deleteAttribute(name);
         }
-        shared.material = m;
+        if (!g.attributes.normal) g.computeVertexNormals();
+
+        const map = (mat as THREE.MeshBasicMaterial).map;
+        const uv = g.attributes.uv;
+        if (uv && map) {
+          map.updateMatrix();
+          const out = new Float32Array(uv.count * 2);
+          for (let i = 0; i < uv.count; i++) {
+            uvTmp.set(uv.getX(i), uv.getY(i)).applyMatrix3(map.matrix);
+            out[i * 2] = uvTmp.x;
+            out[i * 2 + 1] = uvTmp.y;
+          }
+          g.setAttribute("uv", new THREE.BufferAttribute(out, 2));
+        }
+
+        g.applyMatrix4(placeM.clone().multiply(mesh.matrixWorld));
+
+        const key = materialKey(mat);
+        let bucket = buckets.get(key);
+        if (!bucket) {
+          const m = mat.clone() as THREE.MeshBasicMaterial;
+          if (map) {
+            m.map = map.clone();
+            m.map.offset.set(0, 0);
+            m.map.repeat.set(1, 1);
+            m.map.rotation = 0;
+            m.map.center.set(0, 0);
+            m.map.needsUpdate = true;
+          }
+          bucket = { geoms: [], material: m };
+          buckets.set(key, bucket);
+        }
+        bucket.geoms.push(g);
       }
     });
   }
-  const geometry = mergeGeometries(geoms, false);
-  geoms.forEach((g) => g.dispose());
-  if (!geometry || !shared.material) throw new Error("[castle] could not merge the castle pieces");
-  return { geometry, material: shared.material };
+
+  const result: BakedMesh[] = [];
+  buckets.forEach((b) => {
+    const geometry = mergeGeometries(b.geoms, false);
+    b.geoms.forEach((g) => g.dispose());
+    if (geometry) result.push({ geometry, material: b.material });
+  });
+  if (result.length === 0) throw new Error("[castle] could not merge the castle pieces");
+  return result;
 }
 
 function CastleKit({ b }: { b: BuildingBox }) {
@@ -161,7 +202,7 @@ function CastleKit({ b }: { b: BuildingBox }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  useEffect(() => () => kit.geometry.dispose(), [kit]);
+  useEffect(() => () => kit.forEach((k) => k.geometry.dispose()), [kit]);
 
   const theme = themeOf(b.district);
   const clothMat = useMemo(
@@ -184,7 +225,9 @@ function CastleKit({ b }: { b: BuildingBox }) {
   const gateZ = MID * TILE + TILE / 2 + 0.1;
   return (
     <group position={[b.x, 0, b.z]}>
-      <mesh geometry={kit.geometry} material={kit.material} />
+      {kit.map((k, i) => (
+        <mesh key={i} geometry={k.geometry} material={k.material} />
+      ))}
       {[-1, 1].map((s) => (
         <mesh key={s} geometry={PLANE} material={clothMat}
           position={[s * TILE * 1.5, 2.6, gateZ]} scale={[1.4, 3.4, 1]} />
