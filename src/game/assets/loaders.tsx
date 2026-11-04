@@ -52,7 +52,7 @@ export function preloadModels(ids: string[]): void {
  * A naive .clone() breaks skeleton bindings; SkeletonUtils does not.
  */
 export function cloneAnimated(source: THREE.Object3D): THREE.Object3D {
-  return cloneSkeleton(source, true);
+  return cloneSkeleton(source);
 }
 
 /** A static pose instance: position + optional Y rotation + scale. */

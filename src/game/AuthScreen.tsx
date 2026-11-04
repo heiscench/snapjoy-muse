@@ -159,7 +159,7 @@ export function AuthScreen({ onReady }: Props) {
           </Button>
         </form>
       </section>
-      <div className="awakening-footer"><span>THE FORGOTTEN PROJECT</span><span>AWAKENED AT 11:11</span></div>
+      <div className="awakening-footer"><span>THE FORGOTTEN PROJECT</span><span>AWAKENED AT 11:11</span><a href="/credits" className="hover:text-foreground">CREDITS</a></div>
     </main>
   );
 }
