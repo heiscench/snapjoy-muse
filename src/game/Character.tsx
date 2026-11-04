@@ -18,12 +18,8 @@ const GRADIENT = new THREE.DataTexture(new Uint8Array([110, 110, 110, 255, 190, 
 GRADIENT.minFilter = GRADIENT.magFilter = THREE.NearestFilter;
 GRADIENT.needsUpdate = true;
 const OUTLINE = new THREE.MeshBasicMaterial({ color: P.outline, side: THREE.BackSide });
-const materials = new Map<string, THREE.MeshToonMaterial>();
-function toon(color: string) {
-  let m = materials.get(color);
-  if (!m) { m = new THREE.MeshToonMaterial({ color, gradientMap: GRADIENT }); materials.set(color, m); }
-  return m;
-}
+// One shared material for every baked part: the colour lives in the vertices instead.
+const VERTEX_TOON = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: GRADIENT });
 const textureCache = new Map<string, THREE.CanvasTexture>();
 function artTexture(kind: string, variant: CharacterVariant, color: string, muted: boolean, monster: boolean) {
   const key = [kind, variant, color, muted, monster].join(':');
@@ -79,12 +75,6 @@ function artTexture(kind: string, variant: CharacterVariant, color: string, mute
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
   textureCache.set(key, texture); return texture;
 }
-function Shape({ position, scale, color, geometry = BOX, rotation }: { position?: [number,number,number]; scale?: [number,number,number]; color: string; geometry?: THREE.BufferGeometry; rotation?: [number,number,number] }) {
-  return <group position={position} scale={scale} rotation={rotation}>
-    <mesh geometry={geometry} material={toon(color)} dispose={null} />
-    <mesh geometry={geometry} material={OUTLINE} scale={1.065} dispose={null} />
-  </group>;
-}
 const hatCache = new Map<string, THREE.BufferGeometry>();
 function hatGeometry(variant: CharacterVariant) {
   const cached=hatCache.get(variant);if(cached)return cached;
@@ -96,6 +86,62 @@ function hatGeometry(variant: CharacterVariant) {
   else { add(new THREE.SphereGeometry(.30,12,8,0,Math.PI*2,0,Math.PI*.5),0,.47,-.01);add(new THREE.CylinderGeometry(.30,.30,.09,12),0,.46,-.01); }
   const merged=mergeGeometries(parts);parts.forEach(g=>g.dispose());const geometry=merged??BOX;hatCache.set(variant,geometry);return geometry;
 }
+
+// ---- Baked parts ---------------------------------------------------------------------------
+// Every limb used to be many little meshes (each drawn twice, fill + black outline). Now each limb is
+// ONE filled mesh with vertex colours plus ONE outline mesh. Same look, about half the draw calls.
+type Vec3 = [number, number, number];
+type Part = { geo?: THREE.BufferGeometry; pos?: Vec3; rot?: Vec3; scale?: Vec3; color: string };
+type Baked = { fill: THREE.BufferGeometry; outline: THREE.BufferGeometry };
+const bakeCache = new Map<string, Baked>();
+const tmpM = new THREE.Matrix4();
+const tmpQ = new THREE.Quaternion();
+const tmpE = new THREE.Euler();
+const tmpC = new THREE.Color();
+
+function plain(g: THREE.BufferGeometry) {
+  for (const name of Object.keys(g.attributes)) {
+    if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+  }
+  return g;
+}
+
+function bake(key: string, parts: Part[]): Baked {
+  const hit = bakeCache.get(key); if (hit) return hit;
+  const fills: THREE.BufferGeometry[] = [];
+  const outlines: THREE.BufferGeometry[] = [];
+  for (const p of parts) {
+    const src = p.geo ?? BOX;
+    const pos = p.pos ?? [0, 0, 0];
+    const rot = p.rot ?? [0, 0, 0];
+    const sc = p.scale ?? [1, 1, 1];
+    tmpQ.setFromEuler(tmpE.set(rot[0], rot[1], rot[2]));
+    tmpM.compose(new THREE.Vector3(pos[0], pos[1], pos[2]), tmpQ, new THREE.Vector3(sc[0], sc[1], sc[2]));
+    const fill = plain(src.clone()).applyMatrix4(tmpM);
+    const outline = plain(src.clone()).scale(1.065, 1.065, 1.065).applyMatrix4(tmpM);
+    const n = fill.attributes.position.count;
+    const colors = new Float32Array(n * 3);
+    tmpC.set(p.color);
+    for (let i = 0; i < n; i++) { colors[i * 3] = tmpC.r; colors[i * 3 + 1] = tmpC.g; colors[i * 3 + 2] = tmpC.b; }
+    fill.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    fills.push(fill);
+    outlines.push(outline);
+  }
+  const baked: Baked = {
+    fill: mergeGeometries(fills, false) ?? fills[0],
+    outline: mergeGeometries(outlines, false) ?? outlines[0],
+  };
+  bakeCache.set(key, baked);
+  return baked;
+}
+
+function BakedPart({ baked }: { baked: Baked }) {
+  return <>
+    <mesh geometry={baked.fill} material={VERTEX_TOON} dispose={null} />
+    <mesh geometry={baked.outline} material={OUTLINE} dispose={null} />
+  </>;
+}
+
 type Props = { color: string; accent: string; skin?: string; showWeaponSlot?: React.ReactNode; scale?: number;
   variant?: CharacterVariant; role?: CharacterRole; monster?: boolean;
   identity?: () => { id: string | number; color: string; accent: string } | undefined;
@@ -112,6 +158,40 @@ export const Character = forwardRef<CharacterRefs, Props>(function Character({co
   const hat=v==='frog-hat'?(muted?'#697660':P.frog):v==='bun'||v==='samurai'||v==='hood'?P.hair:v==='purple-beanie'? (muted?P.gray:'#7436b3'):P.gray;
   const faceMap=useMemo(()=>artTexture('face',v,skin,muted,monster),[v,skin,muted,monster]);
   const chestMap=useMemo(()=>artTexture('chest',v,torso,muted,monster),[v,torso,muted,monster]);
+
+  const bodyParts=useMemo(()=>{
+    const parts: Part[]=[{pos:[0,.15,0],scale:[.74,.08,.44],color:P.ink}];
+    if(role==='guard'){
+      parts.push({pos:[0,.81,.24],scale:[.54,.11,.06],color:trim});
+      parts.push({pos:[0,.48,.24],scale:[.045,.42,.04],color:trim});
+    }
+    return bake(`body|${role}|${trim}`,parts);
+  },[role,trim]);
+
+  const headParts=useMemo(()=>{
+    const parts: Part[]=[
+      {pos:[0,0,0],scale:[.22,.16,.22],color:skin},
+      {pos:[0,.27,0],scale:[.47,.48,.44],color:skin},
+      {geo:hatGeometry(v),color:hat},
+    ];
+    if(v==='frog-hat') [-1,1].forEach(s=>parts.push({pos:[s*.24,.68,.105],scale:[.08,.09,.025],color:P.ink}));
+    if(v==='bun') [-1,1].forEach(s=>parts.push({pos:[-.23,.49,.18],rot:[0,0,s*.75],scale:[.15,.025,.025],color:muted?P.gray:P.violet}));
+    if(v!=='bun'&&v!=='samurai'&&v!=='hood'&&v!=='frog-hat') parts.push({pos:[.08,.54,.277],scale:[.16,.08,.025],color:v==='purple-beanie'?P.ink:P.bone});
+    return bake(`head|${v}|${skin}|${hat}|${muted}`,parts);
+  },[v,skin,hat,muted]);
+
+  const armParts=useMemo(()=>[-1,1].map(s=>{
+    const parts: Part[]=[{pos:[0,-.40,0],scale:[.22,.8,.24],color:torso}];
+    if(v==='lightning') parts.push({pos:[0,-.36,.13],rot:[0,0,s*.3],scale:[.045,.42,.02],color:muted?P.gray:P.violet});
+    parts.push({pos:[0,-.9,0],scale:[.18,.18,.18],color:skin});
+    return bake(`arm|${s}|${torso}|${skin}|${v==='lightning'}|${muted}`,parts);
+  }),[torso,skin,v,muted]);
+
+  const legParts=useMemo(()=>bake('leg',[
+    {pos:[0,-.4,0],scale:[.26,.85,.28],color:P.ink},
+    {pos:[0,-.9,.05],scale:[.28,.12,.4],color:P.ink},
+  ]),[]);
+
   useImperativeHandle(ref,()=>({get root(){return root.current;},get body(){return body.current;},get head(){return head.current;},get armL(){return armL.current;},get armR(){return armR.current;},get legL(){return legL.current;},get legR(){return legR.current;},get torsoMat(){return torsoMat.current;}}));
   return <group ref={root} scale={scale}><group ref={body}>
     <group position={[0,.55,0]} scale={[.72,.90,.42]}>
@@ -119,26 +199,17 @@ export const Character = forwardRef<CharacterRefs, Props>(function Character({co
       <mesh geometry={BOX} material={OUTLINE} scale={1.06} dispose={null}/>
     </group>
     <mesh geometry={CHEST} position={[0,.55,.219]} dispose={null}><meshBasicMaterial map={chestMap} toneMapped={false}/></mesh>
-    <Shape position={[0,.15,0]} scale={[.74,.08,.44]} color={P.ink}/>
-    {role==='guard'&&<group><Shape position={[0,.81,.24]} scale={[.54,.11,.06]} color={trim}/><Shape position={[0,.48,.24]} scale={[.045,.42,.04]} color={trim}/></group>}
+    <BakedPart baked={bodyParts}/>
     <group ref={head} position={[0,1.2,0]}>
-      <Shape position={[0,0,0]} scale={[.22,.16,.22]} color={skin}/>
-      <Shape position={[0,.27,0]} scale={[.47,.48,.44]} color={skin}/>
       <mesh geometry={FACE} position={[0,.27,.229]} dispose={null}><meshBasicMaterial map={faceMap} toneMapped={false}/></mesh>
-      <Shape geometry={hatGeometry(v)} color={hat}/>
-      {v==='frog-hat'&&[-1,1].map(s=><Shape key={s} position={[s*.24,.68,.105]} scale={[.08,.09,.025]} color={P.ink}/>)}
-      {v==='bun'&&<group position={[-.23,.49,.18]}>{[-1,1].map(s=><Shape key={s} rotation={[0,0,s*.75]} scale={[.15,.025,.025]} color={muted?P.gray:P.violet}/>)}</group>}
-      {v!=='bun'&&v!=='samurai'&&v!=='hood'&&v!=='frog-hat'&&<Shape position={[.08,.54,.277]} scale={[.16,.08,.025]} color={v==='purple-beanie'?P.ink:P.bone}/>}
+      <BakedPart baked={headParts}/>
     </group>
-    {[-1,1].map(s=><group key={s} ref={s<0?armL:armR} position={[s*.46,1,0]}>
-      <Shape position={[0,-.40,0]} scale={[.22,.8,.24]} color={torso}/>
-      {v==='lightning'&&<Shape position={[0,-.36,.13]} rotation={[0,0,s*.3]} scale={[.045,.42,.02]} color={muted?P.gray:P.violet}/>}
-      <Shape position={[0,-.9,0]} scale={[.18,.18,.18]} color={skin}/>
+    {[-1,1].map((s,i)=><group key={s} ref={s<0?armL:armR} position={[s*.46,1,0]}>
+      <BakedPart baked={armParts[i]}/>
       {s>0&&showWeaponSlot&&<group position={[0,-.95,.15]} rotation={[1.4,0,0]}>{showWeaponSlot}</group>}
     </group>)}
     {[-1,1].map(s=><group key={s} ref={s<0?legL:legR} position={[s*.18,.1,0]}>
-      <Shape position={[0,-.4,0]} scale={[.26,.85,.28]} color={P.ink}/>
-      <Shape position={[0,-.9,.05]} scale={[.28,.12,.4]} color={P.ink}/>
+      <BakedPart baked={legParts}/>
     </group>)}
   </group></group>;
 });
