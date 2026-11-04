@@ -80,10 +80,16 @@ function layout(heightOf: (id: string) => number): Placement[] {
   return out;
 }
 
-/** Bakes every piece into ONE geometry that shares one material (all Kenney pieces use the same colour atlas). */
+const uvTmp = new THREE.Vector2();
+
+/**
+ * Bakes every piece into ONE geometry that shares ONE plain material.
+ * Each Kenney file can carry its own UV offset (KHR_texture_transform), so that offset is baked
+ * into the UVs first. Otherwise sharing a material would show the wrong part of the colour palette.
+ */
 function bake(scenes: Map<string, THREE.Object3D>, placements: Placement[]) {
   const geoms: THREE.BufferGeometry[] = [];
-  const shared: { material?: THREE.Material } = {};
+  const shared: { material?: THREE.MeshStandardMaterial } = {};
   const placeM = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const axisY = new THREE.Vector3(0, 1, 0);
@@ -96,15 +102,40 @@ function bake(scenes: Map<string, THREE.Object3D>, placements: Placement[]) {
     scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
+      const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
       const g = mesh.geometry.clone();
       for (const name of Object.keys(g.attributes)) {
         if (name !== "position" && name !== "normal" && name !== "uv") g.deleteAttribute(name);
       }
       if (!g.attributes.normal) g.computeVertexNormals();
+
+      // Bake this piece's own texture offset/scale into its UVs.
+      const uv = g.attributes.uv;
+      if (uv && mat.map) {
+        mat.map.updateMatrix();
+        const out = new Float32Array(uv.count * 2);
+        for (let i = 0; i < uv.count; i++) {
+          uvTmp.set(uv.getX(i), uv.getY(i)).applyMatrix3(mat.map.matrix);
+          out[i * 2] = uvTmp.x;
+          out[i * 2 + 1] = uvTmp.y;
+        }
+        g.setAttribute("uv", new THREE.BufferAttribute(out, 2));
+      }
+
       g.applyMatrix4(placeM.clone().multiply(mesh.matrixWorld));
       geoms.push(g);
+
       if (!shared.material) {
-        shared.material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        const m = mat.clone();
+        if (mat.map) {
+          m.map = mat.map.clone();
+          m.map.offset.set(0, 0);
+          m.map.repeat.set(1, 1);
+          m.map.rotation = 0;
+          m.map.center.set(0, 0);
+          m.map.needsUpdate = true;
+        }
+        shared.material = m;
       }
     });
   }
