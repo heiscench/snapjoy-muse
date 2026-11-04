@@ -2,7 +2,8 @@ import * as THREE from "three";
 
 // Distance levels for every being (NPCs, civilians, guards):
 //   0 = the full detailed body, 1 = one simple figure (a single draw call), 2 = not drawn.
-export const LOD_FULL = 38;
+// LOD_FULL was 38. A full body costs about 28 draw calls, so keeping it close saves a lot on phones.
+export const LOD_FULL = 18;
 export const LOD_PROXY = 110;
 
 export function lodLevel(distance: number): 0 | 1 | 2 {
