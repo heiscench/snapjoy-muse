@@ -103,7 +103,8 @@ function plain(g: THREE.BufferGeometry) {
   for (const name of Object.keys(g.attributes)) {
     if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
   }
-  return g;
+  // Boxes and hat shapes are built differently; merging needs them all the same kind.
+  return g.index ? g.toNonIndexed() : g;
 }
 
 function bake(key: string, parts: Part[]): Baked {
@@ -127,10 +128,10 @@ function bake(key: string, parts: Part[]): Baked {
     fills.push(fill);
     outlines.push(outline);
   }
-  const baked: Baked = {
-    fill: mergeGeometries(fills, false) ?? fills[0],
-    outline: mergeGeometries(outlines, false) ?? outlines[0],
-  };
+  const mergedFill = mergeGeometries(fills, false);
+  const mergedOutline = mergeGeometries(outlines, false);
+  if (!mergedFill || !mergedOutline) console.warn('[character] could not merge parts for', key);
+  const baked: Baked = { fill: mergedFill ?? fills[0], outline: mergedOutline ?? outlines[0] };
   bakeCache.set(key, baked);
   return baked;
 }
