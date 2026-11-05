@@ -7,12 +7,10 @@ const CheckerPanel = lazy(() =>
 );
 
 export const Route = createFileRoute("/assets")({
-  validateSearch: (search: Record<string, unknown>) => {
-    if (import.meta.env.DEV) console.log("[assets] raw search:", JSON.stringify(search));
-    return {
-      dev: search.dev === "1" || search.dev === true,
-    };
-  },
+  validateSearch: (search: Record<string, unknown>) => ({
+    // TanStack JSON-parses search values, so ?dev=1 arrives as the number 1.
+    dev: search.dev === "1" || search.dev === 1 || search.dev === true,
+  }),
   head: () => ({
     meta: [
       { title: "FORGOTTEN — Asset library" },
