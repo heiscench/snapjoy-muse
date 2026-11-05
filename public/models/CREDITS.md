@@ -10,7 +10,7 @@ wired into gameplay yet — this is the asset library.
 - OBJ originals converted to GLB; small textures embedded.
 
 ## Characters
-- **Quaternius — Ultimate Modular Characters** (Female Peasant body/arms/legs/feet, Female Ranger pauldrons) — CC0, quaternius.com
+- **Quaternius — Ultimate Modular Characters** (Female Peasant body/arms/legs/feet, Female Ranger body/arms/feet/legs/head-hood/pauldrons) — CC0, quaternius.com
   - Split glTF parts converted to GLB. Original texture files (T_Peasant_*.png, T_Ranger_*.png) were NOT supplied with this upload — neutral placeholder textures are embedded for now; send the real PNGs and they will be swapped in.
   - All five parts share one 65-joint skeleton and are built to combine into a single character.
 - **Mixamo — x-bot** (test rig character) — mixamo.com
