@@ -8,7 +8,7 @@ const CheckerPanel = lazy(() =>
 
 export const Route = createFileRoute("/assets")({
   validateSearch: (search: Record<string, unknown>) => ({
-    dev: search.dev === "1",
+    dev: search.dev === "1" || search.dev === true,
   }),
   head: () => ({
     meta: [
