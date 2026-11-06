@@ -1,0 +1,41 @@
+name: Unpack model zips
+on:
+  push:
+    paths:
+      - "model-uploads/*.zip"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack zips
+        run: |
+          set -e
+          shopt -s nullglob
+          for z in model-uploads/*.zip; do
+            lower=$(echo "$z" | tr '[:upper:]' '[:lower:]')
+            case "$lower" in
+              *village*|*building*) dest=public/models/buildings ;;
+              *character*)          dest=public/models/characters ;;
+              *animation*)          dest=public/models/animations ;;
+              *prop*)               dest=public/models/props ;;
+              *) echo "Skipping $z"; continue ;;
+            esac
+            mkdir -p "$dest"
+            unzip -o -q "$z" -d "$dest"
+            git rm -q -f "$z"
+          done
+      - name: Commit
+        run: |
+          git config user.name "model-unpacker"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Unpack uploaded model zips"
+            git push
+          fi
