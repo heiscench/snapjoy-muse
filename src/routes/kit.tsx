@@ -4,7 +4,8 @@ import { Bounds, OrbitControls, useGLTF } from "@react-three/drei";
 import { Component, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { MODELS, type ModelCategory } from "@/game/assets/manifest";
+import type { ModelCategory } from "@/game/assets/manifest";
+import { ALL_MODELS } from "@/game/assets/manifestExtra";
 
 export const Route = createFileRoute("/kit")({
   head: () => ({ meta: [{ title: "Model kit viewer" }] }),
@@ -70,7 +71,7 @@ function Viewer() {
   const [info, setInfo] = useState<Info | null>(null);
 
   const list = useMemo(
-    () => MODELS.filter((m) => m.category === cat && m.format === "glb" && m.id.includes(q.trim().toLowerCase())),
+    () => ALL_MODELS.filter((m) => m.category === cat && m.format === "glb" && m.id.includes(q.trim().toLowerCase())),
     [cat, q],
   );
   const cur = list.length ? list[Math.min(idx, list.length - 1)] : undefined;
