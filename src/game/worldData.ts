@@ -1,6 +1,7 @@
 // Shared world layout: districts, building AABBs used for rendering + collision.
 
 import { makeCottages, type Cottage } from "./medieval/houseKit";
+import { SQUARE_BLOCK, computePropColliders, type Solid } from "./medieval/colliders";
 
 export type BuildingType =
   | "tower"
@@ -221,7 +222,10 @@ export const BUILDINGS: BuildingBox[] = (() => {
         // The Kings' district is a medieval village. The shared random sequence is still advanced
         // exactly as before, so every other district keeps its old layout.
         const old = buildingForDistrict(d, r);
-        if (old.type === "plaza") {
+        if (gx === SQUARE_BLOCK.gx && gz === SQUARE_BLOCK.gz) {
+          // The town square (drawn by medieval/TownSquare). A flat marker keeps random props out of it.
+          list.push({ x: cx, z: cz, w: 44, d: 44, h: 1, type: "plaza", district: d });
+        } else if (old.type === "plaza") {
           list.push({ x: cx, z: cz, w: old.w, d: old.depth, h: old.h, type: "plaza", district: d });
         } else {
           for (const c of makeCottages(gx, gz, cx, cz)) {
@@ -276,6 +280,19 @@ export const BUILDINGS: BuildingBox[] = (() => {
   }
   return list;
 })();
+
+/** Village props you cannot walk through: wells, tree trunks, market stalls, the fountain. */
+export const PROP_COLLIDERS: Solid[] = computePropColliders(BUILDINGS, BLOCK_SIZE);
+
+const SOLIDS: { x: number; z: number; w: number; d: number; h: number }[] = [
+  ...BUILDINGS.filter((b) => b.type !== "crane" && b.type !== "plaza"),
+  ...PROP_COLLIDERS,
+];
+// Things you can stand on top of: every building, plus low props (stalls, fountain, wells) but not trees.
+const ROOFS: { x: number; z: number; w: number; d: number; h: number }[] = [
+  ...SOLIDS.filter((b) => !PROP_COLLIDERS.includes(b as Solid)),
+  ...PROP_COLLIDERS.filter((p) => p.h <= 2.6),
+];
 
 export const HOSPITALS: { x: number; z: number; district: District }[] = (
   Object.keys(HOSPITAL_BLOCKS) as District[]
@@ -388,8 +405,7 @@ function resolveAgainstBuildings(
 ): { x: number; z: number } {
   let x = nextX;
   let z = nextZ;
-  for (const b of BUILDINGS) {
-    if (b.type === "crane" || b.type === "plaza") continue;
+  for (const b of SOLIDS) {
     if (y >= b.h - ROOF_CLEARANCE) continue;
 
     const minX = b.x - b.w / 2 - radius;
@@ -457,8 +473,7 @@ export function resolveHeliCollision(
 // building, with no valid direction to resolve back out to.
 export function rooftopHeightAt(x: number, z: number): number {
   let best = 0;
-  for (const b of BUILDINGS) {
-    if (b.type === "crane" || b.type === "plaza") continue;
+  for (const b of ROOFS) {
     if (x > b.x - b.w / 2 && x < b.x + b.w / 2 && z > b.z - b.d / 2 && z < b.z + b.d / 2) {
       if (b.h > best) best = b.h;
     }
