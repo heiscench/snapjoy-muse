@@ -12,7 +12,8 @@ export type Theme = {
 };
 
 export const THEMES: Theme[] = [
-  { id: 0, name: "Kings", stone: "#f0dca8", dark: "#4a3f28", trim: "#f2c75c", glow: "#ffd978", cloth: "#b8862b", ground: "#a8946a" },
+  // The Kings: a sunlit golden-green meadow (was bare tan).
+  { id: 0, name: "Kings", stone: "#f0dca8", dark: "#4a3f28", trim: "#f2c75c", glow: "#ffd978", cloth: "#b8862b", ground: "#9ca95e" },
   { id: 1, name: "Warriors", stone: "#e8b2b8", dark: "#4a2a30", trim: "#ff6b7d", glow: "#ff8a96", cloth: "#a8334a", ground: "#a8707a" },
   { id: 2, name: "Outcasts", stone: "#cfe2a2", dark: "#33401f", trim: "#c4f04a", glow: "#d9ff7a", cloth: "#6f9a2a", ground: "#8aa464" },
   { id: 3, name: "Monsters", stone: "#cdbcf0", dark: "#2e2448", trim: "#b98cff", glow: "#cdb0ff", cloth: "#6a3fb0", ground: "#8672b0" },

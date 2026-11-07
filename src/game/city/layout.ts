@@ -1,8 +1,9 @@
 import { BLOCK_SIZE, GRID, districtFor } from "../worldData";
 import { themeOf } from "./palette";
 
-export const ROAD_W = 14;
-export const SIDEWALK_W = 3;
+// Village lanes: narrow, with a thin verge, instead of 14 m wide paved avenues.
+export const ROAD_W = 8;
+export const SIDEWALK_W = 1.5;
 export const ROAD_LEN = (GRID * 2 + 2) * BLOCK_SIZE;
 
 /** Road centre lines sit BETWEEN blocks, so every building stands inside its own block. */

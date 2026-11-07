@@ -75,7 +75,7 @@ export function Lamps() {
   );
 }
 
-// ---- A paved plot under every building ----------------------------------
+// ---- A plot under every building ----------------------------------------
 const LOT_BUILDINGS = BUILDINGS.filter((b) => b.type !== "plaza" && b.type !== "crane");
 
 export function Lots() {
@@ -87,10 +87,13 @@ export function Lots() {
     LOT_BUILDINGS.forEach((b, i) => {
       dummy.position.set(b.x, 0.03, b.z);
       dummy.rotation.set(-Math.PI / 2, 0, 0);
-      dummy.scale.set(b.w + 8, b.d + 8, 1);
+      // Village cottages get a smaller patch of trampled earth around them.
+      const pad = b.cottage ? 4 : 8;
+      dummy.scale.set(b.w + pad, b.d + pad, 1);
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
-      col.set(themeOf(b.district).ground).multiplyScalar(0.5);
+      if (b.cottage) col.set("#8a7552");
+      else col.set(themeOf(b.district).ground).multiplyScalar(0.5);
       m.setColorAt(i, col);
     });
     m.instanceMatrix.needsUpdate = true;
@@ -110,16 +113,17 @@ const PILLARS: Prop[] = [];
 const BOULDERS: Prop[] = [];
 
 (() => {
-  const byBlock = new Map<string, { x: number; z: number; w: number; d: number }[]>();
+  const byBlock = new Map<string, { x: number; z: number; w: number; d: number; village: boolean }[]>();
   for (const b of BUILDINGS) {
     const key = `${Math.round(b.x / BLOCK_SIZE)},${Math.round(b.z / BLOCK_SIZE)}`;
     const arr = byBlock.get(key) ?? [];
-    arr.push({ x: b.x, z: b.z, w: b.w, d: b.d });
+    arr.push({ x: b.x, z: b.z, w: b.w, d: b.d, village: !!b.cottage });
     byBlock.set(key, arr);
   }
   for (let gx = -GRID; gx <= GRID; gx++) {
     for (let gz = -GRID; gz <= GRID; gz++) {
       const blds = byBlock.get(`${gx},${gz}`) ?? [];
+      const village = blds.some((b) => b.village);
       for (let i = 0; i < 4; i++) {
         const x = gx * BLOCK_SIZE + (hash01(gx, gz, 101 + i * 5) - 0.5) * 44;
         const z = gz * BLOCK_SIZE + (hash01(gx, gz, 102 + i * 5) - 0.5) * 44;
@@ -131,7 +135,8 @@ const BOULDERS: Prop[] = [];
           k: kingdomAtBlock(gx, gz),
           rot: hash01(gx, gz, 105 + i * 5) * 3,
         };
-        (hash01(gx, gz, 106 + i * 5) > 0.55 ? BOULDERS : PILLARS).push(prop);
+        // No modern-looking pillar posts in the village, only rocks.
+        (village || hash01(gx, gz, 106 + i * 5) > 0.55 ? BOULDERS : PILLARS).push(prop);
       }
     }
   }
@@ -160,7 +165,9 @@ export function Props() {
       dummy.scale.set(s.r * 1.6, s.r, s.r * 1.4);
       dummy.updateMatrix();
       b.setMatrixAt(i, dummy.matrix);
-      col.set(THEMES[s.k].stone).multiplyScalar(0.6);
+      // Village rocks are plain grey; the other kingdoms keep their tinted stone.
+      if (s.k === 0) col.set("#8c8578");
+      else col.set(THEMES[s.k].stone).multiplyScalar(0.6);
       b.setColorAt(i, col);
     });
     p.instanceMatrix.needsUpdate = true;

@@ -29,7 +29,8 @@ export function Roads() {
       roughness: 0.95,
     });
   }, []);
-  const sideMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7d6f5a", roughness: 1 }), []);
+  // Trampled earth verge along the lanes.
+  const sideMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7d6b4a", roughness: 1 }), []);
 
   useLayoutEffect(() => {
     const p = plates.current;
@@ -47,11 +48,14 @@ export function Roads() {
         dummy.updateMatrix();
         p.setMatrixAt(n, dummy.matrix);
 
+        // The glowing rune circles stay in the other kingdoms; the Kings' village has none.
+        const k = kingdomAtBlock(i - GRID - 1, j - GRID - 1);
+        const ringScale = k === 0 ? 0.0001 : ROAD_W / 14;
         dummy.position.set(x, 0.1, z);
-        dummy.scale.set(1, 1, 1);
+        dummy.scale.set(ringScale, ringScale, 1);
         dummy.updateMatrix();
         r.setMatrixAt(n, dummy.matrix);
-        col.set(THEMES[kingdomAtBlock(i - GRID - 1, j - GRID - 1)].glow);
+        col.set(THEMES[k].glow);
         r.setColorAt(n, col);
         n++;
       }

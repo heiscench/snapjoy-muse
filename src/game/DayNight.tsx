@@ -40,13 +40,16 @@ function pal(v: [string, string, string, string, string, string]): Pal {
   };
 }
 
-// Pale lavender used where no kingdom holds the land.
-const NEUTRAL = pal(["#cfc9dc", "#d9d4e3", "#8f84ad", "#a095ba", "#fff4dc", "#e0ccff"]);
+// Land nobody holds: a natural pale-blue sky with a soft warm haze (was lavender).
+const NEUTRAL_VALUES: [string, string, string, string, string, string] = [
+  "#b3d3e8", "#e2e6e0", "#8d86a8", "#a9a0b8", "#fff4dc", "#ffcf9a",
+];
+const NEUTRAL = pal(NEUTRAL_VALUES);
 
 // Each kingdom's sky: daySky, dayFog, duskSky, duskFog, daySun, duskSun.
 const FACTION: Pal[] = [
-  // 0 The Kings: gold
-  pal(["#f3dc9c", "#f1e0b2", "#b8905a", "#c9a56e", "#fff1c4", "#ffc978"]),
+  // 0 The Kings: blue summer sky, warm golden haze, amber sunsets
+  pal(["#a7cfe9", "#e8e0c4", "#c98f5e", "#d9b07c", "#fff1c4", "#ffb866"]),
   // 1 The Warriors: crimson
   pal(["#f0a6ab", "#f2bcc0", "#a34758", "#b8606f", "#ffd9d6", "#ff8a8f"]),
   // 2 The Outcasts: acid green
@@ -62,8 +65,8 @@ export function DayNight() {
   const { scene } = useThree();
 
   const state = useMemo(() => {
-    const cur = pal(["#cfc9dc", "#d9d4e3", "#8f84ad", "#a095ba", "#fff4dc", "#e0ccff"]);
-    const tgt = pal(["#cfc9dc", "#d9d4e3", "#8f84ad", "#a095ba", "#fff4dc", "#e0ccff"]);
+    const cur = pal(NEUTRAL_VALUES);
+    const tgt = pal(NEUTRAL_VALUES);
     return { cur, tgt, sky: new THREE.Color(), fog: new THREE.Color(), sun: new THREE.Color() };
   }, []);
 
