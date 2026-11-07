@@ -6,9 +6,10 @@ import { kingdomAtBlock, ROAD_LINES, ROAD_W } from "./layout";
 
 const dummy = new THREE.Object3D();
 const col = new THREE.Color();
+const tint = new THREE.Color();
 const PLANE = new THREE.PlaneGeometry(1, 1);
 
-// ---- Lamps along every road, staggered on both sides --------------------
+// ---- Lantern posts along every road, staggered on both sides ------------
 type LampSpot = { x: number; z: number; k: number };
 const LAMPS: LampSpot[] = (() => {
   const out: LampSpot[] = [];
@@ -29,6 +30,8 @@ const LAMPS: LampSpot[] = (() => {
   return out;
 })();
 
+const POST_H = 3.6;
+
 export function Lamps() {
   const posts = useRef<THREE.InstancedMesh>(null!);
   const orbs = useRef<THREE.InstancedMesh>(null!);
@@ -38,16 +41,17 @@ export function Lamps() {
     const o = orbs.current;
     if (!p || !o) return;
     LAMPS.forEach((l, i) => {
-      dummy.position.set(l.x, 2.5, l.z);
+      dummy.position.set(l.x, POST_H / 2, l.z);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1, 5, 1);
+      dummy.scale.set(1, POST_H, 1);
       dummy.updateMatrix();
       p.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(l.x, 5.3, l.z);
+      dummy.position.set(l.x, POST_H + 0.3, l.z);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
       o.setMatrixAt(i, dummy.matrix);
-      col.set(THEMES[l.k].glow);
+      // Warm candle light, with a hint of the kingdom's colour.
+      col.set("#ffb457").lerp(tint.set(THEMES[l.k].glow), 0.22);
       o.setColorAt(i, col);
     });
     p.instanceMatrix.needsUpdate = true;
@@ -57,12 +61,14 @@ export function Lamps() {
 
   return (
     <group>
+      {/* Wooden posts */}
       <instancedMesh ref={posts} args={[undefined, undefined, LAMPS.length]} frustumCulled={false}>
-        <cylinderGeometry args={[0.1, 0.16, 1, 6]} />
-        <meshStandardMaterial color="#2a2530" roughness={0.9} />
+        <cylinderGeometry args={[0.13, 0.19, 1, 6]} />
+        <meshStandardMaterial color="#5a3f26" roughness={1} />
       </instancedMesh>
+      {/* Lanterns */}
       <instancedMesh ref={orbs} args={[undefined, undefined, LAMPS.length]} frustumCulled={false}>
-        <octahedronGeometry args={[0.34, 0]} />
+        <boxGeometry args={[0.42, 0.56, 0.42]} />
         <meshBasicMaterial color="#ffffff" toneMapped={false} />
       </instancedMesh>
     </group>

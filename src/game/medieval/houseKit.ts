@@ -30,11 +30,13 @@ export const STOREY_H = 3.12;
 const FACE_SHIFT = 0.1;
 /** If the plaster faces INTO the house, change this to Math.PI. */
 export const FACE_OFFSET = 0;
+/** Door leaves, chimneys and crates. Set to false to switch all three off. */
+const DECORATIONS = true;
 
-// Roof height above the eaves, and how far the roof model reaches below its origin.
-const ROOF_RISE: Record<number, number> = { 4: 3.73, 6: 4.89, 8: 6.0 };
+// Total roof height above the eaves (model height), and how far the roof model reaches below its origin.
+const ROOF_RISE: Record<number, number> = { 4: 4.25, 6: 5.67, 8: 6.78 };
 const ROOF_Y0: Record<number, number> = { 4: 0.52, 6: 0.78, 8: 0.78 };
-export const roofRise = (W: number) => ROOF_RISE[W] ?? 4.5;
+export const roofRise = (W: number) => ROOF_RISE[W] ?? 5;
 
 // Footprints that have a matching pre-built roof.
 const DESIGNS: [number, number][] = [[4, 4], [4, 6], [4, 8], [6, 6], [6, 8], [6, 10], [8, 8], [8, 10]];
@@ -54,6 +56,9 @@ const BRICK = {
   windowB: "village-wall-unevenbrick-window-thin-round",
 };
 const CORNER = "village-corner-exterior-wood";
+const DOOR_LEAF = "village-door-1-flat";
+const CHIMNEY = "village-prop-chimney";
+const CRATE = "village-prop-crate";
 
 /** Every model id the cottages need (loaded once, then baked into merged meshes). */
 export const KIT_IDS: string[] = Array.from(
@@ -61,6 +66,9 @@ export const KIT_IDS: string[] = Array.from(
     ...Object.values(PLASTER),
     ...Object.values(BRICK),
     CORNER,
+    DOOR_LEAF,
+    CHIMNEY,
+    CRATE,
     ...DESIGNS.map(([w, d]) => `village-roof-roundtiles-${w}x${d}`),
   ]),
 );
@@ -100,6 +108,12 @@ export function makeCottages(gx: number, gz: number, cx: number, cz: number): Co
   return out;
 }
 
+/** A stable 0..1 value per cottage (no extra random numbers, so the village layout does not change). */
+function decoValue(c: Cottage) {
+  const n = c.W * 7 + c.D * 13 + c.seed * 31 + (c.brick ? 5 : 0) + Math.round((c.rot * 2) / Math.PI) * 17 + c.storeys * 3;
+  return (n % 10) / 10;
+}
+
 /** The pieces of one cottage, around its own centre, before the house rotation is applied. */
 export function buildHouseLocal(c: Cottage): Piece[] {
   const set = c.brick ? BRICK : PLASTER;
@@ -108,12 +122,13 @@ export function buildHouseLocal(c: Cottage): Piece[] {
   const nz = c.D / 2;
   const wall = (id: string, x: number, y: number, z: number, rotY: number) =>
     out.push({ id, x, y, z, rotY: rotY + FACE_OFFSET, sx: 1, sy: 1, sz: 1 });
+  const mid = Math.floor((nx - 1) / 2);
+  const doorX = -c.W / 2 + 1 + 2 * mid;
 
   for (let s = 0; s < c.storeys; s++) {
     const y = s * STOREY_H;
     const ground = s === 0;
     const plain = ground ? set.base : set.straight;
-    const mid = Math.floor((nx - 1) / 2);
 
     // Front (+z, outward = +z) and back (-z).
     for (let i = 0; i < nx; i++) {
@@ -137,13 +152,29 @@ export function buildHouseLocal(c: Cottage): Piece[] {
     }
   }
 
+  const wallTop = c.storeys * STOREY_H;
   out.push({
     id: `village-roof-roundtiles-${c.W}x${c.D}`,
     x: 0,
-    y: c.storeys * STOREY_H + (ROOF_Y0[c.W] ?? 0.6),
+    y: wallTop + (ROOF_Y0[c.W] ?? 0.6),
     z: 0,
     rotY: 0,
     sx: 1, sy: 1, sz: 1,
   });
+
+  if (DECORATIONS) {
+    const deco = decoValue(c);
+    // The door leaf hangs on its left edge; the model is centred 0.51 m to the right of its origin.
+    out.push({ id: DOOR_LEAF, x: doorX - 0.51, y: 0, z: c.D / 2 - FACE_SHIFT - 0.11, rotY: FACE_OFFSET, sx: 1, sy: 1, sz: 1 });
+    // A chimney through the ridge on most cottages.
+    if (deco >= 0.3) {
+      const zc = (deco > 0.65 ? -1 : 1) * (c.D / 4);
+      out.push({ id: CHIMNEY, x: 0, y: wallTop + roofRise(c.W) - 1.5, z: zc, rotY: 0, sx: 1, sy: 1, sz: 1 });
+    }
+    // A crate by the front corner on some.
+    if (deco < 0.5) {
+      out.push({ id: CRATE, x: c.W / 2 - 0.2, y: 0, z: c.D / 2 + 0.7, rotY: deco * 3, sx: 1, sy: 1, sz: 1 });
+    }
+  }
   return out;
 }

@@ -29,7 +29,7 @@ export function Roads() {
       roughness: 0.95,
     });
   }, []);
-  const sideMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#6d6678", roughness: 1 }), []);
+  const sideMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7d6f5a", roughness: 1 }), []);
 
   useLayoutEffect(() => {
     const p = plates.current;
@@ -80,7 +80,7 @@ export function Roads() {
         </group>
       ))}
       <instancedMesh ref={plates} args={[PLANE, undefined, COUNT]} frustumCulled={false}>
-        <meshStandardMaterial color="#3d3846" roughness={0.95} />
+        <meshStandardMaterial color="#54463a" roughness={0.95} />
       </instancedMesh>
       <instancedMesh ref={rings} args={[RING, undefined, COUNT]} frustumCulled={false}>
         <meshBasicMaterial color="#ffffff" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} />
