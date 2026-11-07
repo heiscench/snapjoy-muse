@@ -5,12 +5,15 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { anyModelUrl } from "../assets/manifestExtra";
 import { BUILDINGS, BLOCK_SIZE, type BuildingBox } from "../worldData";
-import { KIT_IDS, STOREY_H, buildHouseLocal, roofRise, type Piece } from "./houseKit";
+import { KIT_IDS, STOREY_H, buildHouseLocal, roofRise, yardLayout, type Piece } from "./houseKit";
+import { Yardwork } from "./Yardwork";
 
 // Village cottages of the Kings' district.
 //  - Far away: every cottage is a simple coloured box + pyramid roof, all merged into ONE mesh.
-//  - Close (a block within NEAR metres of the camera): the real kit pieces, baked into a few
-//    merged meshes (one per texture) and kept in a cache so walking back costs nothing.
+//  - Close (a block within NEAR metres of the camera): the real kit pieces (cottages, fences, trees,
+//    barrels...), baked into a few merged meshes (one per texture) and kept in a cache so walking
+//    back costs nothing.
+//  - Wells and hay bales are always shown (see Yardwork).
 
 const NEAR = 120;
 
@@ -88,6 +91,7 @@ function Silhouettes({ houses }: { houses: BuildingBox[] }) {
 type BakedMesh = { geometry: THREE.BufferGeometry; material: THREE.Material };
 const matCache = new Map<string, THREE.Material>();
 const blockCache = new Map<string, BakedMesh[]>();
+const measureCache = new Map<string, { h: number; len: number; minY: number }>();
 const uvTmp = new THREE.Vector2();
 
 /** Pieces that use the same texture share one mesh. */
@@ -123,8 +127,21 @@ function sharedMaterial(key: string, mat: THREE.Material): THREE.Material {
   return m;
 }
 
+/** Real size of a model (used to scale pieces from kits whose size is unknown). */
+function measure(id: string, scene: THREE.Object3D) {
+  let m = measureCache.get(id);
+  if (!m) {
+    scene.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = box.getSize(new THREE.Vector3());
+    m = { h: size.y || 1, len: Math.max(size.x, size.z) || 1, minY: box.min.y };
+    measureCache.set(id, m);
+  }
+  return m;
+}
+
 function bakeBlock(block: Block, scenes: Map<string, THREE.Object3D>): BakedMesh[] {
-  // World placements of every piece of every cottage in this block.
+  // World placements of every piece of every cottage in this block, plus the yard (trees, rocks).
   const placements: Piece[] = [];
   for (const h of block.houses) {
     const c = h.cottage;
@@ -140,6 +157,9 @@ function bakeBlock(block: Block, scenes: Map<string, THREE.Object3D>): BakedMesh
       });
     }
   }
+  const gx = Math.round(block.cx / BLOCK_SIZE);
+  const gz = Math.round(block.cz / BLOCK_SIZE);
+  placements.push(...yardLayout(gx, gz, block.cx, block.cz, block.houses).trees);
 
   const buckets = new Map<string, { geoms: THREE.BufferGeometry[]; material: THREE.Material }>();
   const placeM = new THREE.Matrix4();
@@ -149,8 +169,16 @@ function bakeBlock(block: Block, scenes: Map<string, THREE.Object3D>): BakedMesh
   for (const p of placements) {
     const scene = scenes.get(p.id);
     if (!scene) continue;
+
+    let sx = p.sx, sy = p.sy, sz = p.sz, py = p.y;
+    if (p.fit) {
+      const m = measure(p.id, scene);
+      const k = p.fit.size / (p.fit.axis === "h" ? m.h : m.len);
+      sx = sy = sz = k;
+      py = p.y - m.minY * k; // stand on the ground
+    }
     q.setFromAxisAngle(axisY, p.rotY);
-    placeM.compose(new THREE.Vector3(p.x, p.y, p.z), q, new THREE.Vector3(p.sx, p.sy, p.sz));
+    placeM.compose(new THREE.Vector3(p.x, py, p.z), q, new THREE.Vector3(sx, sy, sz));
     scene.updateMatrixWorld(true);
 
     scene.traverse((obj) => {
@@ -280,6 +308,7 @@ export function VillageBlocks() {
   return (
     <>
       <Silhouettes houses={houses} />
+      <Yardwork blocks={blocks} />
       <Boundary>
         <Suspense fallback={null}>
           <NearBlocks blocks={blocks} />

@@ -18,11 +18,15 @@ export type Cottage = {
 
 export type CottageBox = { x: number; z: number; w: number; d: number; h: number; cottage: Cottage };
 
+/** Pieces from other kits have unknown sizes, so they are measured in the game and scaled to this target. */
+export type Fit = { axis: "h" | "len"; size: number };
+
 export type Piece = {
   id: string;
   x: number; y: number; z: number;
   rotY: number;
   sx: number; sy: number; sz: number;
+  fit?: Fit;
 };
 
 export const STOREY_H = 3.12;
@@ -30,8 +34,10 @@ export const STOREY_H = 3.12;
 const FACE_SHIFT = 0.1;
 /** If the plaster faces INTO the house, change this to Math.PI. */
 export const FACE_OFFSET = 0;
-/** Door leaves, chimneys and crates. Set to false to switch all three off. */
+/** Door leaves, chimneys, crates, barrels and fences. Set to false to switch them all off. */
 const DECORATIONS = true;
+/** Trees and rocks between the cottages. */
+const TREES = true;
 
 // Total roof height above the eaves (model height), and how far the roof model reaches below its origin.
 const ROOF_RISE: Record<number, number> = { 4: 4.25, 6: 5.67, 8: 6.78 };
@@ -59,8 +65,20 @@ const CORNER = "village-corner-exterior-wood";
 const DOOR_LEAF = "village-door-1-flat";
 const CHIMNEY = "village-prop-chimney";
 const CRATE = "village-prop-crate";
+const FENCE = "village-prop-woodenfence-single"; // 2.06 m long, along x
+const BARREL = "detail-barrel";
 
-/** Every model id the cottages need (loaded once, then baked into merged meshes). */
+// Target sizes (metres) for pieces whose real size is not known.
+const FIT: Record<string, Fit> = {
+  "tree-large": { axis: "h", size: 7.5 },
+  "tree-small": { axis: "h", size: 4.8 },
+  "tree-shrub": { axis: "h", size: 1.4 },
+  "rocks-small": { axis: "h", size: 0.7 },
+  "detail-barrel": { axis: "h", size: 1.05 },
+};
+const TREE_IDS = ["tree-large", "tree-small", "tree-shrub", "rocks-small"];
+
+/** Every model id the cottages and their yards need (loaded once, then baked into merged meshes). */
 export const KIT_IDS: string[] = Array.from(
   new Set([
     ...Object.values(PLASTER),
@@ -69,6 +87,9 @@ export const KIT_IDS: string[] = Array.from(
     DOOR_LEAF,
     CHIMNEY,
     CRATE,
+    FENCE,
+    BARREL,
+    ...TREE_IDS,
     ...DESIGNS.map(([w, d]) => `village-roof-roundtiles-${w}x${d}`),
   ]),
 );
@@ -112,6 +133,54 @@ export function makeCottages(gx: number, gz: number, cx: number, cz: number): Co
 function decoValue(c: Cottage) {
   const n = c.W * 7 + c.D * 13 + c.seed * 31 + (c.brick ? 5 : 0) + Math.round((c.rot * 2) / Math.PI) * 17 + c.storeys * 3;
   return (n % 10) / 10;
+}
+
+/** Hay bales beside some cottages, around the cottage centre before rotation (drawn by Yardwork). */
+export function hayFor(c: Cottage): { x: number; z: number; rot: number }[] {
+  const deco = decoValue(c);
+  if (deco >= 0.6) {
+    return [
+      { x: -c.W / 2 - 1.7, z: -c.D / 4, rot: deco * 5 },
+      { x: -c.W / 2 - 1.7, z: -c.D / 4 + 1.15, rot: deco * 3 },
+    ];
+  }
+  if (deco < 0.2) return [{ x: c.W / 2 + 1.7, z: c.D / 4, rot: deco * 7 }];
+  return [];
+}
+
+/**
+ * Block-level yard: a well at the centre of some blocks and trees / shrubs / rocks on free ground.
+ * `rects` are the cottages of the block (their x, z and rotated width / depth).
+ */
+export function yardLayout(
+  gx: number,
+  gz: number,
+  cx: number,
+  cz: number,
+  rects: { x: number; z: number; w: number; d: number }[],
+): { wells: { x: number; z: number }[]; trees: Piece[] } {
+  const r = rng((gx + 30) * 2003 + (gz + 30) * 7919 + 555);
+  r(); r();
+  const free = (x: number, z: number, pad: number) =>
+    !rects.some((b) => Math.abs(x - b.x) < b.w / 2 + pad && Math.abs(z - b.z) < b.d / 2 + pad);
+
+  const wells: { x: number; z: number }[] = [];
+  if (r() < 0.6 && free(cx, cz, 3.4)) wells.push({ x: cx, z: cz });
+
+  const trees: Piece[] = [];
+  if (TREES) {
+    for (let k = 0; k < 16 && trees.length < 6; k++) {
+      const x = cx + (r() - 0.5) * 40;
+      const z = cz + (r() - 0.5) * 40;
+      const kind = r();
+      const rot = r() * Math.PI * 2;
+      if (!free(x, z, 3.6)) continue;
+      if (wells.length && Math.hypot(x - cx, z - cz) < 4.5) continue;
+      const id = kind < 0.35 ? "tree-large" : kind < 0.65 ? "tree-small" : kind < 0.85 ? "tree-shrub" : "rocks-small";
+      trees.push({ id, x, y: 0, z, rotY: rot, sx: 1, sy: 1, sz: 1, fit: FIT[id] });
+    }
+  }
+  return { wells, trees };
 }
 
 /** The pieces of one cottage, around its own centre, before the house rotation is applied. */
@@ -174,6 +243,17 @@ export function buildHouseLocal(c: Cottage): Piece[] {
     // A crate by the front corner on some.
     if (deco < 0.5) {
       out.push({ id: CRATE, x: c.W / 2 - 0.2, y: 0, z: c.D / 2 + 0.7, rotY: deco * 3, sx: 1, sy: 1, sz: 1 });
+    }
+    // A barrel by the other front corner.
+    if (deco >= 0.3 && deco < 0.8) {
+      out.push({ id: BARREL, x: -c.W / 2 + 0.3, y: 0, z: c.D / 2 + 0.7, rotY: 0, sx: 1, sy: 1, sz: 1, fit: FIT[BARREL] });
+    }
+    // A picket fence across the front yard, with a gap at the door.
+    if (deco >= 0.5 && deco < 0.9) {
+      for (let x = -c.W / 2 - 1; x <= c.W / 2 + 1.01; x += 2) {
+        if (Math.abs(x - doorX) < 1.2) continue;
+        out.push({ id: FENCE, x, y: 0, z: c.D / 2 + 2.6, rotY: 0, sx: 1, sy: 1, sz: 1 });
+      }
     }
   }
   return out;
