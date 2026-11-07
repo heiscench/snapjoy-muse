@@ -1,5 +1,7 @@
 // Shared world layout: districts, building AABBs used for rendering + collision.
 
+import { makeCottages, type Cottage } from "./medieval/houseKit";
+
 export type BuildingType =
   | "tower"
   | "warehouse"
@@ -74,6 +76,8 @@ export type BuildingBox = {
   h: number;
   type: BuildingType;
   district: District;
+  /** Set for the medieval village cottages of the Kings' district (drawn by medieval/VillageBlocks). */
+  cottage?: Cottage;
 };
 
 function rng(seed: number) {
@@ -210,6 +214,20 @@ export const BUILDINGS: BuildingBox[] = (() => {
 
       if (isHospitalBlock(gx, gz)) {
         list.push({ x: cx, z: cz, w: 26, d: 20, h: 16, type: "hospital", district: d });
+        continue;
+      }
+
+      if (d === "downtown") {
+        // The Kings' district is a medieval village. The shared random sequence is still advanced
+        // exactly as before, so every other district keeps its old layout.
+        const old = buildingForDistrict(d, r);
+        if (old.type === "plaza") {
+          list.push({ x: cx, z: cz, w: old.w, d: old.depth, h: old.h, type: "plaza", district: d });
+        } else {
+          for (const c of makeCottages(gx, gz, cx, cz)) {
+            list.push({ x: c.x, z: c.z, w: c.w, d: c.d, h: c.h, type: "house", district: d, cottage: c.cottage });
+          }
+        }
         continue;
       }
 

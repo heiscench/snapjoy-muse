@@ -18,6 +18,7 @@ import { MergeStatic } from "./city/MergeStatic";
 import { BOX } from "./city/parts";
 import { solidMaterial } from "./city/textures";
 import { KingsCastle } from "./medieval/KingsCastle";
+import { VillageBlocks } from "./medieval/VillageBlocks";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -131,6 +132,9 @@ function renderBuilding(b: BuildingBox, i: number) {
 export function City() {
   const rendered = useMemo(() => {
     return BUILDINGS.map((b, i) => {
+      // The Kings' village cottages are drawn together by <VillageBlocks /> below.
+      if (b.cottage) return null;
+
       // Flat decorations (plazas) are cheap and have no height: no level of detail needed.
       if (b.type === "plaza") return renderBuilding(b, i);
 
@@ -183,6 +187,7 @@ export function City() {
       </mesh>
 
       {rendered}
+      <VillageBlocks />
 
       {DISTRICT_LABELS.map((d, i) => (
         <Text
