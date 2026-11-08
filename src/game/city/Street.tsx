@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
 import { BLOCK_SIZE, BUILDINGS, GRID } from "../worldData";
+import { groundHeight } from "../terrain";
 import { THEMES, hash01, themeOf } from "./palette";
 import { kingdomAtBlock, ROAD_LINES, ROAD_W } from "./layout";
 
@@ -41,12 +42,13 @@ export function Lamps() {
     const o = orbs.current;
     if (!p || !o) return;
     LAMPS.forEach((l, i) => {
-      dummy.position.set(l.x, POST_H / 2, l.z);
+      const gy = groundHeight(l.x, l.z);
+      dummy.position.set(l.x, gy + POST_H / 2, l.z);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.set(1, POST_H, 1);
       dummy.updateMatrix();
       p.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(l.x, POST_H + 0.3, l.z);
+      dummy.position.set(l.x, gy + POST_H + 0.3, l.z);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
       o.setMatrixAt(i, dummy.matrix);
@@ -85,7 +87,7 @@ export function Lots() {
     const m = ref.current;
     if (!m) return;
     LOT_BUILDINGS.forEach((b, i) => {
-      dummy.position.set(b.x, 0.03, b.z);
+      dummy.position.set(b.x, (b.y0 ?? 0) + 0.04, b.z);
       dummy.rotation.set(-Math.PI / 2, 0, 0);
       // Village cottages get a smaller patch of trampled earth around them.
       const pad = b.cottage ? 4 : 8;
@@ -151,7 +153,7 @@ export function Props() {
     const b = boulders.current;
     if (!p || !b) return;
     PILLARS.forEach((s, i) => {
-      dummy.position.set(s.x, s.h / 2, s.z);
+      dummy.position.set(s.x, groundHeight(s.x, s.z) + s.h / 2, s.z);
       dummy.rotation.set(0, s.rot, (hash01(s.x, s.z, 7) - 0.5) * 0.25);
       dummy.scale.set(s.r, s.h, s.r);
       dummy.updateMatrix();
@@ -160,7 +162,7 @@ export function Props() {
       p.setColorAt(i, col);
     });
     BOULDERS.forEach((s, i) => {
-      dummy.position.set(s.x, s.r * 0.5, s.z);
+      dummy.position.set(s.x, groundHeight(s.x, s.z) + s.r * 0.5, s.z);
       dummy.rotation.set(0, s.rot, 0);
       dummy.scale.set(s.r * 1.6, s.r, s.r * 1.4);
       dummy.updateMatrix();

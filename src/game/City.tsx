@@ -1,17 +1,16 @@
-import { Detailed, Text } from "@react-three/drei";
-import { useLayoutEffect, useMemo, useRef } from "react";
-import * as THREE from "three";
+import { Text } from "@react-three/drei";
+import { Detailed } from "@react-three/drei";
+import { useMemo } from "react";
 import {
   BUILDINGS,
   BLOCK_SIZE,
   GRID,
   HARBOR_Z,
   DISTRICT_LABELS,
-  districtFor,
   type BuildingBox,
 } from "./worldData";
 import { themeOf } from "./city/palette";
-import { groundTexture } from "./fx/fxTextures";
+import { Terrain } from "./city/Terrain";
 import { Roads } from "./city/Roads";
 import { Lamps, Lots, Props } from "./city/Street";
 import { MergeStatic } from "./city/MergeStatic";
@@ -26,8 +25,6 @@ import {
 import {
   Brownstone, Casino, Hangar, Headquarters, Hospital, House, Pagoda, Plaza, Shanty,
 } from "./city/buildingsB";
-
-const GROUND_PLANE = new THREE.PlaneGeometry(1, 1);
 
 // Level of detail: the full building up close, one simple block at medium range, nothing beyond the fog.
 const LOD_BLOCK = 100;
@@ -63,46 +60,6 @@ function WithLod({ b, delay, children }: { b: BuildingBox; delay: number; childr
       </group>
       <group />
     </Detailed>
-  );
-}
-
-/** One instanced mesh tints every block of land in its kingdom's color. */
-function GroundTiles() {
-  const ref = useRef<THREE.InstancedMesh>(null!);
-  const tiles = useMemo(() => {
-    const list: { x: number; z: number; color: THREE.Color }[] = [];
-    for (let gx = -GRID; gx <= GRID; gx++) {
-      for (let gz = -GRID; gz <= GRID; gz++) {
-        list.push({
-          x: gx * BLOCK_SIZE,
-          z: gz * BLOCK_SIZE,
-          color: new THREE.Color(themeOf(districtFor(gx, gz)).ground),
-        });
-      }
-    }
-    return list;
-  }, []);
-
-  useLayoutEffect(() => {
-    const mesh = ref.current;
-    if (!mesh) return;
-    const dummy = new THREE.Object3D();
-    tiles.forEach((t, i) => {
-      dummy.position.set(t.x, 0.01, t.z);
-      dummy.rotation.set(-Math.PI / 2, 0, 0);
-      dummy.scale.set(BLOCK_SIZE, BLOCK_SIZE, 1);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, t.color);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [tiles]);
-
-  return (
-    <instancedMesh ref={ref} args={[GROUND_PLANE, undefined, tiles.length]} frustumCulled={false}>
-      <meshStandardMaterial color="#ffffff" roughness={1} map={groundTexture() ?? undefined} />
-    </instancedMesh>
   );
 }
 
@@ -172,12 +129,9 @@ export function City() {
 
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.015, 0]}>
-        <planeGeometry args={[groundExtent, groundExtent]} />
-        <meshStandardMaterial color="#8b8794" roughness={1} />
-      </mesh>
+      {/* The ground: rolling in the Kings' village, flat everywhere else. */}
+      <Terrain />
 
-      <GroundTiles />
       <Lots />
       <MergeStatic delayMs={150}>
         <Roads />
