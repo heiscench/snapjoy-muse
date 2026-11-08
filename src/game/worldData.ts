@@ -2,6 +2,7 @@
 
 import { makeCottages, type Cottage } from "./medieval/houseKit";
 import { SQUARE_BLOCK, computePropColliders, type Solid } from "./medieval/colliders";
+import { groundHeight } from "./terrain";
 
 export type BuildingType =
   | "tower"
@@ -79,6 +80,8 @@ export type BuildingBox = {
   district: District;
   /** Set for the medieval village cottages of the Kings' district (drawn by medieval/VillageBlocks). */
   cottage?: Cottage;
+  /** Height of the ground the building stands on (the village is hilly). Collision tops are y0 + h. */
+  y0?: number;
 };
 
 function rng(seed: number) {
@@ -229,7 +232,11 @@ export const BUILDINGS: BuildingBox[] = (() => {
           list.push({ x: cx, z: cz, w: old.w, d: old.depth, h: old.h, type: "plaza", district: d });
         } else {
           for (const c of makeCottages(gx, gz, cx, cz)) {
-            list.push({ x: c.x, z: c.z, w: c.w, d: c.d, h: c.h, type: "house", district: d, cottage: c.cottage });
+            list.push({
+              x: c.x, z: c.z, w: c.w, d: c.d, h: c.h,
+              type: "house", district: d, cottage: c.cottage,
+              y0: groundHeight(c.x, c.z),
+            });
           }
         }
         continue;
@@ -282,16 +289,17 @@ export const BUILDINGS: BuildingBox[] = (() => {
 })();
 
 /** Village props you cannot walk through: wells, tree trunks, market stalls, the fountain. */
-export const PROP_COLLIDERS: Solid[] = computePropColliders(BUILDINGS, BLOCK_SIZE);
+export const PROP_COLLIDERS: Solid[] = computePropColliders(BUILDINGS, BLOCK_SIZE, groundHeight);
 
-const SOLIDS: { x: number; z: number; w: number; d: number; h: number }[] = [
-  ...BUILDINGS.filter((b) => b.type !== "crane" && b.type !== "plaza"),
-  ...PROP_COLLIDERS,
-];
+// Collision tops are absolute heights (ground + building height), because the village is hilly.
+const BUILDING_SOLIDS: Solid[] = BUILDINGS
+  .filter((b) => b.type !== "crane" && b.type !== "plaza")
+  .map((b) => ({ x: b.x, z: b.z, w: b.w, d: b.d, h: b.h + (b.y0 ?? 0) }));
+const SOLIDS: Solid[] = [...BUILDING_SOLIDS, ...PROP_COLLIDERS];
 // Things you can stand on top of: every building, plus low props (stalls, fountain, wells) but not trees.
-const ROOFS: { x: number; z: number; w: number; d: number; h: number }[] = [
-  ...SOLIDS.filter((b) => !PROP_COLLIDERS.includes(b as Solid)),
-  ...PROP_COLLIDERS.filter((p) => p.h <= 2.6),
+const ROOFS: Solid[] = [
+  ...BUILDING_SOLIDS,
+  ...PROP_COLLIDERS.filter((p) => p.h - groundHeight(p.x, p.z) <= 2.6),
 ];
 
 export const HOSPITALS: { x: number; z: number; district: District }[] = (
@@ -464,15 +472,11 @@ export function resolveHeliCollision(
   return resolveAgainstBuildings(prevX, prevZ, nextX, nextZ, y, radius);
 }
 
-// Rooftop landing: returns the highest building-roof height directly under
-// (x,z), or 0 if none. Every real building counts as landable roof surface —
-// only crane (near-zero footprint) and plaza (ground-level decoration) are
-// excluded. Houses and HQ buildings used to be excluded here too, which was
-// the actual cause of players/helicopters sinking through them: with no
-// registered roof, gravity just pulled straight through to y=0 inside the
-// building, with no valid direction to resolve back out to.
+// Height of the surface under (x,z): the rolling ground, or the highest building roof / low prop on top
+// of it. Every real building counts as landable roof surface — only crane (near-zero footprint) and
+// plaza (ground-level decoration) are excluded.
 export function rooftopHeightAt(x: number, z: number): number {
-  let best = 0;
+  let best = groundHeight(x, z);
   for (const b of ROOFS) {
     if (x > b.x - b.w / 2 && x < b.x + b.w / 2 && z > b.z - b.d / 2 && z < b.z + b.d / 2) {
       if (b.h > best) best = b.h;

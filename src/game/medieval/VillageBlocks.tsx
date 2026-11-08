@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { anyModelUrl } from "../assets/manifestExtra";
 import { BUILDINGS, BLOCK_SIZE, type BuildingBox } from "../worldData";
+import { groundHeight } from "../terrain";
 import { KIT_IDS, STOREY_H, buildHouseLocal, roofRise, yardLayout, type Piece } from "./houseKit";
 import { Yardwork } from "./Yardwork";
 
@@ -14,8 +15,13 @@ import { Yardwork } from "./Yardwork";
 //    barrels...), baked into a few merged meshes (one per texture) and kept in a cache so walking
 //    back costs nothing.
 //  - Wells and hay bales are always shown (see Yardwork).
+// The village is hilly: each cottage stands on a level terrace at height y0; loose yard pieces
+// (fences, barrels, crates, trees) are placed on the ground wherever they are.
 
 const NEAR = 120;
+
+/** Pieces that sit on the ground where they stand rather than on the cottage's terrace. */
+const YARD_IDS = new Set(["village-prop-woodenfence-single", "detail-barrel", "village-prop-crate"]);
 
 type Block = { key: string; cx: number; cz: number; houses: BuildingBox[] };
 
@@ -61,7 +67,7 @@ function silhouette(houses: BuildingBox[]): THREE.BufferGeometry | null {
     const wallH = c.storeys * STOREY_H;
     const rise = roofRise(c.W);
     q.setFromAxisAngle(up, c.rot);
-    m.compose(new THREE.Vector3(h.x, 0, h.z), q, new THREE.Vector3(1, 1, 1));
+    m.compose(new THREE.Vector3(h.x, h.y0 ?? 0, h.z), q, new THREE.Vector3(1, 1, 1));
     // Slightly smaller than the real walls so the detailed version covers it when close.
     const wall = new THREE.BoxGeometry(c.W - 0.6, wallH, c.D - 0.6);
     wall.translate(0, wallH / 2, 0);
@@ -148,18 +154,24 @@ function bakeBlock(block: Block, scenes: Map<string, THREE.Object3D>): BakedMesh
     if (!c) continue;
     const cs = Math.cos(c.rot);
     const sn = Math.sin(c.rot);
+    const terrace = h.y0 ?? 0;
     for (const p of buildHouseLocal(c)) {
+      const wx = h.x + p.x * cs + p.z * sn;
+      const wz = h.z - p.x * sn + p.z * cs;
       placements.push({
         ...p,
-        x: h.x + p.x * cs + p.z * sn,
-        z: h.z - p.x * sn + p.z * cs,
+        x: wx,
+        z: wz,
+        y: p.y + (YARD_IDS.has(p.id) ? groundHeight(wx, wz) : terrace),
         rotY: p.rotY + c.rot,
       });
     }
   }
   const gx = Math.round(block.cx / BLOCK_SIZE);
   const gz = Math.round(block.cz / BLOCK_SIZE);
-  placements.push(...yardLayout(gx, gz, block.cx, block.cz, block.houses).trees);
+  for (const t of yardLayout(gx, gz, block.cx, block.cz, block.houses).trees) {
+    placements.push({ ...t, y: groundHeight(t.x, t.z) });
+  }
 
   const buckets = new Map<string, { geoms: THREE.BufferGeometry[]; material: THREE.Material }>();
   const placeM = new THREE.Matrix4();

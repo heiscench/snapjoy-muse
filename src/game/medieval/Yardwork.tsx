@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { BLOCK_SIZE, type BuildingBox } from "../worldData";
+import { groundHeight } from "../terrain";
 import { hayFor, yardLayout } from "./houseKit";
 
 // Wells and hay bales, built from plain shapes (none of the model kits has them).
@@ -60,7 +61,8 @@ function Instances({ geometry, spots }: { geometry: THREE.BufferGeometry | null;
     if (!mesh) return;
     const dummy = new THREE.Object3D();
     spots.forEach((s, i) => {
-      dummy.position.set(s.x, 0, s.z);
+      // Stand on the rolling ground.
+      dummy.position.set(s.x, groundHeight(s.x, s.z), s.z);
       dummy.rotation.set(0, s.rot, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);

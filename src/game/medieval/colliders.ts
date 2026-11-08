@@ -6,6 +6,7 @@ import { yardLayout } from "./houseKit";
 export const SQUARE_BLOCK = { gx: 1, gz: 0 };
 export const SQUARE_SIZE = 40;
 
+/** A solid box. `h` is the absolute height of its top (ground + height), since the village is hilly. */
 export type Solid = { x: number; z: number; w: number; d: number; h: number };
 export type Stall = { x: number; z: number; rot: number; variant: number };
 
@@ -34,10 +35,12 @@ export function squareLayout(cx: number, cz: number) {
 /**
  * Solid boxes for village props, so wells, tree trunks, market stalls and the fountain stop you.
  * `buildings` is the world's building list; only the cottages are used to find each block's yard.
+ * `ground` gives the height of the terrain, so each box's top is ground + its own height.
  */
 export function computePropColliders(
   buildings: { x: number; z: number; w: number; d: number; cottage?: unknown }[],
   blockSize: number,
+  ground: (x: number, z: number) => number = () => 0,
 ): Solid[] {
   const blocks = new Map<string, { gx: number; gz: number; rects: { x: number; z: number; w: number; d: number }[] }>();
   for (const b of buildings) {
@@ -56,16 +59,16 @@ export function computePropColliders(
   const out: Solid[] = [];
   blocks.forEach(({ gx, gz, rects }) => {
     const y = yardLayout(gx, gz, gx * blockSize, gz * blockSize, rects);
-    for (const w of y.wells) out.push({ x: w.x, z: w.z, w: 2.8, d: 2.8, h: 1.0 });
+    for (const w of y.wells) out.push({ x: w.x, z: w.z, w: 2.8, d: 2.8, h: ground(w.x, w.z) + 1.0 });
     for (const t of y.trees) {
       if (t.id === "tree-large" || t.id === "tree-small") {
-        out.push({ x: t.x, z: t.z, w: 1.0, d: 1.0, h: t.fit ? t.fit.size : 5 });
+        out.push({ x: t.x, z: t.z, w: 1.0, d: 1.0, h: ground(t.x, t.z) + (t.fit ? t.fit.size : 5) });
       }
     }
   });
 
   const sq = squareLayout(SQUARE_BLOCK.gx * blockSize, SQUARE_BLOCK.gz * blockSize);
-  out.push({ x: sq.fountain.x, z: sq.fountain.z, w: 5.4, d: 5.4, h: 1.0 });
-  for (const s of sq.stalls) out.push({ x: s.x, z: s.z, w: 3.2, d: 3.2, h: 2.4 });
+  out.push({ x: sq.fountain.x, z: sq.fountain.z, w: 5.4, d: 5.4, h: ground(sq.fountain.x, sq.fountain.z) + 1.0 });
+  for (const s of sq.stalls) out.push({ x: s.x, z: s.z, w: 3.2, d: 3.2, h: ground(s.x, s.z) + 2.4 });
   return out;
 }
