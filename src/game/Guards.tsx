@@ -19,6 +19,7 @@ import { playerState, damagePlayer } from "./playerState";
 import { nearestHostile } from "./targets";
 import { territoryState } from "./territoryState";
 import { resolveCollision } from "./worldData";
+import { groundHeight } from "./terrain";
 import { pilotState, damageHeli, damageCar } from "./vehicleState";
 import { carPilot } from "./carState";
 import { spawnTracer } from "./tracerState";
@@ -137,16 +138,17 @@ function GuardUnit({ guard }: { guard: GuardState }) {
     }
 
     // Level of detail: the full body up close, one simple figure further out.
+    const gy = groundHeight(guard.pos.x, guard.pos.z);
     const lvl = lodLevel(Math.hypot(guard.pos.x - camera.position.x, guard.pos.z - camera.position.z));
     r.root.visible = lvl === 0;
     if (proxy.current) {
       proxy.current.visible = lvl === 1;
-      proxy.current.position.set(guard.pos.x, PROXY_Y, guard.pos.z);
+      proxy.current.position.set(guard.pos.x, PROXY_Y + gy, guard.pos.z);
     }
     if (lvl !== 0) return;
 
     const yaw = Math.atan2(guard.dir.x, guard.dir.z);
-    r.root.position.set(guard.pos.x, 0, guard.pos.z);
+    r.root.position.set(guard.pos.x, gy, guard.pos.z);
     r.root.rotation.y = yaw;
 
     walkPhase.current += dtc * 8;

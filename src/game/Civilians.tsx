@@ -15,6 +15,7 @@ import {
   type CivilianState,
 } from "./civilianState";
 import { resolveCollision } from "./worldData";
+import { groundHeight } from "./terrain";
 import { playerState } from "./playerState";
 
 /** Civilians further than this from the player skip their update entirely. */
@@ -71,15 +72,16 @@ function CivilianUnit({ civ }: { civ: CivilianState }) {
     }
 
     // Level of detail: the full body up close, one simple figure further out.
+    const gy = groundHeight(civ.pos.x, civ.pos.z);
     const lvl = lodLevel(Math.hypot(civ.pos.x - camera.position.x, civ.pos.z - camera.position.z));
     r.root.visible = lvl === 0;
     if (proxy.current) {
       proxy.current.visible = lvl === 1;
-      proxy.current.position.set(civ.pos.x, PROXY_Y, civ.pos.z);
+      proxy.current.position.set(civ.pos.x, PROXY_Y + gy, civ.pos.z);
     }
     if (lvl !== 0) return;
 
-    r.root.position.set(civ.pos.x, 0, civ.pos.z);
+    r.root.position.set(civ.pos.x, gy, civ.pos.z);
     r.root.rotation.y = Math.atan2(civ.dir.x, civ.dir.z);
 
     walkPhase.current += dtc * 7 * civ.speed * 0.6;

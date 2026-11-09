@@ -8,6 +8,7 @@ import { solidMaterial } from "./city/textures";
 import { GANGS, PLAYER_GANG, type GangId } from "./gangs";
 import { NPCS, npcRoster, spawnNPC, respawnPosition, type NPCState } from "./npcState";
 import { resolveCollision, districtAt } from "./worldData";
+import { groundHeight } from "./terrain";
 import { playerState, damagePlayer } from "./playerState";
 import { territoryState } from "./territoryState";
 import { spawnTracer } from "./tracerState";
@@ -214,16 +215,18 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     }
 
     // Level of detail: the full body up close, one simple figure at mid range, nothing far away.
+    // Everyone stands on the rolling ground of the Kings' village.
+    const gy = groundHeight(npc.pos.x, npc.pos.z);
     const lvl = lodLevel(Math.hypot(npc.pos.x - camera.position.x, npc.pos.z - camera.position.z));
     r.root.visible = lvl === 0;
     if (proxy.current) {
       proxy.current.visible = lvl === 1;
-      proxy.current.position.set(npc.pos.x, PROXY_Y, npc.pos.z);
+      proxy.current.position.set(npc.pos.x, PROXY_Y + gy, npc.pos.z);
     }
 
     if (lvl === 0) {
       const yaw = Math.atan2(npc.dir.x, npc.dir.z);
-      r.root.position.set(npc.pos.x, 0, npc.pos.z);
+      r.root.position.set(npc.pos.x, gy, npc.pos.z);
       r.root.rotation.y = yaw;
 
       walkPhase.current += dtc * 8 * npc.speed * 0.5;
@@ -246,12 +249,12 @@ function NPCUnit({ npc }: { npc: NPCState }) {
     const isAlly = npc.gang === PLAYER_GANG;
     if (marker.current) {
       marker.current.visible = isAlly && lvl < 2;
-      marker.current.position.set(npc.pos.x, 2.4, npc.pos.z);
+      marker.current.position.set(npc.pos.x, 2.4 + gy, npc.pos.z);
       if (isAlly) marker.current.rotation.y += dtc * 3;
     }
 
     if (isAlly) {
-      _screenV.set(npc.pos.x, 1.8, npc.pos.z).project(camera);
+      _screenV.set(npc.pos.x, 1.8 + gy, npc.pos.z).project(camera);
       const inFront = _screenV.z < 1 && _screenV.z > -1;
       npc.screenX = (_screenV.x * 0.5 + 0.5) * size.width;
       npc.screenY = (-_screenV.y * 0.5 + 0.5) * size.height;

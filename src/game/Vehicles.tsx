@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GANGS } from "./gangs";
 import { BLOCK_SIZE, GRID } from "./worldData";
+import { groundHeight } from "./terrain";
 import { initCarHealth, carDestroyed, carRespawn } from "./vehicleState";
 import { CAR_LIVE, initCarLive, carPilot } from "./carState";
 import { HuskModel } from "./RelicVisuals";
@@ -44,7 +45,8 @@ function CarUnit({ index, car }: { index: number; car: Car }) {
   useFrame(() => {
     const live = CAR_LIVE[index];
     if (!group.current || !live) return;
-    group.current.position.set(live.x, 0, live.z);
+    // The Husks follow the rolling ground of the Kings' village.
+    group.current.position.set(live.x, groundHeight(live.x, live.z), live.z);
     group.current.rotation.y = live.rotY;
     group.current.visible = !carDestroyed[index];
   });
