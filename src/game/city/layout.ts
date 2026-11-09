@@ -1,8 +1,8 @@
 import { BLOCK_SIZE, GRID, districtFor } from "../worldData";
 import { themeOf } from "./palette";
 
-// Village lanes: narrow, with a thin verge, instead of 14 m wide paved avenues.
-export const ROAD_W = 8;
+// Narrow winding trails, like the reference: about 5 m wide.
+export const ROAD_W = 5;
 export const SIDEWALK_W = 1.5;
 export const ROAD_LEN = (GRID * 2 + 2) * BLOCK_SIZE;
 

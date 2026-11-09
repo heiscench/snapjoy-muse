@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { GRID } from "../worldData";
-import { groundHeight } from "../terrain";
+import { groundHeight, junctionAt, roadX, roadZ } from "../terrain";
 import { THEMES } from "./palette";
 import { kingdomAtBlock, ROAD_LEN, ROAD_LINES, ROAD_W } from "./layout";
 import { roadTexture } from "./roadTextures";
@@ -11,7 +11,7 @@ const RING = new THREE.RingGeometry(4.4, 5.2, 28);
 const dummy = new THREE.Object3D();
 const COUNT = ROAD_LINES.length * ROAD_LINES.length;
 
-/** A lane that follows the ground: one vertex pair every 8 m, lifted a little above the terrain. */
+/** A winding trail that follows the ground: one vertex pair every 8 m, lifted a little above the terrain. */
 function ribbon(line: number, alongZ: boolean, lift: number): THREE.BufferGeometry {
   const n = Math.round(ROAD_LEN / STEP);
   const pos = new Float32Array((n + 1) * 2 * 3);
@@ -20,10 +20,11 @@ function ribbon(line: number, alongZ: boolean, lift: number): THREE.BufferGeomet
   const half = ROAD_W / 2;
   for (let i = 0; i <= n; i++) {
     const t = -ROAD_LEN / 2 + i * STEP;
+    const centre = alongZ ? roadX(line, t) : roadZ(line, t);
     for (let s = 0; s < 2; s++) {
       const side = s === 0 ? -half : half;
-      const x = alongZ ? line + side : t;
-      const z = alongZ ? t : line + side;
+      const x = alongZ ? centre + side : t;
+      const z = alongZ ? t : centre + side;
       const k = i * 2 + s;
       pos[k * 3] = x;
       pos[k * 3 + 1] = groundHeight(x, z) + lift;
@@ -53,20 +54,21 @@ function junctions(lift: number): THREE.BufferGeometry {
   const pos = new Float32Array(total * per * 3);
   const idx: number[] = [];
   let n = 0;
-  for (const x of ROAD_LINES) {
-    for (const z of ROAD_LINES) {
+  for (const X of ROAD_LINES) {
+    for (const Z of ROAD_LINES) {
+      const c = junctionAt(X, Z);
       const base = n * per;
       for (let u = 0; u <= seg; u++) {
         for (let v = 0; v <= seg; v++) {
-          const px = x - half + (u * ROAD_W) / seg;
-          const pz = z - half + (v * ROAD_W) / seg;
+          const px = c.x - half + (u * ROAD_W) / seg;
+          const pz = c.z - half + (v * ROAD_W) / seg;
           const k = base + u * (seg + 1) + v;
           pos[k * 3] = px;
           pos[k * 3 + 1] = groundHeight(px, pz) + lift;
           pos[k * 3 + 2] = pz;
           if (u < seg && v < seg) {
-            const a = k, b = k + 1, c = k + seg + 1, d = k + seg + 2;
-            idx.push(a, b, c, b, d, c);
+            const a = k, b = k + 1, cc = k + seg + 1, d = k + seg + 2;
+            idx.push(a, b, cc, b, d, cc);
           }
         }
       }
@@ -97,7 +99,7 @@ export function Roads() {
     [],
   );
   const junctionMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#8d7351", roughness: 1, side: THREE.DoubleSide }),
+    () => new THREE.MeshStandardMaterial({ color: "#e0d09c", roughness: 1, side: THREE.DoubleSide }),
     [],
   );
 

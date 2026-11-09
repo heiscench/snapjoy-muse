@@ -100,3 +100,45 @@ export function groundHeight(x: number, z: number): number {
   }
   return h;
 }
+
+// ---- Winding lanes ---------------------------------------------------------------------
+// The lanes lie between blocks; inside the village they wander up to 5 m to either side so the
+// trails curve instead of running ruler-straight. Outside the village they stay straight.
+
+const LINES: number[] = Array.from({ length: GRID * 2 + 2 }, (_, i) => (i - GRID - 0.5) * BLOCK);
+const WIND = 5;
+
+function wave(line: number, t: number, salt: number) {
+  return 0.65 * Math.sin(t * 0.026 + line * 0.83 + salt) + 0.35 * Math.sin(t * 0.061 + line * 1.9 + salt * 2);
+}
+
+/** x of the lane that runs along z, at height z. */
+export function roadX(line: number, z: number): number {
+  return line + WIND * edgeMask(line, z) * wave(line, z, 0);
+}
+
+/** z of the lane that runs along x, at position x. */
+export function roadZ(line: number, x: number): number {
+  return line + WIND * edgeMask(x, line) * wave(line, x, 1.3);
+}
+
+/** Where the lane along z at `X` meets the lane along x at `Z`. */
+export function junctionAt(X: number, Z: number): { x: number; z: number } {
+  let x = X;
+  let z = Z;
+  for (let k = 0; k < 4; k++) {
+    x = roadX(X, z);
+    z = roadZ(Z, x);
+  }
+  return { x, z };
+}
+
+/** Sideways distance from (x, z) to the nearest lane centre line. */
+export function roadDistance(x: number, z: number): number {
+  let best = Infinity;
+  for (const p of LINES) {
+    if (Math.abs(x - p) < 48) best = Math.min(best, Math.abs(x - roadX(p, z)));
+    if (Math.abs(z - p) < 48) best = Math.min(best, Math.abs(z - roadZ(p, x)));
+  }
+  return best;
+}

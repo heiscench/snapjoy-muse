@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import { BLOCK_SIZE, GRID, districtAt } from "../worldData";
-import { groundHeight } from "../terrain";
+import { groundHeight, roadDistance } from "../terrain";
 import { hash01, themeOf } from "./palette";
-import { ROAD_LINES, ROAD_W } from "./layout";
+import { ROAD_W } from "./layout";
 
 // The ground of the whole world: one mesh, 8 m grid, painted with vertex colours.
 // Flat everywhere except the Kings' village, which rolls (see terrain.ts).
@@ -12,16 +12,12 @@ const STEP = 8;
 const HALF = ((GRID * 2 + 2) * BLOCK_SIZE) / 2;
 const N = (HALF * 2) / STEP;
 
-const GRASS_A = new THREE.Color("#86b04e");
-const GRASS_B = new THREE.Color("#6a9440");
-const GOLD = new THREE.Color("#c4b050");
-const DIRT = new THREE.Color("#8d7351");
-
-function roadDist(v: number) {
-  let best = Infinity;
-  for (const p of ROAD_LINES) best = Math.min(best, Math.abs(v - p));
-  return best;
-}
+// A rich, varied meadow: yellow-green, fresh green, deeper olive, and a few golden patches.
+const GRASS_A = new THREE.Color("#8fb84a");
+const GRASS_B = new THREE.Color("#6c9a3a");
+const GRASS_C = new THREE.Color("#a9bf4c");
+const GOLD = new THREE.Color("#cdb355");
+const SAND = new THREE.Color("#d9c88f");
 
 function smooth(a: number, b: number, x: number) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -45,14 +41,15 @@ function buildTerrain() {
 
       const d = districtAt(x, z);
       const n1 = hash01(Math.floor(x / 16), Math.floor(z / 16), 3);
-      const n2 = hash01(Math.floor(x / 7), Math.floor(z / 7), 4);
+      const n2 = hash01(Math.floor(x / 9), Math.floor(z / 9), 4);
+      const n3 = hash01(Math.floor(x / 24), Math.floor(z / 24), 5);
       if (d === "downtown") {
-        c.copy(GRASS_A).lerp(GRASS_B, n1).lerp(GOLD, Math.max(0, n2 - 0.62) * 1.6);
+        c.copy(GRASS_B).lerp(GRASS_A, n1).lerp(GRASS_C, n3 * 0.55).lerp(GOLD, Math.max(0, n2 - 0.7) * 1.8);
       } else {
         c.set(themeOf(d).ground).multiplyScalar(0.92 + n1 * 0.16);
       }
-      const rd = Math.min(roadDist(x), roadDist(z));
-      c.lerp(DIRT, 1 - smooth(ROAD_W / 2, ROAD_W / 2 + 6, rd));
+      const rd = roadDistance(x, z);
+      c.lerp(SAND, 1 - smooth(ROAD_W / 2, ROAD_W / 2 + 5, rd));
       col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
 
       if (i < N && j < N) {
