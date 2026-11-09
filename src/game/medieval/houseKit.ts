@@ -36,8 +36,8 @@ const FACE_SHIFT = 0.1;
 export const FACE_OFFSET = 0;
 /** Door leaves, chimneys, crates, barrels and fences. Set to false to switch them all off. */
 const DECORATIONS = true;
-/** Trees and rocks between the cottages. */
-const TREES = true;
+/** The old cone-shaped Kenney trees. Off: the Foliage system (Stylized Nature kit) grows the trees now. */
+const TREES = false;
 
 // Total roof height above the eaves (model height), and how far the roof model reaches below its origin.
 const ROOF_RISE: Record<number, number> = { 4: 4.25, 6: 5.67, 8: 6.78 };
@@ -89,7 +89,7 @@ export const KIT_IDS: string[] = Array.from(
     CRATE,
     FENCE,
     BARREL,
-    ...TREE_IDS,
+    ...(TREES ? TREE_IDS : []),
     ...DESIGNS.map(([w, d]) => `village-roof-roundtiles-${w}x${d}`),
   ]),
 );
@@ -149,7 +149,7 @@ export function hayFor(c: Cottage): { x: number; z: number; rot: number }[] {
 }
 
 /**
- * Block-level yard: a well at the centre of some blocks and trees / shrubs / rocks on free ground.
+ * Block-level yard: a well at the centre of some blocks (and, if TREES is on, old-style trees).
  * `rects` are the cottages of the block (their x, z and rotated width / depth).
  */
 export function yardLayout(
