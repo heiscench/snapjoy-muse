@@ -142,3 +142,17 @@ export function roadDistance(x: number, z: number): number {
   }
   return best;
 }
+
+// ---- Woods and autumn --------------------------------------------------------------------
+
+/** 0..1: how thickly wooded the land is here (clumps of forest between open meadow). */
+export function forestAt(x: number, z: number): number {
+  const f = 0.5 + 0.28 * Math.sin(x * 0.013 + 1.0) + 0.22 * Math.cos(z * 0.011 - 0.5) + 0.18 * Math.sin((x + z) * 0.02);
+  return smoothstep(0.35, 0.75, f);
+}
+
+/** 0..1: patches of hillside that have turned autumn orange. */
+export function autumnAt(x: number, z: number): number {
+  const f = 0.5 + 0.35 * Math.sin(x * 0.0075 + 2.1) * Math.cos(z * 0.0069 - 0.8) + 0.2 * Math.sin((x - z) * 0.012);
+  return smoothstep(0.55, 0.8, f);
+}

@@ -19,6 +19,7 @@ import { solidMaterial } from "./city/textures";
 import { KingsCastle } from "./medieval/KingsCastle";
 import { VillageBlocks } from "./medieval/VillageBlocks";
 import { TownSquare } from "./medieval/TownSquare";
+import { Foliage } from "./medieval/Foliage";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -148,6 +149,7 @@ export function City() {
       {rendered}
       <VillageBlocks />
       <TownSquare />
+      <Foliage />
 
       {DISTRICT_LABELS.map((d, i) => (
         <Text
