@@ -2,6 +2,7 @@
 
 import { makeCottages, type Cottage } from "./medieval/houseKit";
 import { SQUARE_BLOCK, computePropColliders, type Solid } from "./medieval/colliders";
+import { VILLAGE_BUILDINGS } from "./medieval/mode";
 import { groundHeight } from "./terrain";
 
 export type BuildingType =
@@ -212,12 +213,20 @@ export const BUILDINGS: BuildingBox[] = (() => {
 
       const hqDistrict = hqBlockFor(gx, gz);
       if (hqDistrict) {
-        list.push({ x: cx, z: cz, w: 16, d: 16, h: d === "downtown" ? KINGS_CASTLE_H : 11, type: "hq", district: d });
+        if (!VILLAGE_BUILDINGS && d === "downtown") {
+          // Environment-first mode: the Kings' castle is gone (a flat, invisible, non-solid marker stays).
+          list.push({ x: cx, z: cz, w: 16, d: 16, h: 1, type: "plaza", district: d });
+        } else {
+          list.push({ x: cx, z: cz, w: 16, d: 16, h: d === "downtown" ? KINGS_CASTLE_H : 11, type: "hq", district: d });
+        }
         continue;
       }
 
       if (isHospitalBlock(gx, gz)) {
-        list.push({ x: cx, z: cz, w: 26, d: 20, h: 16, type: "hospital", district: d });
+        // Environment-first mode: no hospital building in the Kings' land (healing still works).
+        if (VILLAGE_BUILDINGS || d !== "downtown") {
+          list.push({ x: cx, z: cz, w: 26, d: 20, h: 16, type: "hospital", district: d });
+        }
         continue;
       }
 

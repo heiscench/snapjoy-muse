@@ -1,3 +1,5 @@
+import { VILLAGE_BUILDINGS } from "./mode";
+
 // Medieval cottages for the Kings' district, built from the Quaternius Medieval Village MegaKit.
 // Plain data only (no three.js), so worldData.ts can use it for layout and collision.
 //
@@ -107,6 +109,8 @@ const SLOTS: [number, number][] = [[-11, -11], [11, -11], [-11, 11], [11, 11]];
 
 /** The cottages of one block. Uses its own random generator so the rest of the city is unchanged. */
 export function makeCottages(gx: number, gz: number, cx: number, cz: number): CottageBox[] {
+  // Environment-first mode: no cottages at all (and so no terraces, yards or props either).
+  if (!VILLAGE_BUILDINGS) return [];
   const r = rng((gx + 20) * 1009 + (gz + 20) * 9176 + 12345);
   r(); r();
   const out: CottageBox[] = [];

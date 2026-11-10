@@ -1,4 +1,5 @@
 import { yardLayout } from "./houseKit";
+import { VILLAGE_BUILDINGS } from "./mode";
 
 // Pure data for the Kings' town square and for collision of village props (no three.js).
 
@@ -67,8 +68,10 @@ export function computePropColliders(
     }
   });
 
-  const sq = squareLayout(SQUARE_BLOCK.gx * blockSize, SQUARE_BLOCK.gz * blockSize);
-  out.push({ x: sq.fountain.x, z: sq.fountain.z, w: 5.4, d: 5.4, h: ground(sq.fountain.x, sq.fountain.z) + 1.0 });
-  for (const s of sq.stalls) out.push({ x: s.x, z: s.z, w: 3.2, d: 3.2, h: ground(s.x, s.z) + 2.4 });
+  if (VILLAGE_BUILDINGS) {
+    const sq = squareLayout(SQUARE_BLOCK.gx * blockSize, SQUARE_BLOCK.gz * blockSize);
+    out.push({ x: sq.fountain.x, z: sq.fountain.z, w: 5.4, d: 5.4, h: ground(sq.fountain.x, sq.fountain.z) + 1.0 });
+    for (const s of sq.stalls) out.push({ x: s.x, z: s.z, w: 3.2, d: 3.2, h: ground(s.x, s.z) + 2.4 });
+  }
   return out;
 }
