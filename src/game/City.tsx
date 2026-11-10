@@ -20,6 +20,8 @@ import { KingsCastle } from "./medieval/KingsCastle";
 import { VillageBlocks } from "./medieval/VillageBlocks";
 import { TownSquare } from "./medieval/TownSquare";
 import { Foliage } from "./medieval/Foliage";
+import { SkyDome } from "./medieval/SkyDome";
+import { VILLAGE_BUILDINGS } from "./medieval/mode";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -94,15 +96,14 @@ export function City() {
       // The Kings' village cottages are drawn together by <VillageBlocks /> below.
       if (b.cottage) return null;
 
-      // In the Kings' village the old modern plazas are gone: the town square is <TownSquare />,
+      // In the Kings' land the old modern plazas are gone: the town square is <TownSquare />,
       // and the other plaza blocks are left as open meadow.
       if (b.type === "plaza" && b.district === "downtown") return null;
 
       // Flat decorations (plazas) are cheap and have no height: no level of detail needed.
       if (b.type === "plaza") return renderBuilding(b, i);
 
-      // The Kings' Hall is the first piece rebuilt from the real medieval models.
-      // It bakes itself into one mesh, and shows the old Hall while loading or if loading fails.
+      // The Kings' Hall (only present when VILLAGE_BUILDINGS is on).
       if (b.type === "hq" && b.district === "downtown") {
         return (
           <KingsCastle
@@ -130,7 +131,10 @@ export function City() {
 
   return (
     <group>
-      {/* The ground: rolling in the Kings' village, flat everywhere else. */}
+      {/* A painted sky with drifting clouds. */}
+      <SkyDome />
+
+      {/* The ground: rolling in the Kings' land, flat everywhere else. */}
       <Terrain />
 
       <Lots />
@@ -148,7 +152,7 @@ export function City() {
 
       {rendered}
       <VillageBlocks />
-      <TownSquare />
+      {VILLAGE_BUILDINGS && <TownSquare />}
       <Foliage />
 
       {DISTRICT_LABELS.map((d, i) => (

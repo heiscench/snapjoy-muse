@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
 import { BLOCK_SIZE, BUILDINGS, GRID } from "../worldData";
-import { groundHeight, roadX, roadZ } from "../terrain";
+import { groundHeight, isVillageBlock, roadX, roadZ } from "../terrain";
 import { THEMES, hash01, themeOf } from "./palette";
 import { kingdomAtBlock, ROAD_LINES, ROAD_W } from "./layout";
 
@@ -10,12 +10,13 @@ const col = new THREE.Color();
 const tint = new THREE.Color();
 const PLANE = new THREE.PlaneGeometry(1, 1);
 
-// ---- Lantern posts along every trail, staggered on both sides ------------
+// ---- Lantern posts along the trails (none out in the Kings' woodland) ------------------
 type LampSpot = { x: number; z: number; k: number };
 const LAMPS: LampSpot[] = (() => {
   const out: LampSpot[] = [];
   const side = ROAD_W / 2 + 1.4;
   const kAt = (x: number, z: number) => kingdomAtBlock(Math.round(x / BLOCK_SIZE), Math.round(z / BLOCK_SIZE));
+  const keep = (x: number, z: number) => !isVillageBlock(Math.round(x / BLOCK_SIZE), Math.round(z / BLOCK_SIZE));
   for (const p of ROAD_LINES) {
     for (let g = -GRID; g <= GRID; g++) {
       const m = g * BLOCK_SIZE;
@@ -23,12 +24,12 @@ const LAMPS: LampSpot[] = (() => {
       // trail running along Z (x = p, winding in the village)
       for (const [zz, sg] of [[m - 14, s], [m + 14, -s]] as const) {
         const x = roadX(p, zz) + side * sg;
-        out.push({ x, z: zz, k: kAt(x, zz) });
+        if (keep(x, zz)) out.push({ x, z: zz, k: kAt(x, zz) });
       }
       // trail running along X (z = p)
       for (const [xx, sg] of [[m - 14, s], [m + 14, -s]] as const) {
         const z = roadZ(p, xx) + side * sg;
-        out.push({ x: xx, z, k: kAt(xx, z) });
+        if (keep(xx, z)) out.push({ x: xx, z, k: kAt(xx, z) });
       }
     }
   }
@@ -119,23 +120,22 @@ const PILLARS: Prop[] = [];
 const BOULDERS: Prop[] = [];
 
 (() => {
-  const byBlock = new Map<string, { x: number; z: number; w: number; d: number; village: boolean }[]>();
+  const byBlock = new Map<string, { x: number; z: number; w: number; d: number }[]>();
   for (const b of BUILDINGS) {
     const key = `${Math.round(b.x / BLOCK_SIZE)},${Math.round(b.z / BLOCK_SIZE)}`;
     const arr = byBlock.get(key) ?? [];
-    arr.push({ x: b.x, z: b.z, w: b.w, d: b.d, village: !!b.cottage });
+    arr.push({ x: b.x, z: b.z, w: b.w, d: b.d });
     byBlock.set(key, arr);
   }
   for (let gx = -GRID; gx <= GRID; gx++) {
     for (let gz = -GRID; gz <= GRID; gz++) {
+      // The Kings' land gets its rocks and trees from the Foliage system instead.
+      if (isVillageBlock(gx, gz)) continue;
       const blds = byBlock.get(`${gx},${gz}`) ?? [];
-      const village = blds.some((b) => b.village);
       for (let i = 0; i < 4; i++) {
         const x = gx * BLOCK_SIZE + (hash01(gx, gz, 101 + i * 5) - 0.5) * 44;
         const z = gz * BLOCK_SIZE + (hash01(gx, gz, 102 + i * 5) - 0.5) * 44;
         if (blds.some((b) => Math.abs(x - b.x) < b.w / 2 + 3 && Math.abs(z - b.z) < b.d / 2 + 3)) continue;
-        // The village gets its rocks and trees from the Foliage system instead.
-        if (village) continue;
         const prop: Prop = {
           x, z,
           h: 1.6 + hash01(gx, gz, 103 + i * 5) * 3.6,

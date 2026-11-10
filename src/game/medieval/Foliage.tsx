@@ -8,12 +8,12 @@ import { autumnAt, forestAt, groundHeight, isVillageBlock, roadDistance } from "
 import { ROAD_W } from "../city/layout";
 import { hash01 } from "../city/palette";
 
-// The living landscape of the Kings' village: pines, trees, bushes, ferns, grass, flowers, mushrooms,
-// mossy boulders and pebbles along the trail edges, all from the Stylized Nature kit.
+// The living landscape of the Kings' land: pines, trees, bushes, ferns, grass, flowers, mushrooms,
+// mossy boulders, pebbles and stone edging along the trails, all from the Stylized Nature kit.
 // Only what is near you is drawn: the world around the camera is rebuilt as you move, using a few
 // instanced meshes per plant type, so thousands of plants cost only a few dozen draw calls.
 
-type GroupKey = "tree" | "bush" | "plant" | "grass" | "flower" | "rock" | "mush" | "pebble";
+type GroupKey = "tree" | "bush" | "plant" | "grass" | "flower" | "rock" | "mush" | "pebble" | "edgestone";
 
 type Group = {
   cell: number; // size of one placement cell (m)
@@ -23,30 +23,32 @@ type Group = {
   rectPad: number; // keep this far from buildings (m)
   salt: number;
   prob: (x: number, z: number, forest: number) => number;
-  edge?: boolean; // pebbles: only along the trail edge
+  edge?: boolean; // only along the trail edge
 };
 
 const HALF_ROAD = ROAD_W / 2;
 
 const GROUPS: Record<GroupKey, Group> = {
-  tree: { cell: 14, radius: 100, cap: 70, roadPad: 3.0, rectPad: 6.0, salt: 10, prob: (_x, _z, f) => 0.08 + 0.55 * f },
-  bush: { cell: 8, radius: 65, cap: 70, roadPad: 1.4, rectPad: 2.5, salt: 20, prob: (_x, _z, f) => 0.18 + 0.3 * f },
-  plant: { cell: 6, radius: 50, cap: 120, roadPad: 0.6, rectPad: 1.5, salt: 30, prob: (_x, _z, f) => 0.25 + 0.3 * f },
+  tree: { cell: 14, radius: 105, cap: 80, roadPad: 3.0, rectPad: 6.0, salt: 10, prob: (_x, _z, f) => 0.12 + 0.6 * f },
+  bush: { cell: 8, radius: 65, cap: 70, roadPad: 1.4, rectPad: 2.5, salt: 20, prob: (_x, _z, f) => 0.2 + 0.3 * f },
+  plant: { cell: 6, radius: 50, cap: 120, roadPad: 0.6, rectPad: 1.5, salt: 30, prob: (_x, _z, f) => 0.28 + 0.3 * f },
   grass: { cell: 3.2, radius: 34, cap: 450, roadPad: 0.2, rectPad: 0.8, salt: 40, prob: () => 0.85 },
   flower: {
     cell: 5, radius: 46, cap: 130, roadPad: 0.4, rectPad: 1.0, salt: 50,
     prob: (x, z) => (0.5 + 0.5 * Math.sin(x * 0.045 + z * 0.031) * Math.cos(z * 0.052 - x * 0.02) > 0.62 ? 0.8 : 0.1),
   },
-  rock: { cell: 16, radius: 80, cap: 40, roadPad: 1.5, rectPad: 3.5, salt: 60, prob: (_x, _z, f) => 0.2 + 0.2 * f },
+  rock: { cell: 16, radius: 80, cap: 40, roadPad: 1.5, rectPad: 3.5, salt: 60, prob: (_x, _z, f) => 0.22 + 0.2 * f },
   mush: { cell: 9, radius: 46, cap: 40, roadPad: 0.8, rectPad: 1.5, salt: 70, prob: (_x, _z, f) => (f > 0.45 ? 0.35 : 0.02) },
   pebble: { cell: 3, radius: 44, cap: 160, roadPad: 0, rectPad: 0.5, salt: 80, prob: () => 1, edge: true },
+  edgestone: { cell: 7, radius: 60, cap: 60, roadPad: 0, rectPad: 0.5, salt: 90, prob: () => 0.55, edge: true },
 };
 
 type Spec = {
   id: string;
   group: GroupKey;
   weight: number;
-  size: [number, number]; // target height in metres
+  size: [number, number]; // target size in metres (height, or longest side when by === "len")
+  by?: "len";
   leaf?: string[]; // leaf colours (green season)
   leafAlt?: string[]; // leaf colours on autumn hillsides
 };
@@ -59,9 +61,9 @@ const BUSH_GREENS = ["#6fa82e", "#88bc36", "#5d9a2a"];
 const BUSH_AUTUMN = ["#e07a1c", "#f0a030", "#c85a1a"];
 
 const SPECS: Spec[] = [
-  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-pine-${n}`, group: "tree", weight: n === 5 ? 3 : 2, size: [11, 19], leaf: PINE_GREENS, leafAlt: PINE_AUTUMN })),
-  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-commontree-${n}`, group: "tree", weight: n >= 3 ? 3 : 2, size: [7, 11], leaf: TREE_GREENS, leafAlt: TREE_AUTUMN })),
-  { id: "nature-deadtree-1", group: "tree", weight: 0.4, size: [6, 9] },
+  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-pine-${n}`, group: "tree", weight: n === 5 ? 3 : 2, size: [13, 24], leaf: PINE_GREENS, leafAlt: PINE_AUTUMN })),
+  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-commontree-${n}`, group: "tree", weight: n >= 3 ? 3 : 2, size: [8, 13], leaf: TREE_GREENS, leafAlt: TREE_AUTUMN })),
+  { id: "nature-deadtree-1", group: "tree", weight: 0.4, size: [7, 10] },
   { id: "nature-bush-common", group: "bush", weight: 3, size: [1.0, 1.7], leaf: BUSH_GREENS, leafAlt: BUSH_AUTUMN },
   { id: "nature-bush-common-flowers", group: "bush", weight: 2, size: [1.0, 1.6], leaf: BUSH_GREENS, leafAlt: BUSH_AUTUMN },
   { id: "nature-fern-1", group: "plant", weight: 3, size: [0.7, 1.2] },
@@ -81,15 +83,22 @@ const SPECS: Spec[] = [
   { id: "nature-rock-medium-2", group: "rock", weight: 1, size: [0.8, 1.7] },
   { id: "nature-rock-medium-3", group: "rock", weight: 1, size: [0.8, 1.7] },
   { id: "nature-mushroom-common", group: "mush", weight: 1, size: [0.3, 0.5] },
-  { id: "nature-pebble-round-1", group: "pebble", weight: 1, size: [0.22, 0.42] },
-  { id: "nature-pebble-round-2", group: "pebble", weight: 1, size: [0.22, 0.42] },
-  { id: "nature-pebble-square-1", group: "pebble", weight: 1, size: [0.22, 0.42] },
+  { id: "nature-pebble-round-1", group: "pebble", weight: 1, size: [0.3, 0.6], by: "len" },
+  { id: "nature-pebble-round-2", group: "pebble", weight: 1, size: [0.3, 0.6], by: "len" },
+  { id: "nature-pebble-square-1", group: "pebble", weight: 1, size: [0.3, 0.6], by: "len" },
+  // Clusters of flat stones that edge the trails.
+  { id: "nature-rockpath-round-small-1", group: "edgestone", weight: 2, size: [1.4, 2.4], by: "len" },
+  { id: "nature-rockpath-round-small-2", group: "edgestone", weight: 2, size: [1.4, 2.4], by: "len" },
+  { id: "nature-rockpath-round-thin", group: "edgestone", weight: 1, size: [1.6, 2.6], by: "len" },
+  { id: "nature-rockpath-round-wide", group: "edgestone", weight: 1, size: [1.6, 2.6], by: "len" },
+  { id: "nature-rockpath-square-small-1", group: "edgestone", weight: 1, size: [1.4, 2.4], by: "len" },
+  { id: "nature-rockpath-square-small-2", group: "edgestone", weight: 1, size: [1.4, 2.4], by: "len" },
 ];
 
-// ---- Where things may NOT grow (buildings, the town square) ----------------------------
+// ---- Where things may NOT grow (buildings; flat ground markers are ignored) ----------------
 const RECTS = new Map<string, { x: number; z: number; w: number; d: number }[]>();
 for (const b of BUILDINGS) {
-  if (b.type === "crane") continue;
+  if (b.type === "crane" || b.type === "plaza") continue;
   const gx = Math.round(b.x / BLOCK_SIZE);
   const gz = Math.round(b.z / BLOCK_SIZE);
   if (!isVillageBlock(gx, gz)) continue;
@@ -110,7 +119,11 @@ function blocked(x: number, z: number, pad: number) {
 
 // ---- Turning a loaded model into instanced meshes --------------------------------------
 type Part = { mesh: THREE.InstancedMesh; tinted: boolean };
-type SpeciesData = { spec: Spec; h0: number; minY: number; parts: Part[] };
+type SpeciesData = { spec: Spec; ref: number; minY: number; parts: Part[] };
+
+// The models carry baked shading in per-vertex colours (COLOR_0). Their materials multiply by it,
+// so it MUST be kept; without it the plants render solid black.
+const KEEP = new Set(["position", "normal", "uv", "color"]);
 
 function sliceGroup(g: THREE.BufferGeometry, start: number, count: number) {
   const out = g.clone();
@@ -137,7 +150,7 @@ function extract(scene: THREE.Object3D) {
     }
     for (const { geo, mat } of pieces) {
       for (const n of Object.keys(geo.attributes)) {
-        if (n !== "position" && n !== "normal" && n !== "uv") geo.deleteAttribute(n);
+        if (!KEEP.has(n)) geo.deleteAttribute(n);
       }
       if (!geo.attributes.normal) geo.computeVertexNormals();
       const flat = geo.index ? geo.toNonIndexed() : geo;
@@ -149,7 +162,8 @@ function extract(scene: THREE.Object3D) {
       byMat.set(mat, list);
     }
   });
-  return { byMat, h0: box.max.y - box.min.y || 1, minY: box.min.y };
+  const size = box.getSize(new THREE.Vector3());
+  return { byMat, h0: size.y || 1, len0: Math.max(size.x, size.z) || 1, minY: box.min.y };
 }
 
 /** Leaf cards are flat-colour cut-outs, so the leaf colour comes from the instance, not the texture. */
@@ -168,7 +182,7 @@ function leafMaterial(src: THREE.Material): THREE.Material {
 
 function buildSpecies(spec: Spec, scene: THREE.Object3D): SpeciesData {
   const cap = GROUPS[spec.group].cap;
-  const { byMat, h0, minY } = extract(scene);
+  const { byMat, h0, len0, minY } = extract(scene);
   const parts: Part[] = [];
   byMat.forEach((geos, mat) => {
     const geometry = mergeGeometries(geos, false);
@@ -188,7 +202,7 @@ function buildSpecies(spec: Spec, scene: THREE.Object3D): SpeciesData {
     if (leaf) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
     parts.push({ mesh, tinted: leaf });
   });
-  return { spec, h0, minY, parts };
+  return { spec, ref: spec.by === "len" ? len0 : h0, minY, parts };
 }
 
 const dummy = new THREE.Object3D();
@@ -217,7 +231,7 @@ function rebuild(cx: number, cz: number, pools: Map<GroupKey, Pool>) {
         if (blocked(x, z, g.rectPad)) continue;
         const rd = roadDistance(x, z);
         if (g.edge) {
-          if (rd < HALF_ROAD - 0.1 || rd > HALF_ROAD + 1.0) continue;
+          if (rd < HALF_ROAD - 0.1 || rd > HALF_ROAD + 1.2) continue;
         } else if (rd < HALF_ROAD + g.roadPad) continue;
 
         const t = r(4) * pool.total;
@@ -225,7 +239,7 @@ function rebuild(cx: number, cz: number, pools: Map<GroupKey, Pool>) {
         while (k < pool.cum.length - 1 && t > pool.cum[k]) k++;
         const d = pool.list[k];
         const size = d.spec.size[0] + (d.spec.size[1] - d.spec.size[0]) * r(5);
-        const s = size / d.h0;
+        const s = size / d.ref;
         dummy.position.set(x, groundHeight(x, z) - d.minY * s, z);
         dummy.rotation.set(0, r(6) * Math.PI * 2, 0);
         dummy.scale.set(s, s, s);

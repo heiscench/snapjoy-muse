@@ -14,10 +14,11 @@ import { playerState } from "./playerState";
 import { territoryState } from "./territoryState";
 import { districtAt } from "./worldData";
 
-// Extra light on top of the config values so nothing reads as black.
-const BOOST_AMBIENT = 0.35;
-const BOOST_HEMI = 0.35;
-const BOOST_SUN = 0.3;
+// Extra light on top of the config values. Less flat ambient and a stronger sun give the land form
+// and shadow (hillsides, tree trunks) like the reference art, instead of a bright washed-out look.
+const BOOST_AMBIENT = 0.12;
+const BOOST_HEMI = 0.22;
+const BOOST_SUN = 0.55;
 
 type Pal = {
   daySky: THREE.Color;
@@ -48,8 +49,8 @@ const NEUTRAL = pal(NEUTRAL_VALUES);
 
 // Each kingdom's sky: daySky, dayFog, duskSky, duskFog, daySun, duskSun.
 const FACTION: Pal[] = [
-  // 0 The Kings: blue summer sky, warm golden haze, amber sunsets
-  pal(["#a7cfe9", "#e8e0c4", "#c98f5e", "#d9b07c", "#fff1c4", "#ffb866"]),
+  // 0 The Kings: rich summer blue, warm golden haze, amber sunsets
+  pal(["#6fb2ee", "#efe6c6", "#c98f5e", "#d9b07c", "#fff0c0", "#ffb866"]),
   // 1 The Warriors: crimson
   pal(["#f0a6ab", "#f2bcc0", "#a34758", "#b8606f", "#ffd9d6", "#ff8a8f"]),
   // 2 The Outcasts: acid green
@@ -114,9 +115,10 @@ export function DayNight() {
   return (
     <>
       <ambientLight ref={ambRef} intensity={MIN_AMBIENT_INTENSITY + BOOST_AMBIENT} />
+      {/* Sky light from above, and a green bounce from the meadow below. */}
       <hemisphereLight
         ref={hemiRef}
-        args={["#cfc9dc", "#8c8579", MIN_HEMISPHERE_INTENSITY + BOOST_HEMI]}
+        args={["#cfe3f5", "#7d8a4a", MIN_HEMISPHERE_INTENSITY + BOOST_HEMI]}
       />
       <directionalLight
         ref={dirRef}
