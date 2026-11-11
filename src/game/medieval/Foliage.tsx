@@ -3,13 +3,15 @@ import { useFrame } from "@react-three/fiber";
 import { Component, Suspense, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { BLOCK_SIZE, BUILDINGS } from "../worldData";
+import { BLOCK_SIZE, BUILDINGS, districtAt } from "../worldData";
 import { autumnAt, forestAt, groundHeight, isVillageBlock, roadDistance } from "../terrain";
 import { ROAD_W } from "../city/layout";
-import { hash01 } from "../city/palette";
+import { hash01, themeOf } from "../city/palette";
 
-// The living landscape of the Kings' land: pines, trees, bushes, ferns, grass, flowers, mushrooms,
-// mossy boulders, pebbles and stone edging along the trails, all from the Stylized Nature kit.
+// The living landscape: pines, trees, bushes, ferns, grass, flowers, mushrooms, mossy boulders,
+// pebbles and stone edging along the trails, all from the Stylized Nature kit.
+// Each kingdom is its own biome: Kings = green meadow with pines, Warriors = red-orange autumn,
+// Outcasts = dense deep forest with ferns and mushrooms, Monsters = sparse dry land with dead trees.
 // Only what is near you is drawn: the world around the camera is rebuilt as you move, using a few
 // instanced meshes per plant type, so thousands of plants cost only a few dozen draw calls.
 
@@ -29,10 +31,10 @@ type Group = {
 const HALF_ROAD = ROAD_W / 2;
 
 const GROUPS: Record<GroupKey, Group> = {
-  tree: { cell: 14, radius: 105, cap: 80, roadPad: 3.0, rectPad: 6.0, salt: 10, prob: (_x, _z, f) => 0.12 + 0.6 * f },
+  tree: { cell: 14, radius: 110, cap: 90, roadPad: 3.0, rectPad: 6.0, salt: 10, prob: (_x, _z, f) => 0.12 + 0.6 * f },
   bush: { cell: 8, radius: 65, cap: 70, roadPad: 1.4, rectPad: 2.5, salt: 20, prob: (_x, _z, f) => 0.2 + 0.3 * f },
   plant: { cell: 6, radius: 50, cap: 120, roadPad: 0.6, rectPad: 1.5, salt: 30, prob: (_x, _z, f) => 0.28 + 0.3 * f },
-  grass: { cell: 3.2, radius: 34, cap: 450, roadPad: 0.2, rectPad: 0.8, salt: 40, prob: () => 0.85 },
+  grass: { cell: 2.4, radius: 34, cap: 520, roadPad: 0.2, rectPad: 0.8, salt: 40, prob: () => 0.85 },
   flower: {
     cell: 5, radius: 46, cap: 130, roadPad: 0.4, rectPad: 1.0, salt: 50,
     prob: (x, z) => (0.5 + 0.5 * Math.sin(x * 0.045 + z * 0.031) * Math.cos(z * 0.052 - x * 0.02) > 0.62 ? 0.8 : 0.1),
@@ -43,6 +45,14 @@ const GROUPS: Record<GroupKey, Group> = {
   edgestone: { cell: 7, radius: 60, cap: 60, roadPad: 0, rectPad: 0.5, salt: 90, prob: () => 0.55, edge: true },
 };
 
+// How much of each group a kingdom's biome has (1 = the Kings' meadow).
+const KINGDOM_MULT: Record<number, Partial<Record<GroupKey, number>>> = {
+  0: {},
+  1: { tree: 0.8, bush: 1.3, plant: 0.6, grass: 0.8, flower: 0.4, rock: 1.6, mush: 0.5 },
+  2: { tree: 1.5, bush: 1.2, plant: 1.6, grass: 1.1, flower: 0.7, mush: 2.2 },
+  3: { tree: 0.55, bush: 0.4, plant: 0.3, grass: 0.45, flower: 0, rock: 2, mush: 0.2 },
+};
+
 type Spec = {
   id: string;
   group: GroupKey;
@@ -50,25 +60,26 @@ type Spec = {
   size: [number, number]; // target size in metres (height, or longest side when by === "len")
   by?: "len";
   leaf?: string[]; // leaf colours (green season)
-  leafAlt?: string[]; // leaf colours on autumn hillsides
+  leafAlt?: string[]; // leaf colours in autumn
+  kw?: [number, number, number, number]; // weight multiplier per kingdom (Kings, Warriors, Outcasts, Monsters)
 };
 
 const TREE_GREENS = ["#78aa2e", "#8cbc34", "#62952a", "#a3c43c"];
-const TREE_AUTUMN = ["#e8932a", "#d96a1e", "#f0b030", "#e07a1c"];
+const TREE_AUTUMN = ["#e8932a", "#d96a1e", "#f0b030", "#e07a1c", "#c8402a"];
 const PINE_GREENS = ["#2f7a2c", "#3a8a30", "#2a6a2a", "#4a9a34"];
 const PINE_AUTUMN = ["#3a7a2a", "#6a8a22", "#a8902a"];
 const BUSH_GREENS = ["#6fa82e", "#88bc36", "#5d9a2a"];
 const BUSH_AUTUMN = ["#e07a1c", "#f0a030", "#c85a1a"];
 
 const SPECS: Spec[] = [
-  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-pine-${n}`, group: "tree", weight: n === 5 ? 3 : 2, size: [13, 24], leaf: PINE_GREENS, leafAlt: PINE_AUTUMN })),
-  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-commontree-${n}`, group: "tree", weight: n >= 3 ? 3 : 2, size: [8, 13], leaf: TREE_GREENS, leafAlt: TREE_AUTUMN })),
-  { id: "nature-deadtree-1", group: "tree", weight: 0.4, size: [7, 10] },
-  { id: "nature-bush-common", group: "bush", weight: 3, size: [1.0, 1.7], leaf: BUSH_GREENS, leafAlt: BUSH_AUTUMN },
-  { id: "nature-bush-common-flowers", group: "bush", weight: 2, size: [1.0, 1.6], leaf: BUSH_GREENS, leafAlt: BUSH_AUTUMN },
-  { id: "nature-fern-1", group: "plant", weight: 3, size: [0.7, 1.2] },
-  { id: "nature-plant-1", group: "plant", weight: 2, size: [0.5, 0.9] },
-  { id: "nature-plant-1-big", group: "plant", weight: 1, size: [0.8, 1.3] },
+  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-pine-${n}`, group: "tree", weight: n === 5 ? 3 : 2, size: [13, 24], leaf: PINE_GREENS, leafAlt: PINE_AUTUMN, kw: [1, 0.7, 1.8, 0.2] })),
+  ...[1, 2, 3, 4, 5].map((n): Spec => ({ id: `nature-commontree-${n}`, group: "tree", weight: n >= 3 ? 3 : 2, size: [8, 13], leaf: TREE_GREENS, leafAlt: TREE_AUTUMN, kw: [1, 1.8, 0.8, 0.1] })),
+  { id: "nature-deadtree-1", group: "tree", weight: 1, size: [7, 11], kw: [0.05, 0.3, 0.05, 6] },
+  { id: "nature-bush-common", group: "bush", weight: 3, size: [1.0, 1.7], leaf: BUSH_GREENS, leafAlt: BUSH_AUTUMN, kw: [1, 1.3, 1, 0.6] },
+  { id: "nature-bush-common-flowers", group: "bush", weight: 2, size: [1.0, 1.6], leaf: BUSH_GREENS, leafAlt: BUSH_AUTUMN, kw: [1, 1.3, 1, 0.6] },
+  { id: "nature-fern-1", group: "plant", weight: 3, size: [0.7, 1.2], kw: [1, 0.5, 1.6, 0.2] },
+  { id: "nature-plant-1", group: "plant", weight: 2, size: [0.5, 0.9], kw: [1, 0.5, 1.4, 0.4] },
+  { id: "nature-plant-1-big", group: "plant", weight: 1, size: [0.8, 1.3], kw: [1, 0.5, 1.4, 0.4] },
   { id: "nature-clover-1", group: "plant", weight: 1, size: [0.3, 0.5] },
   { id: "nature-clover-2", group: "plant", weight: 1, size: [0.3, 0.5] },
   { id: "nature-grass-common-short", group: "grass", weight: 4, size: [0.5, 0.9] },
@@ -95,13 +106,12 @@ const SPECS: Spec[] = [
   { id: "nature-rockpath-square-small-2", group: "edgestone", weight: 1, size: [1.4, 2.4], by: "len" },
 ];
 
-// ---- Where things may NOT grow (buildings; flat ground markers are ignored) ----------------
+// ---- Where things may NOT grow (any building that is still standing) --------------------
 const RECTS = new Map<string, { x: number; z: number; w: number; d: number }[]>();
 for (const b of BUILDINGS) {
   if (b.type === "crane" || b.type === "plaza") continue;
   const gx = Math.round(b.x / BLOCK_SIZE);
   const gz = Math.round(b.z / BLOCK_SIZE);
-  if (!isVillageBlock(gx, gz)) continue;
   const key = `${gx},${gz}`;
   const arr = RECTS.get(key) ?? [];
   arr.push({ x: b.x, z: b.z, w: b.w, d: b.d });
@@ -208,7 +218,12 @@ function buildSpecies(spec: Spec, scene: THREE.Object3D): SpeciesData {
 const dummy = new THREE.Object3D();
 const col = new THREE.Color();
 
-type Pool = { list: SpeciesData[]; cum: number[]; total: number };
+/** Cumulative weights per kingdom, so each biome favours its own plants. */
+type Pool = { list: SpeciesData[]; cum: number[][]; total: number[] };
+
+function kingdomAt(x: number, z: number) {
+  return themeOf(districtAt(x, z)).id;
+}
 
 function rebuild(cx: number, cz: number, pools: Map<GroupKey, Pool>) {
   pools.forEach((pool) => pool.list.forEach((d) => d.parts.forEach((p) => { p.mesh.count = 0; })));
@@ -226,17 +241,23 @@ function rebuild(cx: number, cz: number, pools: Map<GroupKey, Pool>) {
         const z = (j + r(3)) * g.cell;
         if (Math.hypot(x - cx, z - cz) > g.radius) continue;
         if (!isVillageBlock(Math.round(x / BLOCK_SIZE), Math.round(z / BLOCK_SIZE))) continue;
+        const kd = kingdomAt(x, z);
+        const mult = KINGDOM_MULT[kd][gk] ?? 1;
+        if (mult <= 0) continue;
         const f = forestAt(x, z);
-        if (r(1) > g.prob(x, z, f)) continue;
+        if (r(1) > g.prob(x, z, f) * mult) continue;
         if (blocked(x, z, g.rectPad)) continue;
         const rd = roadDistance(x, z);
         if (g.edge) {
           if (rd < HALF_ROAD - 0.1 || rd > HALF_ROAD + 1.2) continue;
         } else if (rd < HALF_ROAD + g.roadPad) continue;
 
-        const t = r(4) * pool.total;
+        const total = pool.total[kd];
+        if (total <= 0) continue;
+        const cum = pool.cum[kd];
+        const t = r(4) * total;
         let k = 0;
-        while (k < pool.cum.length - 1 && t > pool.cum[k]) k++;
+        while (k < cum.length - 1 && t > cum[k]) k++;
         const d = pool.list[k];
         const size = d.spec.size[0] + (d.spec.size[1] - d.spec.size[0]) * r(5);
         const s = size / d.ref;
@@ -247,7 +268,8 @@ function rebuild(cx: number, cz: number, pools: Map<GroupKey, Pool>) {
 
         let colour: string | null = null;
         if (d.spec.leaf) {
-          const pal = d.spec.leafAlt && autumnAt(x, z) > 0.55 ? d.spec.leafAlt : d.spec.leaf;
+          const autumn = kd === 1 || kd === 3 || (kd === 0 && autumnAt(x, z) > 0.6);
+          const pal = autumn && d.spec.leafAlt ? d.spec.leafAlt : d.spec.leaf;
           colour = pal[Math.floor(r(7) * pal.length) % pal.length];
         }
         for (const p of d.parts) {
@@ -287,12 +309,14 @@ function FoliageInner() {
     for (const d of data) {
       let p = m.get(d.spec.group);
       if (!p) {
-        p = { list: [], cum: [], total: 0 };
+        p = { list: [], cum: [[], [], [], []], total: [0, 0, 0, 0] };
         m.set(d.spec.group, p);
       }
       p.list.push(d);
-      p.total += d.spec.weight;
-      p.cum.push(p.total);
+      for (let k = 0; k < 4; k++) {
+        p.total[k] += d.spec.weight * (d.spec.kw ? d.spec.kw[k] : 1);
+        p.cum[k].push(p.total[k]);
+      }
     }
     return m;
   }, [data]);

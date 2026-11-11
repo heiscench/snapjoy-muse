@@ -1,8 +1,7 @@
 import { makeCottages } from "./medieval/houseKit";
 
-// Rolling hills for the Kings' village. Plain maths (no three.js), so the world, the player, the
+// Rolling hills for the whole map. Plain maths (no three.js), so the world, the player, the
 // villagers and the renderer all agree on how high the ground is at any point.
-// Everything outside the village stays perfectly flat (height 0), so the other kingdoms are unchanged.
 
 const BLOCK = 64;
 const GRID = 8;
@@ -12,41 +11,37 @@ function smoothstep(a: number, b: number, x: number) {
   return t * t * (3 - 2 * t);
 }
 
-/** Same test as districtFor() === "downtown" (kept here so this file has no imports from worldData). */
+/** True for every block of the map (the name is historic: it used to mean just the Kings' village). */
 export function isVillageBlock(gx: number, gz: number): boolean {
-  if (Math.abs(gx) > GRID || Math.abs(gz) > GRID) return false;
-  if (gz <= -6 && gx >= 3) return false;
-  if (gz <= -6 && gx <= -3) return false;
-  if (gx >= 6 && gz >= -2 && gz <= 3) return false;
-  if (gx <= -6 && gz >= -2 && gz <= 3) return false;
-  if (gz >= 6) return false;
-  if (gz <= -4) return false;
-  if (gx <= -4) return false;
-  if (gx >= 4 && gz >= 4) return false;
-  if (gx >= 3 && gz <= -2) return false;
-  if (gz >= 3) return false;
-  if (gx <= -1 && gx >= -3 && gz >= 0 && gz <= 2) return false;
-  return true;
+  return Math.abs(gx) <= GRID && Math.abs(gz) <= GRID;
 }
 
-// Level ground around the castle, the hospital and the town square.
+// Level ground around every headquarters and hospital, so spawns, vaults and shops sit flat.
+const HQ: [number, number][] = [
+  [1, -1], [-5, 1], [5, 5], [4, -2], [0, 4], [0, -5], [-2, 1], [6, -7], [-6, -7], [7, 1], [-7, 1], [-3, 7], [3, 7],
+];
+const HOSPITAL: [number, number][] = [
+  [2, -2], [-5, -1], [6, 6], [5, -3], [1, 5], [1, -5], [-1, 2], [6, -8], [-6, -8], [8, 1], [-8, 1], [-3, 8], [3, 8],
+];
 const FLAT = [
-  { x: 1 * BLOCK, z: -1 * BLOCK, r0: 38, r1: 80 },
-  { x: 2 * BLOCK, z: -2 * BLOCK, r0: 34, r1: 70 },
-  { x: 1 * BLOCK, z: 0, r0: 28, r1: 58 },
+  ...HQ.map(([gx, gz]) => ({ x: gx * BLOCK, z: gz * BLOCK, r0: 30, r1: 62 })),
+  ...HOSPITAL.map(([gx, gz]) => ({ x: gx * BLOCK, z: gz * BLOCK, r0: 22, r1: 48 })),
 ];
 const NO_COTTAGES = new Set(["1,-1", "2,-2", "1,0"]);
 
 function hills(x: number, z: number) {
   return (
-    3.0 * Math.sin(x * 0.021 + 1.1) * Math.cos(z * 0.017 + 0.4) +
-    1.6 * Math.sin((x + z) * 0.033 + 2.0) +
-    0.8 * Math.sin(x * 0.057 - z * 0.049 + 0.7) -
-    z * 0.006 // an overall fall toward +z: the village runs downhill
+    1.5 * (
+      3.0 * Math.sin(x * 0.021 + 1.1) * Math.cos(z * 0.017 + 0.4) +
+      1.6 * Math.sin((x + z) * 0.033 + 2.0) +
+      0.8 * Math.sin(x * 0.057 - z * 0.049 + 0.7)
+    ) +
+    4.0 * Math.sin(x * 0.009 + 0.3) * Math.cos(z * 0.008 - 0.9) - // broad swells
+    z * 0.006 // an overall fall toward +z: the land runs downhill
   );
 }
 
-/** 0 at the edge of the village, 1 well inside it. */
+/** 0 at the map edge, 1 well inside it. */
 function edgeMask(x: number, z: number) {
   const gx = Math.round(x / BLOCK);
   const gz = Math.round(z / BLOCK);
@@ -58,7 +53,7 @@ function edgeMask(x: number, z: number) {
   if (!isVillageBlock(gx - 1, gz)) d = Math.min(d, 32 + lx);
   if (!isVillageBlock(gx, gz + 1)) d = Math.min(d, 32 - lz);
   if (!isVillageBlock(gx, gz - 1)) d = Math.min(d, 32 + lz);
-  return smoothstep(0, 22, d);
+  return smoothstep(0, 32, d);
 }
 
 function baseHeight(x: number, z: number) {
@@ -71,7 +66,7 @@ function baseHeight(x: number, z: number) {
 type Pad = { x: number; z: number; w: number; d: number; level: number };
 const padCache = new Map<string, Pad[]>();
 
-/** Each cottage stands on its own level terrace, so walls never float or sink on a slope. */
+/** Each cottage stands on its own level terrace (none while the village buildings are off). */
 function padsOf(gx: number, gz: number): Pad[] {
   const key = `${gx},${gz}`;
   let p = padCache.get(key);
@@ -102,8 +97,7 @@ export function groundHeight(x: number, z: number): number {
 }
 
 // ---- Winding lanes ---------------------------------------------------------------------
-// The lanes lie between blocks; inside the village they wander up to 5 m to either side so the
-// trails curve instead of running ruler-straight. Outside the village they stay straight.
+// The lanes lie between blocks; they wander up to 5 m to either side so the trails curve.
 
 const LINES: number[] = Array.from({ length: GRID * 2 + 2 }, (_, i) => (i - GRID - 0.5) * BLOCK);
 const WIND = 5;
