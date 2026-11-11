@@ -20,6 +20,10 @@ const BOOST_AMBIENT = 0.12;
 const BOOST_HEMI = 0.22;
 const BOOST_SUN = 0.55;
 
+// How far you can see before the haze takes over (metres).
+const FOG_NEAR = 140;
+const FOG_FAR = 560;
+
 type Pal = {
   daySky: THREE.Color;
   dayFog: THREE.Color;
@@ -41,22 +45,23 @@ function pal(v: [string, string, string, string, string, string]): Pal {
   };
 }
 
-// Land nobody holds: a natural pale-blue sky with a soft warm haze (was lavender).
+// Land nobody holds: a natural pale-blue sky with a soft warm haze.
 const NEUTRAL_VALUES: [string, string, string, string, string, string] = [
   "#b3d3e8", "#e2e6e0", "#8d86a8", "#a9a0b8", "#fff4dc", "#ffcf9a",
 ];
 const NEUTRAL = pal(NEUTRAL_VALUES);
 
 // Each kingdom's sky: daySky, dayFog, duskSky, duskFog, daySun, duskSun.
+// All four are natural blue summer skies, with a different warmth of haze to match the biome.
 const FACTION: Pal[] = [
-  // 0 The Kings: rich summer blue, warm golden haze, amber sunsets
+  // 0 The Kings: rich blue, warm golden haze, amber sunsets
   pal(["#6fb2ee", "#efe6c6", "#c98f5e", "#d9b07c", "#fff0c0", "#ffb866"]),
-  // 1 The Warriors: crimson
-  pal(["#f0a6ab", "#f2bcc0", "#a34758", "#b8606f", "#ffd9d6", "#ff8a8f"]),
-  // 2 The Outcasts: acid green
-  pal(["#c9e58a", "#d6eca6", "#6f9a3e", "#86ad55", "#f4ffd0", "#d2ff7a"]),
-  // 3 The Monsters: violet
-  pal(["#c2a4f0", "#d0b8f5", "#6c4aa8", "#8460bd", "#eadcff", "#b992ff"]),
+  // 1 The Warriors: clear blue over red-orange autumn, peach haze
+  pal(["#7db4ea", "#f3d3a6", "#b5553a", "#d98a62", "#fff0c8", "#ff9a5a"]),
+  // 2 The Outcasts: clear blue over deep forest, cool green haze
+  pal(["#6fb8e6", "#d7ebd0", "#5f8a4a", "#86ad70", "#f4ffd8", "#d9ff9a"]),
+  // 3 The Monsters: pale blue over dry golden land, sandy haze
+  pal(["#8cc0ea", "#f2deb0", "#a8744a", "#d0a070", "#fff2c8", "#ffb870"]),
 ];
 
 export function DayNight() {
@@ -96,7 +101,12 @@ export function DayNight() {
 
     if (scene.background instanceof THREE.Color) scene.background.copy(state.sky);
     else scene.background = state.sky.clone();
-    if (scene.fog && "color" in scene.fog) (scene.fog as THREE.Fog).color.copy(state.fog);
+    if (scene.fog && "color" in scene.fog) {
+      const fog = scene.fog as THREE.Fog;
+      fog.color.copy(state.fog);
+      fog.near = FOG_NEAR;
+      fog.far = FOG_FAR;
+    }
 
     if (dirRef.current) {
       dirRef.current.color.copy(state.sun);

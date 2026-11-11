@@ -2,7 +2,7 @@
 
 import { makeCottages, type Cottage } from "./medieval/houseKit";
 import { SQUARE_BLOCK, computePropColliders, type Solid } from "./medieval/colliders";
-import { VILLAGE_BUILDINGS } from "./medieval/mode";
+import { VILLAGE_BUILDINGS, OLD_CITY } from "./medieval/mode";
 import { groundHeight } from "./terrain";
 
 export type BuildingType =
@@ -202,7 +202,8 @@ function isHospitalBlock(gx: number, gz: number) {
   return (Object.values(HOSPITAL_BLOCKS) as [number, number][]).some(([hx, hz]) => hx === gx && hz === gz);
 }
 
-export const BUILDINGS: BuildingBox[] = (() => {
+/** The full layout of the old world (kept so bank positions and other game data stay the same). */
+const RAW_BUILDINGS: BuildingBox[] = (() => {
   const r = rng(20260726);
   const list: BuildingBox[] = [];
   for (let gx = -GRID; gx <= GRID; gx++) {
@@ -297,10 +298,19 @@ export const BUILDINGS: BuildingBox[] = (() => {
   return list;
 })();
 
+/**
+ * What the world actually contains. With OLD_CITY off, every old building becomes a flat, invisible,
+ * non-solid marker (same position and order, so indexes used elsewhere stay valid) and the whole map
+ * is open landscape.
+ */
+export const BUILDINGS: BuildingBox[] = OLD_CITY
+  ? RAW_BUILDINGS
+  : RAW_BUILDINGS.map((b) => ({ ...b, type: "plaza" as const, h: 1, cottage: undefined, y0: undefined }));
+
 /** Village props you cannot walk through: wells, tree trunks, market stalls, the fountain. */
 export const PROP_COLLIDERS: Solid[] = computePropColliders(BUILDINGS, BLOCK_SIZE, groundHeight);
 
-// Collision tops are absolute heights (ground + building height), because the village is hilly.
+// Collision tops are absolute heights (ground + building height), because the land is hilly.
 const BUILDING_SOLIDS: Solid[] = BUILDINGS
   .filter((b) => b.type !== "crane" && b.type !== "plaza")
   .map((b) => ({ x: b.x, z: b.z, w: b.w, d: b.d, h: b.h + (b.y0 ?? 0) }));
@@ -383,7 +393,8 @@ export const NEUTRAL_HQS: { district: District; x: number; z: number }[] = [
   { district: "uptown", ...hqWorld("uptown") },
 ];
 
-export const ROBBABLE_BANKS: { id: number; x: number; z: number }[] = BUILDINGS
+// The bank positions come from the full old layout, so bank guards and robberies still have a place.
+export const ROBBABLE_BANKS: { id: number; x: number; z: number }[] = RAW_BUILDINGS
   .map((b, i) => ({ b, i }))
   .filter(({ b }) => b.type === "bank")
   .slice(0, 3)

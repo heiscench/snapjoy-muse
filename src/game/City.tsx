@@ -21,7 +21,7 @@ import { VillageBlocks } from "./medieval/VillageBlocks";
 import { TownSquare } from "./medieval/TownSquare";
 import { Foliage } from "./medieval/Foliage";
 import { SkyDome } from "./medieval/SkyDome";
-import { VILLAGE_BUILDINGS } from "./medieval/mode";
+import { VILLAGE_BUILDINGS, OLD_CITY } from "./medieval/mode";
 import {
   Bank, Crane, Harbor, LowRise, Mall, Silo, Stadium, Tower, Warehouse,
 } from "./city/buildingsA";
@@ -93,6 +93,9 @@ function renderBuilding(b: BuildingBox, i: number) {
 export function City() {
   const rendered = useMemo(() => {
     return BUILDINGS.map((b, i) => {
+      // The old modern city is hidden while the world is being rebuilt as landscape.
+      if (!OLD_CITY) return null;
+
       // The Kings' village cottages are drawn together by <VillageBlocks /> below.
       if (b.cottage) return null;
 
@@ -131,10 +134,10 @@ export function City() {
 
   return (
     <group>
-      {/* A painted sky with drifting clouds. */}
+      {/* A painted sky with drifting clouds and a sun. */}
       <SkyDome />
 
-      {/* The ground: rolling in the Kings' land, flat everywhere else. */}
+      {/* The ground: rolling hills everywhere, with a different biome for each kingdom. */}
       <Terrain />
 
       <Lots />
@@ -144,31 +147,34 @@ export function City() {
       <Lamps />
       <Props />
 
-      {/* The Black Tide: violet harbor water. */}
-      <mesh position={[0, 0.03, HARBOR_Z - BLOCK_SIZE * 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[groundExtent, BLOCK_SIZE * 1.4]} />
-        <meshStandardMaterial color="#6b52b8" emissive="#3a2a80" emissiveIntensity={0.35} roughness={0.4} />
-      </mesh>
+      {/* The Black Tide: violet harbor water (old city only). */}
+      {OLD_CITY && (
+        <mesh position={[0, 0.03, HARBOR_Z - BLOCK_SIZE * 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[groundExtent, BLOCK_SIZE * 1.4]} />
+          <meshStandardMaterial color="#6b52b8" emissive="#3a2a80" emissiveIntensity={0.35} roughness={0.4} />
+        </mesh>
+      )}
 
       {rendered}
       <VillageBlocks />
       {VILLAGE_BUILDINGS && <TownSquare />}
       <Foliage />
 
-      {DISTRICT_LABELS.map((d, i) => (
-        <Text
-          key={i}
-          position={[d.x, 46, d.z]}
-          fontSize={5}
-          color={themeOf(d.district).trim}
-          outlineWidth={0.25}
-          outlineColor="#2a2530"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {d.name}
-        </Text>
-      ))}
+      {OLD_CITY &&
+        DISTRICT_LABELS.map((d, i) => (
+          <Text
+            key={i}
+            position={[d.x, 46, d.z]}
+            fontSize={5}
+            color={themeOf(d.district).trim}
+            outlineWidth={0.25}
+            outlineColor="#2a2530"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {d.name}
+          </Text>
+        ))}
     </group>
   );
 }
