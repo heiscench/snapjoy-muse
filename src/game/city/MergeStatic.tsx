@@ -56,6 +56,9 @@ export function MergeStatic({ children, delayMs = 0 }: { children: React.ReactNo
         geo.computeBoundingSphere();
         const mesh = new THREE.Mesh(geo, b.material);
         mesh.userData.noMerge = true;
+        // Buildings and walls throw and catch sun shadows (only drawn when shadows are switched on).
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         root.add(mesh);
         merged.push(mesh);
       }

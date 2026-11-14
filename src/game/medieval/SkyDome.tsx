@@ -1,10 +1,11 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { createSunState, daylightPhase, updateSun } from "../dayNightConfig";
 
 // A painted sky: a blue gradient with soft cloud banks, thin wispy streaks that drift slowly, and a
 // warm sun. It takes its colours from the day/night system (scene background and fog), so dawn,
-// dusk and night still tint it.
+// dusk and night still tint it. The sun disc travels along the same path that lights the world.
 
 const VERT = `
 varying vec3 vDir;
@@ -91,10 +92,13 @@ export function SkyDome() {
     [],
   );
   const tmp = useMemo(() => new THREE.Color(), []);
+  const sun = useMemo(() => createSunState(), []);
 
   useFrame(({ camera, clock }) => {
     if (mesh.current) mesh.current.position.copy(camera.position);
     mat.uniforms.uTime.value = clock.elapsedTime;
+    updateSun(daylightPhase(clock.elapsedTime), sun);
+    mat.uniforms.uSunDir.value.set(sun.x, sun.y, sun.z);
     // The day/night system keeps scene.background (sky) and scene.fog (horizon haze) up to date.
     if (scene.background instanceof THREE.Color) {
       mat.uniforms.uTop.value.copy(scene.background).multiplyScalar(0.82);

@@ -15,13 +15,17 @@ const N = (HALF * 2) / STEP;
 
 // dark, middle, light of each biome
 const BIOMES: [THREE.Color, THREE.Color, THREE.Color][] = [
-  [new THREE.Color("#6c9a3a"), new THREE.Color("#8fb84a"), new THREE.Color("#a9bf4c")],
+  // Kings: a natural meadow green, less neon than before, with darker clumps and lighter dry tips.
+  [new THREE.Color("#4f7a2e"), new THREE.Color("#6c9638"), new THREE.Color("#8aa842")],
   [new THREE.Color("#b0622a"), new THREE.Color("#c9832e"), new THREE.Color("#d9a23c")],
   [new THREE.Color("#3f7a30"), new THREE.Color("#4f8a34"), new THREE.Color("#6aa23c")],
   [new THREE.Color("#d6a85a"), new THREE.Color("#e0bc6a"), new THREE.Color("#ecc97c")],
 ];
 const AUTUMN = new THREE.Color("#d6a93a");
 const SAND = new THREE.Color("#d9c88f");
+// Broad patches of drier, yellower grass and of damp, darker ground break up the meadow.
+const DRY_PATCH = new THREE.Color("#9a9a48");
+const DAMP_PATCH = new THREE.Color("#3f6a2a");
 const OFFSETS: [number, number][] = [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]];
 
 function smooth(a: number, b: number, x: number) {
@@ -83,12 +87,18 @@ function buildTerrain() {
       const n1 = hash01(Math.floor(x / 16), Math.floor(z / 16), 3);
       const n2 = hash01(Math.floor(x / 9), Math.floor(z / 9), 4);
       const n3 = hash01(Math.floor(x / 24), Math.floor(z / 24), 5);
+      // Broad, slow variation (about 56 m patches) so the meadow is not one flat colour.
+      const n4 = hash01(Math.floor(x / 56), Math.floor(z / 56), 6);
       let r = 0, g = 0, b = 0;
       for (const [dx, dz] of OFFSETS) {
         const kd = themeOf(districtAt(x + dx, z + dz)).id;
         const bm = BIOMES[kd];
         tmp.copy(bm[0]).lerp(bm[1], n1).lerp(bm[2], n3 * 0.6);
-        if (kd === 0) tmp.lerp(AUTUMN, autumnAt(x, z) * (n2 > 0.4 ? 0.5 : 0.3));
+        if (kd === 0) {
+          tmp.lerp(AUTUMN, autumnAt(x, z) * (n2 > 0.4 ? 0.5 : 0.3));
+          if (n4 > 0.62) tmp.lerp(DRY_PATCH, (n4 - 0.62) * 1.5);
+          else if (n4 < 0.3) tmp.lerp(DAMP_PATCH, (0.3 - n4) * 1.4);
+        }
         r += tmp.r; g += tmp.g; b += tmp.b;
       }
       tmp.setRGB(r / OFFSETS.length, g / OFFSETS.length, b / OFFSETS.length);
