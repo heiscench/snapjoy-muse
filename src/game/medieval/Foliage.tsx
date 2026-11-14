@@ -209,6 +209,9 @@ function buildSpecies(spec: Spec, scene: THREE.Object3D): SpeciesData {
     const mesh = new THREE.InstancedMesh(geometry, material, cap);
     mesh.frustumCulled = false;
     mesh.count = 0;
+    // Trees and boulders throw sun shadows; every plant catches them (only drawn when shadows are on).
+    mesh.castShadow = spec.group === "tree" || spec.group === "rock";
+    mesh.receiveShadow = true;
     if (leaf) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
     parts.push({ mesh, tinted: leaf });
   });
