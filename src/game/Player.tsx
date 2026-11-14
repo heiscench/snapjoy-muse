@@ -21,6 +21,7 @@ import {
 } from "./worldData";
 import { floorAt } from "./skyIslands";
 import { findFreeSpot } from "./unstick";
+import { groundHeight } from "./terrain";
 import { fireShot } from "./shooting";
 import {
   playerState, healPlayer, revivePlayer, spendMoney, deathTax,
@@ -102,6 +103,8 @@ export function Player() {
   const grounded = useRef(true);
   const walkPhase = useRef(0);
   const camOffset = useRef(new THREE.Vector3());
+  // How far the on-foot camera has been lifted to clear a hill between it and the player.
+  const camLift = useRef(0);
   const fireCd = useRef(0);
   const recoil = useRef(0);
   const hasSpawned = useRef(false);
@@ -277,21 +280,29 @@ export function Player() {
           c.x = nx;
           c.z = nz;
 
+          const carGround = groundHeight(c.x, c.z);
           playerState.pos.x = c.x;
           playerState.pos.z = c.z;
-          playerState.y = 0;
+          playerState.y = carGround;
           playerState.yaw = c.rotY;
 
+          // The chase camera follows the rolling ground: never below the hill behind the car.
           const back = new THREE.Vector3(Math.sin(c.rotY), 0, Math.cos(c.rotY));
-          const camTarget = new THREE.Vector3(c.x - back.x * 7, 3.4, c.z - back.z * 7);
+          const camX = c.x - back.x * 7;
+          const camZ = c.z - back.z * 7;
+          const camTarget = new THREE.Vector3(
+            camX,
+            Math.max(carGround + 3.4, groundHeight(camX, camZ) + 2.5),
+            camZ,
+          );
           camera.position.lerp(camTarget, Math.min(1, dtc * 6));
-          camera.lookAt(c.x, 1, c.z);
+          camera.lookAt(c.x, carGround + 1, c.z);
 
           fireCd.current = Math.max(0, fireCd.current - dtc);
           if (input.fire && fireCd.current === 0) {
             const w = currentWeapon();
             fireCd.current = w.fireRate;
-            const origin = new THREE.Vector3(c.x, 1.6, c.z);
+            const origin = new THREE.Vector3(c.x, carGround + 1.6, c.z);
             fireWeapon(origin, fwd.clone());
           }
 
@@ -360,6 +371,8 @@ export function Player() {
           heli.pos.y + 6 + Math.sin(pitch.current) * 3,
           heli.pos.z + camBack.z * 14,
         );
+        // Keep the chase camera above the hills.
+        camTarget.y = Math.max(camTarget.y, groundHeight(camTarget.x, camTarget.z) + 2.5);
         camera.position.lerp(camTarget, Math.min(1, dtc * 6));
         camera.lookAt(heli.pos.x, heli.pos.y + 1.5, heli.pos.z);
 
@@ -540,7 +553,27 @@ export function Player() {
       back.z * targetDist + sideV.z * shoulderX,
     );
     camOffset.current.lerp(targetOffset, Math.min(1, dtc * 8));
-    camera.position.set(p.x + camOffset.current.x, p.y + camOffset.current.y, p.z + camOffset.current.z);
+    const camX = p.x + camOffset.current.x;
+    const camY = p.y + camOffset.current.y;
+    const camZ = p.z + camOffset.current.z;
+
+    // ---- Keep the camera clear of the rolling hills ----
+    // The camera hangs a fixed distance behind the player. On a slope the ground behind can rise above
+    // that line, which hides the player's legs (it looks like sinking into the ground). Walk along the
+    // line from the player's head to the camera and lift the camera until it clears the ground.
+    const headY = p.y + 1.5;
+    let neededLift = 0;
+    for (const t of [1, 0.8, 0.6, 0.4, 0.2]) {
+      const sx = p.x + (camX - p.x) * t;
+      const sz = p.z + (camZ - p.z) * t;
+      const lineY = headY + (camY - headY) * t;
+      const deficit = groundHeight(sx, sz) + 0.8 - lineY;
+      if (deficit > 0) neededLift = Math.max(neededLift, deficit / t);
+    }
+    // Rise quickly (so the view is never blocked), settle back down gently.
+    camLift.current += (neededLift - camLift.current) * Math.min(1, dtc * (neededLift > camLift.current ? 16 : 4));
+
+    camera.position.set(camX, camY + camLift.current, camZ);
     camera.lookAt(
       p.x + sideV.x * shoulderX * 0.6,
       p.y + 1.5 + recoil.current * 0.35,
